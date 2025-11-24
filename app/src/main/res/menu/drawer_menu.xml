@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <group android:checkableBehavior="single">
+        <item
+            android:id="@+id/menu_filter_category"
+            android:icon="@android:drawable/ic_menu_sort_by_size"
+            android:title="Kategoriler" />
+        <item
+            android:id="@+id/menu_filter_brand"
+            android:icon="@android:drawable/ic_menu_search"
+            android:title="Markaya Göre Filtrele" />
+    </group>
+
+    <item android:title="Yönetim">
+        <menu>
+            <item
+                android:id="@+id/menu_admin_login"
+                android:icon="@android:drawable/ic_lock_idle_lock"
+                android:title="Mağaza / Admin Girişi" />
+        </menu>
+    </item>
+</menu>
