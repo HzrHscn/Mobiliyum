@@ -1,41 +1,62 @@
 package com.example.mobiliyum
 
+import android.app.AlertDialog
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
 import android.widget.TextView
+import android.widget.Toast
 import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+// Düzeltildi: ProductDetailDialogFragment sınıfını artık doğru bir şekilde import ediyoruz.
+import com.example.mobiliyum.ProductDetailDialogFragment
 
 class CartFragment : Fragment() {
 
     private lateinit var recyclerView: RecyclerView
     private lateinit var tvTotal: TextView
+    private lateinit var btnRemoveSelected: Button
+    private lateinit var btnOpenSelected: Button
     private lateinit var emptyView: View
     private lateinit var contentView: View
+
+    private var cartAdapter: CartAdapter? = null
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View? {
         val view = inflater.inflate(R.layout.fragment_cart, container, false)
-        // fragment_cart.xml içinde bir RecyclerView olduğunu varsayarak düzenliyoruz.
-        // Eğer XML'i henüz güncellemediysen, aşağıda XML kodunu da vereceğim.
 
-        recyclerView = view.findViewById(R.id.rvCartItems) // XML'de bu ID olmalı
-        tvTotal = view.findViewById(R.id.tvCartTotal)      // XML'de bu ID olmalı
-        emptyView = view.findViewById(R.id.layoutEmptyCart) // Boş sepet tasarımı
-        contentView = view.findViewById(R.id.layoutCartContent) // Dolu sepet tasarımı
+        // Bileşenleri Bağla
+        recyclerView = view.findViewById(R.id.rvCartItems)
+        tvTotal = view.findViewById(R.id.tvCartTotal)
+        emptyView = view.findViewById(R.id.layoutEmptyCart)
+        contentView = view.findViewById(R.id.layoutCartContent)
+
+        // Butonları Bağla
+        btnRemoveSelected = view.findViewById(R.id.btnRemoveSelected)
+        btnOpenSelected = view.findViewById(R.id.btnOpenSelected)
+
+        // Listener'ları ayarla
+        btnRemoveSelected.setOnClickListener {
+            handleRemoveSelected()
+        }
+
+        btnOpenSelected.setOnClickListener {
+            handleOpenSelectedLinks()
+        }
 
         loadCart()
 
         return view
     }
 
-    // Sepet her görüntülendiğinde güncel veriyi çekmesi için onResume kullanıyoruz
     override fun onResume() {
         super.onResume()
         loadCart()
@@ -51,15 +72,97 @@ class CartFragment : Fragment() {
             emptyView.visibility = View.GONE
             contentView.visibility = View.VISIBLE
 
-            // Ürünleri listele
             recyclerView.layoutManager = LinearLayoutManager(context)
-            // ProductAdapter'ı burada da kullanıyoruz. Tıklanınca bir şey yapmasına gerek yok şimdilik.
-            recyclerView.adapter = ProductAdapter(items) {
-                // Sepetteki ürüne tıklayınca detayına gidebiliriz istersek
+
+            // DÜZELTİLDİ: Adapter'a tıklama listener'ı tekrar ekleniyor.
+            cartAdapter = CartAdapter(items) { clickedProduct ->
+                handleProductClick(clickedProduct)
             }
+            recyclerView.adapter = cartAdapter
 
             // Toplam tutarı yazdır
-            tvTotal.text = "Toplam: ${CartManager.getTotalPrice()} ₺"
+            tvTotal.text = "Tahmini Toplam: ${CartManager.getTotalPrice()} ₺"
+        }
+    }
+
+    /**
+     * Tıklanan ürün için detay pop-up'ı açar.
+     * Bu fonksiyon artık ProductDetailDialogFragment'ı çağırıyor.
+     */
+    private fun handleProductClick(product: Product) {
+        ProductDetailDialogFragment.newInstance(product)
+            .show(parentFragmentManager, "ProductDetailDialog")
+    }
+
+    /**
+     * Seçili ürünleri sepetten kaldırır.
+     */
+    private fun handleRemoveSelected() {
+        val selectedProducts = cartAdapter?.getSelectedProducts()
+
+        if (selectedProducts.isNullOrEmpty()) {
+            Toast.makeText(context, "Lütfen silmek istediğiniz ürünleri seçin.", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        AlertDialog.Builder(context)
+            .setTitle("${selectedProducts.size} Ürünü Kaldır")
+            .setMessage("Seçili ${selectedProducts.size} ürün sepetten kaldırılacaktır. Onaylıyor musunuz?")
+            .setPositiveButton("Evet, Kaldır") { _, _ ->
+                selectedProducts.forEach { product ->
+                    CartManager.removeFromCart(product)
+                }
+
+                Toast.makeText(context, "${selectedProducts.size} ürün sepetten kaldırıldı.", Toast.LENGTH_SHORT).show()
+                loadCart() // Arayüzü güncelle
+            }
+            .setNegativeButton("İptal", null)
+            .show()
+    }
+
+    /**
+     * Seçili ürünlerin linklerini toplu halde açar.
+     */
+    private fun handleOpenSelectedLinks() {
+        val selectedProducts = cartAdapter?.getSelectedProducts()
+
+        if (selectedProducts.isNullOrEmpty()) {
+            Toast.makeText(context, "Lütfen açmak istediğiniz en az bir ürün seçin.", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val message = selectedProducts.joinToString(separator = "\n") {
+            "- ${it.name} (${getDomain(it.productUrl)})"
+        }
+
+        AlertDialog.Builder(context)
+            .setTitle("${selectedProducts.size} Ürünü Dış Siteye Yönlendiriliyor")
+            .setMessage("Seçilen ürünler için aşağıdaki siteler yeni sekmelerde açılacaktır:\n\n$message")
+            .setPositiveButton("Onayla ve Aç") { _, _ ->
+                selectedProducts.forEach { product ->
+                    openWebsite(product.productUrl)
+                }
+            }
+            .setNegativeButton("İptal", null)
+            .show()
+    }
+
+    // Harici site açma ve domain çekme yardımcı fonksiyonları
+    private fun openWebsite(url: String) {
+        try {
+            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+            startActivity(intent)
+        } catch (e: Exception) {
+            Toast.makeText(context, "Link açılamadı.", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun getDomain(url: String): String {
+        return try {
+            val uri = Uri.parse(url)
+            uri.host?.replace("www.", "") ?: url
+        } catch (e: Exception) {
+            url
         }
     }
 }

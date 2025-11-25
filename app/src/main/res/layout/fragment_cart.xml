@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="#F5F5F5">
@@ -10,11 +11,12 @@
         android:layout_height="match_parent"
         android:gravity="center"
         android:orientation="vertical"
-        android:visibility="gone"> <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Sepetiniz Boş"
-        android:textSize="20sp"/>
+        android:visibility="gone">
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Sepetiniz Boş"
+            android:textSize="20sp"/>
     </LinearLayout>
 
     <RelativeLayout
@@ -44,18 +46,41 @@
                 android:id="@+id/tvCartTotal"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Toplam: 0 ₺"
+                android:text="Tahmini Toplam: 0 ₺"
                 android:textSize="18sp"
                 android:textStyle="bold"
                 android:textColor="#333"
-                android:gravity="end"/>
+                android:gravity="end"
+                android:layout_marginBottom="12dp"/>
 
-            <Button
+            <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Sepeti Onayla"
-                android:layout_marginTop="12dp"
-                android:backgroundTint="#4CAF50"/>
+                android:orientation="horizontal"
+                android:weightSum="2">
+
+                <Button
+                    android:id="@+id/btnRemoveSelected"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Seçilileri Sil"
+                    android:layout_marginEnd="8dp"
+                    android:backgroundTint="#D32F2F"
+                    app:icon="@android:drawable/ic_menu_delete"
+                    app:iconGravity="textStart"/>
+
+                <Button
+                    android:id="@+id/btnOpenSelected"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Seçili Ürünleri Aç"
+                    android:backgroundTint="#FF6F00"
+                    app:icon="@android:drawable/ic_menu_send"
+                    app:iconGravity="textStart"/>
+            </LinearLayout>
+
         </LinearLayout>
     </RelativeLayout>
 </FrameLayout>

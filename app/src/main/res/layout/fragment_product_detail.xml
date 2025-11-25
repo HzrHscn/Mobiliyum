@@ -15,7 +15,6 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical">
-
             <ImageView
                 android:id="@+id/imgProductDetail"
                 android:layout_width="match_parent"
@@ -88,19 +87,35 @@
         android:background="#FFFFFF"
         android:elevation="16dp"
         android:padding="16dp"
+        android:orientation="horizontal"
+        android:weightSum="2"
         app:layout_constraintBottom_toBottomOf="parent">
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnAddToCart"
-            android:layout_width="match_parent"
+            android:layout_width="0dp"
             android:layout_height="60dp"
-            android:backgroundTint="#FF6F00"
+            android:layout_weight="1"
+            android:layout_marginEnd="8dp"
+            android:backgroundTint="#212121"
             android:text="Sepete Ekle"
             android:textSize="16sp"
             android:textStyle="bold"
             app:cornerRadius="8dp"
             app:icon="@android:drawable/ic_input_add"
             app:iconGravity="textStart" />
-    </LinearLayout>
 
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnGoToStore"
+            android:layout_width="0dp"
+            android:layout_height="60dp"
+            android:layout_weight="1"
+            android:backgroundTint="#FF6F00"
+            android:text="Ürüne Git"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            app:cornerRadius="8dp"
+            app:icon="@android:drawable/ic_menu_send"
+            app:iconGravity="textStart" />
+    </LinearLayout>
 </androidx.constraintlayout.widget.ConstraintLayout>

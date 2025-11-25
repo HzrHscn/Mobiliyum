@@ -4,8 +4,10 @@ import java.io.Serializable
 
 data class Product(
     val id: Int,
-    val category: String,   // Ürün Kategorisi (Örn: Koltuk Takımları)
-    val name: String,       // Ürün Adı (Örn: Berlin Köşe Takımı)
-    val price: String,      // Fiyatı (Örn: 45.000 TL)
-    val imageUrl: String    // Ürün Resmi URL'si
+    val storeId: Int,       // ÖNEMLİ: Ürünün hangi mağazaya ait olduğu (Yetki kontrolü için)
+    val category: String,
+    val name: String,
+    val price: String,
+    val imageUrl: String,
+    val productUrl: String  // YENİ: Sepetten yönlendirme yapılacak web linki
 ) : Serializable

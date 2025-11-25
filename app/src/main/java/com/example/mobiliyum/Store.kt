@@ -1,9 +1,11 @@
 package com.example.mobiliyum
 
+import java.io.Serializable
+
 data class Store(
-    val id: Int,
-    val name: String,       // Mağaza Adı (Örn: Çilek Mobilya)
-    val category: String,   // Kategori (Örn: Genç Odası, Ofis)
-    val imageUrl: String,   // Logo URL'si
-    val location: String    // Mağaza No / Konum
-)
+    val id: Int = 0,
+    val name: String = "",
+    val category: String = "",
+    val imageUrl: String = "",
+    val location: String = ""
+) : Serializable

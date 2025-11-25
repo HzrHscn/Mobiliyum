@@ -8,10 +8,10 @@
             <InsightsFilterSettings>
               <option name="connection">
                 <ConnectionSetting>
-                  <option name="appId" value="PLACEHOLDER" />
-                  <option name="mobileSdkAppId" value="" />
-                  <option name="projectId" value="" />
-                  <option name="projectNumber" value="" />
+                  <option name="appId" value="com.example.mobiliyum" />
+                  <option name="mobileSdkAppId" value="1:502263545178:android:9b34e4cb25905c603d4763" />
+                  <option name="projectId" value="mobiliyum-9250b" />
+                  <option name="projectNumber" value="502263545178" />
                 </ConnectionSetting>
               </option>
               <option name="signal" value="SIGNAL_UNSPECIFIED" />
