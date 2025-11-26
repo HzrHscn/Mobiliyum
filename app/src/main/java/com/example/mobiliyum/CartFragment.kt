@@ -73,15 +73,13 @@ class CartFragment : Fragment() {
             contentView.visibility = View.VISIBLE
 
             recyclerView.layoutManager = LinearLayoutManager(context)
-
-            // DÜZELTİLDİ: Adapter'a tıklama listener'ı tekrar ekleniyor.
-            cartAdapter = CartAdapter(items) { clickedProduct ->
-                handleProductClick(clickedProduct)
-            }
+            cartAdapter = CartAdapter(items) { /* Tıklama boş şimdilik */ }
             recyclerView.adapter = cartAdapter
 
-            // Toplam tutarı yazdır
-            tvTotal.text = "Tahmini Toplam: ${CartManager.getTotalPrice()} ₺"
+            // DÜZELTME: Toplam tutarı PriceUtils ile hesaplayıp yazdırıyoruz
+            // CartManager'ın getTotalPrice'ını Double döndürecek şekilde güncelleyeceğiz
+            val totalAmount = CartManager.calculateTotalAmount()
+            tvTotal.text = PriceUtils.formatPriceStyled(totalAmount)
         }
     }
 

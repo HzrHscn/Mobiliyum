@@ -1,5 +1,4 @@
 package com.example.mobiliyum
-
 import java.io.Serializable
 
 data class Store(
@@ -7,5 +6,6 @@ data class Store(
     val name: String = "",
     val category: String = "",
     val imageUrl: String = "",
-    val location: String = ""
+    val location: String = "",
+    val clickCount: Int = 0 // YENİ: Tıklanma Sayısı
 ) : Serializable

@@ -61,7 +61,7 @@
                 android:layout_height="wrap_content"
                 android:text="25.000 ₺"
                 android:textSize="13sp"
-                android:textColor="#FF6F00"
+                android:textColor="#4CAF50"
                 android:textStyle="bold" />
 
             <TextView

@@ -4,8 +4,8 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:layout_margin="6dp"
-    app:cardCornerRadius="8dp"
-    app:cardElevation="3dp"
+    app:cardCornerRadius="12dp"
+    app:cardElevation="4dp"
     app:cardBackgroundColor="#FFFFFF">
 
     <LinearLayout
@@ -16,7 +16,7 @@
         <ImageView
             android:id="@+id/imgProduct"
             android:layout_width="match_parent"
-            android:layout_height="140dp"
+            android:layout_height="150dp"
             android:src="@android:drawable/ic_menu_gallery"
             android:scaleType="centerCrop"
             android:background="#FAFAFA" />
@@ -25,27 +25,42 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:padding="10dp">
+            android:padding="12dp">
+
+            <TextView
+                android:id="@+id/tvCategoryBadge"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Kategori"
+                android:textSize="10sp"
+                android:textColor="#757575"
+                android:background="@drawable/ic_launcher_background"
+                android:backgroundTint="#F0F0F0"
+                android:paddingHorizontal="6dp"
+                android:paddingVertical="2dp"
+                android:layout_marginBottom="4dp"
+                android:visibility="gone"/>
 
             <TextView
                 android:id="@+id/tvProductName"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Modern Koltuk"
+                android:text="Ürün İsmi"
                 android:maxLines="2"
                 android:ellipsize="end"
-                android:textSize="14sp"
+                android:textSize="15sp"
                 android:textColor="#212121"
-                android:textStyle="bold" />
+                android:textStyle="bold"
+                android:minLines="2" />
 
             <TextView
                 android:id="@+id/tvProductPrice"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="25.000 ₺"
-                android:layout_marginTop="4dp"
-                android:textSize="13sp"
-                android:textColor="#FF6F00"
+                android:text="0 ₺"
+                android:layout_marginTop="8dp"
+                android:textSize="16sp"
+                android:textColor="#4CAF50"
                 android:textStyle="bold" />
 
         </LinearLayout>

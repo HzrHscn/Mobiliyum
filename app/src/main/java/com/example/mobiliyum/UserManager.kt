@@ -1,121 +1,159 @@
 package com.example.mobiliyum
 
+import com.google.firebase.auth.EmailAuthProvider
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.auth.UserProfileChangeRequest
+import com.google.firebase.firestore.FirebaseFirestore
 
 object UserManager {
 
     private val auth: FirebaseAuth = FirebaseAuth.getInstance()
+    private val db: FirebaseFirestore = FirebaseFirestore.getInstance()
 
-    // Anlık rolü hafızada tutuyoruz (Veritabanı gelince burası oradan dolacak)
-    private var currentUserRole: UserRole = UserRole.CUSTOMER
+    private var currentUserData: User? = null
 
-    /**
-     * KULLANICI GİRİŞİ (LOGIN)
-     * @param onSuccess: İşlem başarılı olursa çalışacak kod bloğu
-     * @param onFailure: Hata olursa çalışacak ve hatayı verecek kod bloğu
-     */
+    // --- GİRİŞ ---
     fun login(email: String, pass: String, onSuccess: () -> Unit, onFailure: (String) -> Unit) {
         auth.signInWithEmailAndPassword(email, pass)
-            .addOnSuccessListener {
-                // Giriş başarılı, şimdi rolü belirle
-                refreshUserRole()
-                onSuccess()
+            .addOnSuccessListener { authResult ->
+                val uid = authResult.user?.uid
+                if (uid != null) {
+                    fetchUserProfile(uid, onSuccess, onFailure)
+                } else {
+                    onFailure("Kullanıcı kimliği alınamadı.")
+                }
             }
-            .addOnFailureListener { exception ->
-                // Hata mesajını (örneğin: Şifre yanlış) geri döndür
-                onFailure(exception.localizedMessage ?: "Giriş başarısız.")
+            .addOnFailureListener {
+                onFailure(it.localizedMessage ?: "Giriş başarısız.")
             }
     }
 
-    /**
-     * YENİ KULLANICI KAYDI (REGISTER)
-     * Hem kayıt olur hem de kullanıcının "Ad Soyad" bilgisini profiline işler.
-     */
+    // --- KAYIT ---
     fun register(email: String, pass: String, fullName: String, onSuccess: () -> Unit, onFailure: (String) -> Unit) {
         auth.createUserWithEmailAndPassword(email, pass)
             .addOnSuccessListener { authResult ->
-                // 1. Kayıt başarılı, şimdi Ad-Soyad bilgisini Firebase User profiline ekleyelim
-                val user = authResult.user
-                val profileUpdates = UserProfileChangeRequest.Builder()
-                    .setDisplayName(fullName)
-                    .build()
+                val firebaseUser = authResult.user
+                if (firebaseUser != null) {
+                    val profileUpdates = UserProfileChangeRequest.Builder()
+                        .setDisplayName(fullName)
+                        .build()
+                    firebaseUser.updateProfile(profileUpdates)
 
-                user?.updateProfile(profileUpdates)
-                    ?.addOnCompleteListener { task ->
-                        if (task.isSuccessful) {
-                            // 2. Profil de güncellendi, işlem tamam
-                            refreshUserRole()
-                            onSuccess()
-                        } else {
-                            // Kayıt oldu ama isim eklenemedi (Nadir durum)
-                            onFailure("Kayıt oldu ancak profil güncellenemedi.")
-                        }
-                    }
+                    val newUser = User(
+                        id = firebaseUser.uid,
+                        email = email,
+                        fullName = fullName,
+                        role = UserRole.CUSTOMER,
+                        username = email.substringBefore("@"),
+                        lastProfileUpdate = 0,
+                        lastPasswordUpdate = 0
+                    )
+                    saveUserToFirestore(newUser, onSuccess, onFailure)
+                }
             }
-            .addOnFailureListener { exception ->
-                onFailure(exception.localizedMessage ?: "Kayıt başarısız.")
+            .addOnFailureListener {
+                onFailure(it.localizedMessage ?: "Kayıt başarısız.")
             }
     }
 
-    /**
-     * ÇIKIŞ YAP (LOGOUT)
-     */
+    // --- GÜNCELLEME FONKSİYONLARI (HATA ALINAN YERLER) ---
+
+    // İsim Güncelleme
+    fun updateUserName(newName: String, onComplete: (Boolean) -> Unit) {
+        val user = auth.currentUser ?: return
+        val dbUser = currentUserData ?: return
+
+        val updates = UserProfileChangeRequest.Builder()
+            .setDisplayName(newName)
+            .build()
+
+        user.updateProfile(updates).addOnCompleteListener { task ->
+            if (task.isSuccessful) {
+                dbUser.fullName = newName
+                dbUser.lastProfileUpdate = System.currentTimeMillis()
+
+                db.collection("users").document(user.uid).set(dbUser)
+                    .addOnSuccessListener { onComplete(true) }
+                    .addOnFailureListener { onComplete(false) }
+            } else {
+                onComplete(false)
+            }
+        }
+    }
+
+    // Şifre Güncelleme (Re-Auth gerektirir)
+    fun updateUserPassword(oldPass: String, newPass: String, onComplete: (Boolean, String?) -> Unit) {
+        val user = auth.currentUser
+        val dbUser = currentUserData
+
+        if (user == null || user.email == null || dbUser == null) {
+            onComplete(false, "Kullanıcı bulunamadı")
+            return
+        }
+
+        // 1. Önce eski şifre ile yeniden kimlik doğrula (Güvenlik için şart)
+        val credential = EmailAuthProvider.getCredential(user.email!!, oldPass)
+
+        user.reauthenticate(credential).addOnCompleteListener { reAuthTask ->
+            if (reAuthTask.isSuccessful) {
+                // 2. Şifreyi güncelle
+                user.updatePassword(newPass).addOnCompleteListener { updateTask ->
+                    if (updateTask.isSuccessful) {
+                        // 3. Firestore'a zaman damgası at
+                        dbUser.lastPasswordUpdate = System.currentTimeMillis()
+                        db.collection("users").document(user.uid).set(dbUser)
+                        onComplete(true, null)
+                    } else {
+                        onComplete(false, updateTask.exception?.localizedMessage)
+                    }
+                }
+            } else {
+                onComplete(false, "Mevcut şifre hatalı.")
+            }
+        }
+    }
+
+    // --- DİĞERLERİ ---
+    fun fetchUserProfile(uid: String, onSuccess: () -> Unit, onFailure: (String) -> Unit) {
+        db.collection("users").document(uid).get()
+            .addOnSuccessListener { document ->
+                if (document.exists()) {
+                    currentUserData = document.toObject(User::class.java)
+                    onSuccess()
+                } else {
+                    onSuccess()
+                }
+            }
+            .addOnFailureListener {
+                onFailure("Profil yüklenirken hata: ${it.message}")
+            }
+    }
+
+    private fun saveUserToFirestore(user: User, onSuccess: () -> Unit, onFailure: (String) -> Unit) {
+        db.collection("users").document(user.id).set(user)
+            .addOnSuccessListener {
+                currentUserData = user
+                onSuccess()
+            }
+            .addOnFailureListener {
+                onFailure("Veritabanı kaydı başarısız: ${it.message}")
+            }
+    }
+
+    fun getCurrentUser(): User? = currentUserData
+    fun isLoggedIn(): Boolean = auth.currentUser != null
     fun logout() {
         auth.signOut()
-        currentUserRole = UserRole.CUSTOMER
+        currentUserData = null
     }
-
-    /**
-     * ŞU ANKİ KULLANICIYI GETİR
-     */
-    fun getCurrentUser(): FirebaseUser? {
-        return auth.currentUser
-    }
-
-    /**
-     * GİRİŞ YAPILI MI KONTROLÜ
-     */
-    fun isLoggedIn(): Boolean {
-        return auth.currentUser != null
-    }
-
-    /**
-     * ROL BELİRLEME (GEÇİCİ MANTIK)
-     * Veritabanı (Firestore) bağlandığında burası veritabanından okunacak.
-     * Şimdilik e-posta adresine göre "Admin" veya "Müdür" veriyoruz ki sistemi test edebilesin.
-     */
-    fun refreshUserRole() {
-        val email = auth.currentUser?.email ?: return
-
-        currentUserRole = when {
-            email == "hazarhascan@gmail.com" -> UserRole.ADMIN
-            email == "srv@mobiliyum.com" -> UserRole.SRV
-            email.contains("cilek") -> UserRole.MANAGER  // Örn: mudur@cilek.com
-            email.contains("editor") -> UserRole.EDITOR
-            else -> UserRole.CUSTOMER
+    fun getUserRole(): UserRole = currentUserData?.role ?: UserRole.CUSTOMER
+    fun checkSession(onResult: (Boolean) -> Unit) {
+        val currentUser = auth.currentUser
+        if (currentUser != null) {
+            fetchUserProfile(currentUser.uid, { onResult(true) }, { onResult(false) })
+        } else {
+            onResult(false)
         }
-    }
-
-    // --- YETKİ SORGULARI ---
-
-    fun getUserRole(): UserRole {
-        // Eğer uygulama yeni açıldıysa ve kullanıcı zaten giriş yapmışsa rolü tekrar hesapla
-        if (currentUserRole == UserRole.CUSTOMER && isLoggedIn()) {
-            refreshUserRole()
-        }
-        return currentUserRole
-    }
-
-    fun canEditProduct(product: Product): Boolean {
-        // Admin her şeyi düzenler, Manager sadece kendi mağazasını (İleride storeId kontrolü eklenecek)
-        val role = getUserRole()
-        return role == UserRole.ADMIN || role == UserRole.MANAGER || role == UserRole.EDITOR
-    }
-
-    fun canViewAdminPanel(): Boolean {
-        val role = getUserRole()
-        return role != UserRole.CUSTOMER
     }
 }

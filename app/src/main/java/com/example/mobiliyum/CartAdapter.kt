@@ -8,10 +8,12 @@ import android.widget.ImageView
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
+import java.text.DecimalFormat
+import java.text.DecimalFormatSymbols
+import java.util.Locale
 
 class CartAdapter(
     private val cartItems: List<Product>,
-    // DÜZELTİLDİ: Ürüne tıklanmada çalışacak fonksiyon geri ekleniyor.
     private val onItemClick: (Product) -> Unit
 ) : RecyclerView.Adapter<CartAdapter.CartViewHolder>() {
 
@@ -33,10 +35,14 @@ class CartAdapter(
     override fun onBindViewHolder(holder: CartViewHolder, position: Int) {
         val product = cartItems[position]
 
-        // Verileri yükle
         holder.tvName.text = product.name
-        holder.tvPrice.text = product.price
-        holder.tvUrl.text = product.productUrl.replace("https://", "").replace("http://", "")
+        // DÜZELTİLDİ: Yeni formatlama fonksiyonu
+        holder.tvPrice.text = formatPrice(product.price)
+
+        holder.tvUrl.text = product.productUrl
+            .replace("https://", "")
+            .replace("http://", "")
+            .replace("www.", "")
 
         Glide.with(holder.itemView.context)
             .load(product.imageUrl)
@@ -44,20 +50,11 @@ class CartAdapter(
 
         holder.cbSelect.isChecked = selectedItems.contains(product)
 
-        // 1. CheckBox Olayı: Sadece CheckBox'a tıklanınca seçimi değiştir.
         holder.cbSelect.setOnCheckedChangeListener { _, isChecked ->
-            if (isChecked) {
-                selectedItems.add(product)
-            } else {
-                selectedItems.remove(product)
-            }
+            if (isChecked) selectedItems.add(product) else selectedItems.remove(product)
         }
 
-        // 2. TÜM ITEM TIKLAMA Olayı (CheckBox hariç alana tıklanınca): Detay pop-up'ını aç.
-        // CheckBox'a tıklama event'i, genellikle parent'a yayılmaz. Bu yüzden bu güvenli bir ayrım.
         holder.itemView.setOnClickListener {
-            // Eğer doğrudan CheckBox'a tıklanmadıysa (ki bu durumda CheckBox'ın kendi listener'ı devreye girerdi)
-            // Ürünün detay pop-up'ını açmak için callback'i çağır.
             onItemClick(product)
         }
     }
@@ -66,5 +63,29 @@ class CartAdapter(
 
     fun getSelectedProducts(): Set<Product> {
         return selectedItems
+    }
+
+    // --- DÜZELTİLMİŞ FİYAT FORMATLAMA FONKSİYONU ---
+    private fun formatPrice(rawPrice: String): String {
+        try {
+            var cleanString = rawPrice.replace("[^\\d.,]".toRegex(), "").trim()
+            if (cleanString.isEmpty()) return rawPrice
+
+            if (cleanString.contains(",")) {
+                cleanString = cleanString.replace(".", "")
+                cleanString = cleanString.replace(",", ".")
+            } else {
+                cleanString = cleanString.replace(".", "")
+            }
+
+            val priceValue = cleanString.toDouble()
+            val symbols = DecimalFormatSymbols(Locale.getDefault())
+            symbols.groupingSeparator = '.'
+            symbols.decimalSeparator = ','
+            val decimalFormat = DecimalFormat("#,###.##", symbols)
+            return "${decimalFormat.format(priceValue)} ₺"
+        } catch (e: Exception) {
+            return if (rawPrice.contains("₺")) rawPrice else "$rawPrice ₺"
+        }
     }
 }

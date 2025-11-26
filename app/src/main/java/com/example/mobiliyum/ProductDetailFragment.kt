@@ -15,15 +15,13 @@ import com.google.android.material.button.MaterialButton
 
 class ProductDetailFragment : Fragment() {
     private var currentProduct: Product? = null
-
-    // Yeni buton referansı
     private lateinit var btnGoToStore: MaterialButton
+    // Favori butonu (şimdilik sadece tanımlıyoruz)
+    // private lateinit var btnFavorite: ImageView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // Bundle içinden Serializable nesneyi alıyoruz
         arguments?.let {
-            // YENİLEME: Artık Product.kt içinde StoreId ve URL var, bu yüzden Product'ı kullanmak önemli.
             currentProduct = it.getSerializable("product_data") as Product?
         }
     }
@@ -34,51 +32,53 @@ class ProductDetailFragment : Fragment() {
     ): View? {
         val view = inflater.inflate(R.layout.fragment_product_detail, container, false)
 
-        // Eğer ürün verisi gelmediyse işlemi durdur (Hata önleyici)
-        if (currentProduct == null) return view
+        if (currentProduct != null) {
+            // Ürün Görüntülenme Sayısını Artır
+            val db = com.google.firebase.firestore.FirebaseFirestore.getInstance()
+            db.collection("products").document(currentProduct!!.id.toString())
+                .update("clickCount", com.google.firebase.firestore.FieldValue.increment(1))
+        }
 
         val imgProduct = view.findViewById<ImageView>(R.id.imgProductDetail)
         val tvName = view.findViewById<TextView>(R.id.tvProductName)
         val tvCategory = view.findViewById<TextView>(R.id.tvProductCategory)
         val tvPrice = view.findViewById<TextView>(R.id.tvProductPrice)
         val btnAddToCart = view.findViewById<MaterialButton>(R.id.btnAddToCart)
-        btnGoToStore = view.findViewById<MaterialButton>(R.id.btnGoToStore) // YENİ BUTONU BAĞLA
+        btnGoToStore = view.findViewById<MaterialButton>(R.id.btnGoToStore)
 
-        // Verileri Yazdır
         tvName.text = currentProduct!!.name
         tvCategory.text = currentProduct!!.category
-        tvPrice.text = currentProduct!!.price
+
+        // DÜZELTME: PriceUtils kullanarak süslü fiyat yazdırma
+        tvPrice.text = PriceUtils.formatPriceStyled(currentProduct!!.price)
 
         Glide.with(this)
             .load(currentProduct!!.imageUrl)
             .placeholder(android.R.drawable.ic_menu_gallery)
             .into(imgProduct)
 
-        // 1. SEPETE EKLE BUTONU (Eski mantık geri geliyor)
+        // Sepete Ekle
         btnAddToCart.setOnClickListener {
-            // 1. Ürünü Singleton Sepet Yöneticisine ekle
             CartManager.addToCart(currentProduct!!)
-
-            // 2. Kullanıcıya bilgi ver
             Toast.makeText(context, "${currentProduct!!.name} sepete eklendi!", Toast.LENGTH_SHORT).show()
         }
 
-        // 2. FİRMAYA GİT BUTONU (Yeni mantık)
+        // Firmaya Git
         btnGoToStore.setOnClickListener {
             val url = currentProduct!!.productUrl
-            openWebsite(url)
+            if (url.isNotEmpty()) openWebsite(url)
+            else Toast.makeText(context, "Mağaza linki bulunamadı.", Toast.LENGTH_SHORT).show()
         }
 
         return view
     }
 
-    // Yardımcı fonksiyon: Harici linki açar
     private fun openWebsite(url: String) {
         try {
             val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
             startActivity(intent)
         } catch (e: Exception) {
-            Toast.makeText(context, "Tarayıcı açılamadı: $url", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, "Tarayıcı açılamadı", Toast.LENGTH_SHORT).show()
         }
     }
 }

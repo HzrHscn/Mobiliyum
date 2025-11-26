@@ -1,10 +1,12 @@
 package com.example.mobiliyum
 
+import android.app.AlertDialog
 import android.os.Bundle
+import android.text.Html
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.Button
+import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
@@ -15,31 +17,31 @@ import com.google.android.material.textfield.TextInputEditText
 class AccountFragment : Fragment() {
 
     // --- XML Bileşenleri ---
-
-    // Konteynerler
     private lateinit var layoutLogin: LinearLayout
     private lateinit var layoutRegister: LinearLayout
     private lateinit var layoutProfile: LinearLayout
 
-    // Login Ekranı
+    // Login
     private lateinit var etLoginEmail: TextInputEditText
     private lateinit var etLoginPass: TextInputEditText
     private lateinit var btnLogin: MaterialButton
     private lateinit var tvGoToRegister: TextView
 
-    // Register Ekranı
+    // Register
     private lateinit var etRegName: TextInputEditText
     private lateinit var etRegEmail: TextInputEditText
     private lateinit var etRegPass: TextInputEditText
     private lateinit var btnRegister: MaterialButton
     private lateinit var tvGoToLogin: TextView
 
-    // Profil Ekranı
+    // Profil
     private lateinit var tvName: TextView
     private lateinit var tvRole: TextView
     private lateinit var tvEmail: TextView
     private lateinit var btnAdminPanel: MaterialButton
     private lateinit var btnLogout: MaterialButton
+    private lateinit var btnChangeName: MaterialButton
+    private lateinit var btnChangePassword: MaterialButton
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
@@ -73,10 +75,11 @@ class AccountFragment : Fragment() {
         tvEmail = view.findViewById(R.id.tvProfileEmail)
         btnAdminPanel = view.findViewById(R.id.btnAdminPanel)
         btnLogout = view.findViewById(R.id.btnLogout)
+        btnChangeName = view.findViewById(R.id.btnChangeName)
+        btnChangePassword = view.findViewById(R.id.btnChangePassword)
     }
 
     private fun setupListeners() {
-        // --- EKRAN GEÇİŞLERİ ---
         tvGoToRegister.setOnClickListener {
             layoutLogin.visibility = View.GONE
             layoutRegister.visibility = View.VISIBLE
@@ -87,99 +90,183 @@ class AccountFragment : Fragment() {
             layoutLogin.visibility = View.VISIBLE
         }
 
-        // --- GİRİŞ YAP ---
         btnLogin.setOnClickListener {
             val email = etLoginEmail.text.toString().trim()
             val pass = etLoginPass.text.toString().trim()
+            if (email.isEmpty() || pass.isEmpty()) return@setOnClickListener
 
-            if (email.isEmpty() || pass.isEmpty()) {
-                Toast.makeText(context, "Lütfen alanları doldurun", Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
-            }
-
-            // UserManager'a isteği gönder ve sonucu bekle (Callback)
             UserManager.login(email, pass,
                 onSuccess = {
                     Toast.makeText(context, "Giriş Başarılı!", Toast.LENGTH_SHORT).show()
-                    updateUIState()
+                    (activity as? MainActivity)?.showBottomNav()
+                    parentFragmentManager.beginTransaction().replace(R.id.fragmentContainer, HomeFragment()).commit()
                 },
-                onFailure = { errorMessage ->
-                    Toast.makeText(context, "Hata: $errorMessage", Toast.LENGTH_LONG).show()
-                }
+                onFailure = { Toast.makeText(context, "Hata: $it", Toast.LENGTH_LONG).show() }
             )
         }
 
-        // --- KAYIT OL ---
         btnRegister.setOnClickListener {
             val name = etRegName.text.toString().trim()
             val email = etRegEmail.text.toString().trim()
             val pass = etRegPass.text.toString().trim()
+            if (name.isEmpty() || email.isEmpty() || pass.isEmpty()) return@setOnClickListener
 
-            if (name.isEmpty() || email.isEmpty() || pass.isEmpty()) {
-                Toast.makeText(context, "Lütfen tüm alanları doldurun", Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
-            }
-
-            if (pass.length < 6) {
-                Toast.makeText(context, "Şifre en az 6 karakter olmalı", Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
-            }
-
-            // Kayıt isteği gönder
             UserManager.register(email, pass, name,
                 onSuccess = {
-                    Toast.makeText(context, "Kayıt Başarılı! Hoşgeldiniz.", Toast.LENGTH_SHORT).show()
-                    updateUIState()
+                    Toast.makeText(context, "Kayıt Başarılı!", Toast.LENGTH_SHORT).show()
+                    (activity as? MainActivity)?.showBottomNav()
+                    parentFragmentManager.beginTransaction().replace(R.id.fragmentContainer, HomeFragment()).commit()
                 },
-                onFailure = { errorMessage ->
-                    Toast.makeText(context, "Kayıt Hatası: $errorMessage", Toast.LENGTH_LONG).show()
-                }
+                onFailure = { Toast.makeText(context, "Kayıt Hatası: $it", Toast.LENGTH_LONG).show() }
             )
         }
 
-        // --- ÇIKIŞ YAP ---
         btnLogout.setOnClickListener {
             UserManager.logout()
-            Toast.makeText(context, "Çıkış Yapıldı", Toast.LENGTH_SHORT).show()
-            updateUIState()
-
-            // Inputları temizle
-            etLoginEmail.text?.clear()
-            etLoginPass.text?.clear()
+            (activity as? MainActivity)?.hideBottomNav()
+            parentFragmentManager.beginTransaction().replace(R.id.fragmentContainer, WelcomeFragment()).commit()
         }
 
-        // --- YÖNETİM PANELİ ---
         btnAdminPanel.setOnClickListener {
-            parentFragmentManager.beginTransaction()
-                .replace(R.id.fragmentContainer, ManagementFragment())
-                .addToBackStack(null)
-                .commit()
+            parentFragmentManager.beginTransaction().replace(R.id.fragmentContainer, ManagementFragment()).addToBackStack(null).commit()
         }
+
+        // --- İSİM GÜNCELLEME ---
+        btnChangeName.setOnClickListener {
+            val user = UserManager.getCurrentUser() ?: return@setOnClickListener
+            val thirtyDaysMs = 2592000000L
+
+            // 1. Süre Kontrolü (Baştan uyaralım)
+            if (System.currentTimeMillis() - user.lastProfileUpdate < thirtyDaysMs) {
+                val remainingDays = 30 - ((System.currentTimeMillis() - user.lastProfileUpdate) / 86400000L)
+                Toast.makeText(context, "İsminizi değiştirmek için $remainingDays gün beklemelisiniz.", Toast.LENGTH_LONG).show()
+                return@setOnClickListener
+            }
+
+            val input = EditText(context)
+            input.hint = "Yeni İsim Soyisim"
+            input.setPadding(50, 50, 50, 50)
+
+            AlertDialog.Builder(context)
+                .setTitle("İsim Güncelle")
+                .setView(input)
+                .setPositiveButton("Devam Et") { _, _ ->
+                    val newName = input.text.toString()
+                    if (newName.length > 3) {
+                        // 2. ONAY DIALOGU (Kural hatırlatması)
+                        showConfirmationDialog(
+                            title = "İsim Değişikliği Onayı",
+                            message = "İsminizi <b>$newName</b> olarak değiştirmek üzeresiniz.",
+                            warning = "Güvenlik gereği isminizi <b>30 günde sadece 1 kez</b> değiştirebilirsiniz. Onaylıyor musunuz?",
+                            onConfirm = {
+                                UserManager.updateUserName(newName) { success ->
+                                    if(success) {
+                                        Toast.makeText(context, "İsim güncellendi!", Toast.LENGTH_SHORT).show()
+                                        updateUIState()
+                                    } else {
+                                        Toast.makeText(context, "Hata oluştu.", Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                            }
+                        )
+                    }
+                }
+                .setNegativeButton("İptal", null)
+                .show()
+        }
+
+        // --- ŞİFRE GÜNCELLEME ---
+        btnChangePassword.setOnClickListener {
+            val user = UserManager.getCurrentUser() ?: return@setOnClickListener
+            val oneDayMs = 86400000L
+
+            // 1. Süre Kontrolü
+            if (System.currentTimeMillis() - user.lastPasswordUpdate < oneDayMs) {
+                Toast.makeText(context, "Şifrenizi günde sadece 1 kez değiştirebilirsiniz.", Toast.LENGTH_LONG).show()
+                return@setOnClickListener
+            }
+
+            showChangePasswordDialog()
+        }
+    }
+
+    // Şifre Dialogu ve Onay Mekanizması
+    private fun showChangePasswordDialog() {
+        val dialogView = LayoutInflater.from(context).inflate(R.layout.dialog_change_password, null)
+        val etOld = dialogView.findViewById<EditText>(R.id.etOldPassword)
+        val etNew = dialogView.findViewById<EditText>(R.id.etNewPassword)
+        val etNewConfirm = dialogView.findViewById<EditText>(R.id.etNewPasswordConfirm)
+
+        AlertDialog.Builder(context)
+            .setTitle("Şifre Değiştir")
+            .setView(dialogView)
+            .setPositiveButton("Güncelle") { _, _ ->
+                val oldPass = etOld.text.toString()
+                val newPass = etNew.text.toString()
+                val confirmPass = etNewConfirm.text.toString()
+
+                if (oldPass.isEmpty() || newPass.isEmpty()) return@setPositiveButton
+                if (newPass != confirmPass) {
+                    Toast.makeText(context, "Yeni şifreler uyuşmuyor.", Toast.LENGTH_SHORT).show()
+                    return@setPositiveButton
+                }
+                if (newPass.length < 6) {
+                    Toast.makeText(context, "Şifre en az 6 karakter olmalı.", Toast.LENGTH_SHORT).show()
+                    return@setPositiveButton
+                }
+
+                // ONAY DIALOGU ÇAĞRISI
+                showConfirmationDialog(
+                    title = "Şifre Değişikliği Onayı",
+                    message = "Şifrenizi güncellemek üzeresiniz. Bu işlemden sonra tüm cihazlardan çıkış yapılabilir.",
+                    warning = "Güvenlik gereği şifrenizi <b>günde sadece 1 kez</b> değiştirebilirsiniz. Emin misiniz?",
+                    onConfirm = {
+                        UserManager.updateUserPassword(oldPass, newPass) { success, error ->
+                            if (success) {
+                                Toast.makeText(context, "Şifreniz başarıyla güncellendi.", Toast.LENGTH_LONG).show()
+                            } else {
+                                Toast.makeText(context, "Hata: $error", Toast.LENGTH_LONG).show()
+                            }
+                        }
+                    }
+                )
+            }
+            .setNegativeButton("İptal", null)
+            .show()
+    }
+
+    // --- GENEL ONAY PENCERESİ (YENİ) ---
+    private fun showConfirmationDialog(title: String, message: String, warning: String, onConfirm: () -> Unit) {
+        // HTML formatında metin oluştur (Uyarı kısmını küçültmek için)
+        val htmlMessage = """
+            $message<br><br>
+            <small><font color='#D32F2F'>$warning</font></small>
+        """.trimIndent()
+
+        AlertDialog.Builder(context)
+            .setTitle(title)
+            .setMessage(Html.fromHtml(htmlMessage, Html.FROM_HTML_MODE_LEGACY))
+            .setPositiveButton("Evet, Onaylıyorum") { _, _ ->
+                onConfirm()
+            }
+            .setNegativeButton("Hayır", null)
+            .show()
     }
 
     private fun updateUIState() {
         if (UserManager.isLoggedIn()) {
-            // Giriş Yapılmış
             layoutLogin.visibility = View.GONE
             layoutRegister.visibility = View.GONE
             layoutProfile.visibility = View.VISIBLE
 
             val user = UserManager.getCurrentUser()
-            // Firebase'den isim ve maili al
-            tvName.text = user?.displayName ?: "Kullanıcı"
+            tvName.text = user?.fullName ?: "Kullanıcı"
             tvEmail.text = user?.email ?: ""
-
-            val role = UserManager.getUserRole()
+            val role = user?.role ?: UserRole.CUSTOMER
             tvRole.text = "Yetki: ${role.name}"
 
-            if (UserManager.canViewAdminPanel()) {
-                btnAdminPanel.visibility = View.VISIBLE
-            } else {
-                btnAdminPanel.visibility = View.GONE
-            }
-
+            btnAdminPanel.visibility = if (role != UserRole.CUSTOMER) View.VISIBLE else View.GONE
         } else {
-            // Giriş Yapılmamış -> Varsayılan Login ekranı
             layoutLogin.visibility = View.VISIBLE
             layoutRegister.visibility = View.GONE
             layoutProfile.visibility = View.GONE

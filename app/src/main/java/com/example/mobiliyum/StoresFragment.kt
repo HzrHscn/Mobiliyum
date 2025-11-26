@@ -15,7 +15,7 @@ import com.google.firebase.firestore.Query
 class StoresFragment : Fragment() {
 
     private lateinit var recyclerView: RecyclerView
-    private lateinit var searchView: SearchView // Arama çubuğu referansı
+    private lateinit var searchView: SearchView
     private lateinit var storeAdapter: StoreAdapter
     private var storeList = ArrayList<Store>()
     private val db = FirebaseFirestore.getInstance()
@@ -26,18 +26,21 @@ class StoresFragment : Fragment() {
     ): View? {
         val view = inflater.inflate(R.layout.fragment_stores, container, false)
 
-        // Bileşenleri Bağla
         recyclerView = view.findViewById(R.id.rvStores)
-        searchView = view.findViewById(R.id.searchViewStore) // XML ID'si
+        searchView = view.findViewById(R.id.searchViewStore)
 
         recyclerView.layoutManager = LinearLayoutManager(context)
         recyclerView.setHasFixedSize(true)
 
-        // Adaptörü Başlat
         storeAdapter = StoreAdapter(storeList) { selectedStore ->
-            // Detay sayfasına geçiş (Aynı kalıyor)
+            // 1. Firestore'da Tıklanma Sayısını Artır (Arka planda)
+            db.collection("stores").document(selectedStore.id.toString())
+                .update("clickCount", com.google.firebase.firestore.FieldValue.increment(1))
+
+            // 2. Detay sayfasına git
             val detailFragment = StoreDetailFragment()
             val bundle = Bundle()
+            bundle.putInt("id", selectedStore.id)
             bundle.putString("name", selectedStore.name)
             bundle.putString("image", selectedStore.imageUrl)
             bundle.putString("location", selectedStore.location)
@@ -50,26 +53,18 @@ class StoresFragment : Fragment() {
         }
         recyclerView.adapter = storeAdapter
 
-        // Verileri Çek
         fetchStoresFromFirestore()
-
-        // --- ARAMA DİNLEYİCİSİ ---
         setupSearchView()
 
         return view
     }
 
+    // ... (Diğer fonksiyonlar aynı kalabilir: setupSearchView, fetchStoresFromFirestore)
+
     private fun setupSearchView() {
-        // Arama çubuğuna tıklayınca klavyeyi açmak için tüm alana tıklama özelliği veriyoruz
         searchView.setOnClickListener { searchView.onActionViewExpanded() }
-
         searchView.setOnQueryTextListener(object : SearchView.OnQueryTextListener {
-            // Kullanıcı "Enter"a basınca çalışır (Gerek yok)
-            override fun onQueryTextSubmit(query: String?): Boolean {
-                return false
-            }
-
-            // Kullanıcı her harfe bastığında çalışır (Anlık filtreleme)
+            override fun onQueryTextSubmit(query: String?): Boolean = false
             override fun onQueryTextChange(newText: String?): Boolean {
                 storeAdapter.filter(newText ?: "")
                 return true
@@ -87,7 +82,6 @@ class StoresFragment : Fragment() {
                     val store = document.toObject(Store::class.java)
                     tempList.add(store)
                 }
-                // Veriler gelince listeyi güncelle
                 storeList = tempList
                 storeAdapter.updateList(storeList)
             }
