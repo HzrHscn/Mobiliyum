@@ -12,11 +12,10 @@ object PriceUtils {
     fun formatPriceStyled(rawPrice: Any): SpannableString {
         var priceValue = 0.0
 
-        try{
+        try {
             if (rawPrice is Double) {
                 priceValue = rawPrice
-            }
-            else if (rawPrice is String){
+            } else if (rawPrice is String) {
                 var clean = rawPrice.toString().replace("[^\\d.,]".toRegex(), "").trim()
 
                 if (clean.isNotEmpty()) {
@@ -29,7 +28,7 @@ object PriceUtils {
                     priceValue = clean.toDouble()
                 }
             }
-        } catch (e: Exception){
+        } catch (e: Exception) {
             priceValue = 0.0
         }
         val symbols = DecimalFormatSymbols(Locale.getDefault())
@@ -55,5 +54,20 @@ object PriceUtils {
             }
         }
         return spannable
+    }
+
+    fun parsePrice(priceStr: String): Double {
+        try {
+            // "19.210,00 ₺" -> "19210.00"
+            var clean = priceStr.replace("[^\\d.,]".toRegex(), "").trim()
+            if (clean.contains(",")) {
+                clean = clean.replace(".", "").replace(",", ".")
+            } else {
+                clean = clean.replace(".", "")
+            }
+            return clean.toDoubleOrNull() ?: 0.0
+        } catch (e: Exception) {
+            return 0.0
+        }
     }
 }

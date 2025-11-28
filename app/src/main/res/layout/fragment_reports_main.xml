@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="#F5F5F5">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:padding="12dp"
+        android:background="#FFFFFF"
+        android:gravity="center_vertical">
+
+        <EditText
+            android:id="@+id/etSearchReport"
+            android:layout_width="0dp"
+            android:layout_height="40dp"
+            android:layout_weight="1"
+            android:background="@drawable/ic_launcher_background"
+            android:backgroundTint="#F0F0F0"
+            android:hint="Ara..."
+            android:paddingHorizontal="12dp"
+            android:textSize="14sp"/>
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnSortReport"
+            android:layout_width="wrap_content"
+            android:layout_height="40dp"
+            android:text="Sırala"
+            android:layout_marginStart="8dp"
+            android:textSize="12sp"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"/>
+    </LinearLayout>
+
+    <com.google.android.material.tabs.TabLayout
+        android:id="@+id/tabLayoutReports"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        app:tabMode="scrollable"
+        app:tabSelectedTextColor="#FF6F00"
+        app:tabIndicatorColor="#FF6F00"/>
+
+    <TextView
+        android:id="@+id/tvReportCount"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Toplam: 0"
+        android:padding="8dp"
+        android:textAlignment="center"
+        android:textSize="12sp"
+        android:textColor="#757575"/>
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/rvReports"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:padding="8dp"
+        android:clipToPadding="false"/>
+
+</LinearLayout>

@@ -39,6 +39,7 @@ class AccountFragment : Fragment() {
     private lateinit var tvRole: TextView
     private lateinit var tvEmail: TextView
     private lateinit var btnAdminPanel: MaterialButton
+    private lateinit var btnMyFavorites: MaterialButton
     private lateinit var btnLogout: MaterialButton
     private lateinit var btnChangeName: MaterialButton
     private lateinit var btnChangePassword: MaterialButton
@@ -74,6 +75,7 @@ class AccountFragment : Fragment() {
         tvRole = view.findViewById(R.id.tvProfileRole)
         tvEmail = view.findViewById(R.id.tvProfileEmail)
         btnAdminPanel = view.findViewById(R.id.btnAdminPanel)
+        btnMyFavorites = view.findViewById(R.id.btnMyFavorites)
         btnLogout = view.findViewById(R.id.btnLogout)
         btnChangeName = view.findViewById(R.id.btnChangeName)
         btnChangePassword = view.findViewById(R.id.btnChangePassword)
@@ -97,11 +99,18 @@ class AccountFragment : Fragment() {
 
             UserManager.login(email, pass,
                 onSuccess = {
-                    Toast.makeText(context, "Giriş Başarılı!", Toast.LENGTH_SHORT).show()
-                    (activity as? MainActivity)?.showBottomNav()
-                    parentFragmentManager.beginTransaction().replace(R.id.fragmentContainer, HomeFragment()).commit()
+                    // --- DÜZELTME: Giriş başarılı olunca favorileri yükle ---
+                    FavoritesManager.loadUserFavorites {
+                        Toast.makeText(context, "Giriş Başarılı!", Toast.LENGTH_SHORT).show()
+                        (activity as? MainActivity)?.showBottomNav()
+                        parentFragmentManager.beginTransaction()
+                            .replace(R.id.fragmentContainer, HomeFragment())
+                            .commit()
+                    }
                 },
-                onFailure = { Toast.makeText(context, "Hata: $it", Toast.LENGTH_LONG).show() }
+                onFailure = { errorMessage ->
+                    Toast.makeText(context, "Hata: $errorMessage", Toast.LENGTH_LONG).show()
+                }
             )
         }
 
@@ -113,11 +122,18 @@ class AccountFragment : Fragment() {
 
             UserManager.register(email, pass, name,
                 onSuccess = {
-                    Toast.makeText(context, "Kayıt Başarılı!", Toast.LENGTH_SHORT).show()
-                    (activity as? MainActivity)?.showBottomNav()
-                    parentFragmentManager.beginTransaction().replace(R.id.fragmentContainer, HomeFragment()).commit()
+                    // --- DÜZELTME: Kayıt başarılı olunca favorileri (boş da olsa) yükle ---
+                    FavoritesManager.loadUserFavorites {
+                        Toast.makeText(context, "Kayıt Başarılı! Hoşgeldiniz.", Toast.LENGTH_SHORT).show()
+                        (activity as? MainActivity)?.showBottomNav()
+                        parentFragmentManager.beginTransaction()
+                            .replace(R.id.fragmentContainer, HomeFragment())
+                            .commit()
+                    }
                 },
-                onFailure = { Toast.makeText(context, "Kayıt Hatası: $it", Toast.LENGTH_LONG).show() }
+                onFailure = { errorMessage ->
+                    Toast.makeText(context, "Kayıt Hatası: $errorMessage", Toast.LENGTH_LONG).show()
+                }
             )
         }
 
@@ -129,6 +145,13 @@ class AccountFragment : Fragment() {
 
         btnAdminPanel.setOnClickListener {
             parentFragmentManager.beginTransaction().replace(R.id.fragmentContainer, ManagementFragment()).addToBackStack(null).commit()
+        }
+
+        btnMyFavorites.setOnClickListener {
+            parentFragmentManager.beginTransaction()
+                .replace(R.id.fragmentContainer, FavoritesFragment())
+                .addToBackStack(null)
+                .commit()
         }
 
         // --- İSİM GÜNCELLEME ---
@@ -262,10 +285,24 @@ class AccountFragment : Fragment() {
             val user = UserManager.getCurrentUser()
             tvName.text = user?.fullName ?: "Kullanıcı"
             tvEmail.text = user?.email ?: ""
+
             val role = user?.role ?: UserRole.CUSTOMER
             tvRole.text = "Yetki: ${role.name}"
 
-            btnAdminPanel.visibility = if (role != UserRole.CUSTOMER) View.VISIBLE else View.GONE
+            // Yetkili Panel Kontrolü ve İsimlendirme
+            if (role != UserRole.CUSTOMER) {
+                btnAdminPanel.visibility = View.VISIBLE
+
+                // Admin veya SRV ise metni değiştir
+                if (role == UserRole.ADMIN || role == UserRole.SRV) {
+                    btnAdminPanel.text = "Admin Yetkileri"
+                } else {
+                    btnAdminPanel.text = "Mağaza Yönetim Paneli"
+                }
+            } else {
+                btnAdminPanel.visibility = View.GONE
+            }
+
         } else {
             layoutLogin.visibility = View.VISIBLE
             layoutRegister.visibility = View.GONE

@@ -15,6 +15,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical">
+
             <ImageView
                 android:id="@+id/imgProductDetail"
                 android:layout_width="match_parent"
@@ -27,28 +28,83 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:padding="20dp">
+                android:padding="24dp">
 
-                <TextView
-                    android:id="@+id/tvProductCategory"
-                    android:layout_width="wrap_content"
+                <LinearLayout
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:background="@drawable/ic_launcher_background"
-                    android:backgroundTint="#E0E0E0"
-                    android:paddingHorizontal="12dp"
-                    android:paddingVertical="6dp"
-                    android:text="Kategori"
-                    android:textColor="#616161"
-                    android:textSize="12sp"
-                    android:textStyle="bold" />
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="16dp">
+
+                    <LinearLayout
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:background="@drawable/ic_launcher_background"
+                        android:backgroundTint="#F0F0F0"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:paddingHorizontal="12dp"
+                        android:paddingVertical="8dp">
+
+                        <ImageView
+                            android:id="@+id/imgCategoryIcon"
+                            android:layout_width="18dp"
+                            android:layout_height="18dp"
+                            android:src="@android:drawable/ic_menu_sort_by_size"
+                            app:tint="#616161"
+                            android:layout_marginEnd="8dp"/>
+
+                        <TextView
+                            android:id="@+id/tvProductCategory"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Kategori"
+                            android:textColor="#616161"
+                            android:textSize="13sp"
+                            android:textStyle="bold" />
+                    </LinearLayout>
+
+                    <View
+                        android:layout_width="0dp"
+                        android:layout_height="1dp"
+                        android:layout_weight="1"/>
+
+                    <LinearLayout
+                        android:id="@+id/layoutFavorite"
+                        android:layout_width="101dp"
+                        android:layout_height="70dp"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:gravity="center"
+                        android:orientation="vertical"
+                        android:padding="4dp">
+
+                        <ImageView
+                            android:id="@+id/imgFavoriteIcon"
+                            android:layout_width="38dp"
+                            android:layout_height="38dp"
+                            android:src="@drawable/ic_heart_outline" />
+
+                        <TextView
+                            android:id="@+id/tvFavoriteText"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:text="Favorilere Ekle"
+                            android:textColor="#E91E63"
+                            android:textSize="10sp" />
+                    </LinearLayout>
+
+                </LinearLayout>
                 <TextView
                     android:id="@+id/tvProductName"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="12dp"
                     android:text="Ürün İsmi"
                     android:textColor="#212121"
-                    android:textSize="24sp"
+                    android:textSize="26sp"
                     android:textStyle="bold" />
 
                 <TextView
@@ -58,20 +114,20 @@
                     android:layout_marginTop="8dp"
                     android:text="0.00 ₺"
                     android:textColor="#4CAF50"
-                    android:textSize="22sp"
+                    android:textSize="24sp"
                     android:textStyle="bold" />
 
                 <View
                     android:layout_width="match_parent"
                     android:layout_height="1dp"
-                    android:layout_marginTop="16dp"
+                    android:layout_marginTop="24dp"
                     android:background="#EEEEEE" />
 
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="16dp"
-                    android:lineSpacingExtra="4dp"
+                    android:lineSpacingExtra="6dp"
                     android:text="Bu ürün Mobiliyum kalitesiyle üretilmiştir. 1. sınıf malzeme kullanılmış olup, silinebilir kumaş ve dayanıklı iskelet yapısına sahiptir. Ürün renk seçenekleri ve ölçü bilgileri için mağaza ile iletişime geçebilirsiniz."
                     android:textColor="#757575"
                     android:textSize="15sp" />
@@ -111,11 +167,12 @@
             android:layout_height="60dp"
             android:layout_weight="1"
             android:backgroundTint="#FF6F00"
-            android:text="Ürüne Git"
+            android:text="Firmaya Git"
             android:textSize="16sp"
             android:textStyle="bold"
             app:cornerRadius="8dp"
             app:icon="@android:drawable/ic_menu_send"
             app:iconGravity="textStart" />
     </LinearLayout>
+
 </androidx.constraintlayout.widget.ConstraintLayout>

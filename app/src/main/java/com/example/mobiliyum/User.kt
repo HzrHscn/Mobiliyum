@@ -8,12 +8,12 @@ enum class UserRole {
 
 data class User(
     val id: String = "",
-    val username: String = "", // Genelde email başı
+    val username: String = "",
     var fullName: String = "",
     val role: UserRole = UserRole.CUSTOMER,
     val storeId: Int? = null,
     val email: String = "",
-    // YENİ ALANLAR (Zaman damgaları - Timestamp)
-    var lastPasswordUpdate: Long = 0, // System.currentTimeMillis() tutacak
-    var lastProfileUpdate: Long = 0   // İsim değiştirme tarihi
+    var lastPasswordUpdate: Long = 0,
+    var lastProfileUpdate: Long = 0,
+    var isBanned: Boolean = false // YENİ: Ban durumu
 ) : Serializable

@@ -9,10 +9,10 @@
         android:id="@+id/fragmentContainer"
         android:layout_width="0dp"
         android:layout_height="0dp"
-        app:layout_constraintBottom_toTopOf="@+id/bottomNavigationView"
-        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintBottom_toTopOf="@+id/bottomNavigationView" />
 
     <androidx.cardview.widget.CardView
         android:id="@+id/notificationCard"
@@ -60,7 +60,7 @@
                     android:id="@+id/tvNotifBody"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="İçerik metni..."
+                    android:text="İçerik..."
                     android:textColor="#DDDDDD"
                     android:textSize="14sp"
                     android:maxLines="2"

@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="20dp"
+    android:background="#FFFFFF">
+
+    <TextView
+        android:id="@+id/tvGraphTitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Fiyat Geçmişi"
+        android:textSize="18sp"
+        android:textStyle="bold"
+        android:textColor="#333"
+        android:layout_marginBottom="16dp"/>
+
+    <com.google.android.material.button.MaterialButtonToggleGroup
+        android:id="@+id/toggleGroupPeriod"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="16dp"
+        app:singleSelection="true"
+        app:selectionRequired="true"
+        app:checkedButton="@id/btnMonth">
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnWeek"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Haftalık"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"/>
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnMonth"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Aylık"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"/>
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnYear"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Yıllık"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"/>
+    </com.google.android.material.button.MaterialButtonToggleGroup>
+
+    <FrameLayout
+        android:id="@+id/graphContainer"
+        android:layout_width="match_parent"
+        android:layout_height="250dp"
+        android:background="#FAFAFA"/>
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btnCloseGraph"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Kapat"
+        android:layout_marginTop="16dp"
+        android:backgroundTint="#757575"/>
+
+</LinearLayout>

@@ -11,6 +11,7 @@ object UserManager {
     private val auth: FirebaseAuth = FirebaseAuth.getInstance()
     private val db: FirebaseFirestore = FirebaseFirestore.getInstance()
 
+    // Firestore'dan çektiğimiz detaylı kullanıcı verisi
     private var currentUserData: User? = null
 
     // --- GİRİŞ ---
@@ -44,7 +45,7 @@ object UserManager {
                         id = firebaseUser.uid,
                         email = email,
                         fullName = fullName,
-                        role = UserRole.CUSTOMER,
+                        role = UserRole.CUSTOMER, // Varsayılan rol
                         username = email.substringBefore("@"),
                         lastProfileUpdate = 0,
                         lastPasswordUpdate = 0
@@ -57,16 +58,12 @@ object UserManager {
             }
     }
 
-    // --- GÜNCELLEME FONKSİYONLARI (HATA ALINAN YERLER) ---
-
-    // İsim Güncelleme
+    // --- GÜNCELLEME İŞLEMLERİ ---
     fun updateUserName(newName: String, onComplete: (Boolean) -> Unit) {
         val user = auth.currentUser ?: return
         val dbUser = currentUserData ?: return
 
-        val updates = UserProfileChangeRequest.Builder()
-            .setDisplayName(newName)
-            .build()
+        val updates = UserProfileChangeRequest.Builder().setDisplayName(newName).build()
 
         user.updateProfile(updates).addOnCompleteListener { task ->
             if (task.isSuccessful) {
@@ -82,7 +79,6 @@ object UserManager {
         }
     }
 
-    // Şifre Güncelleme (Re-Auth gerektirir)
     fun updateUserPassword(oldPass: String, newPass: String, onComplete: (Boolean, String?) -> Unit) {
         val user = auth.currentUser
         val dbUser = currentUserData
@@ -92,15 +88,12 @@ object UserManager {
             return
         }
 
-        // 1. Önce eski şifre ile yeniden kimlik doğrula (Güvenlik için şart)
         val credential = EmailAuthProvider.getCredential(user.email!!, oldPass)
 
         user.reauthenticate(credential).addOnCompleteListener { reAuthTask ->
             if (reAuthTask.isSuccessful) {
-                // 2. Şifreyi güncelle
                 user.updatePassword(newPass).addOnCompleteListener { updateTask ->
                     if (updateTask.isSuccessful) {
-                        // 3. Firestore'a zaman damgası at
                         dbUser.lastPasswordUpdate = System.currentTimeMillis()
                         db.collection("users").document(user.uid).set(dbUser)
                         onComplete(true, null)
@@ -114,19 +107,25 @@ object UserManager {
         }
     }
 
-    // --- DİĞERLERİ ---
+    // --- VERİ YÖNETİMİ ---
     fun fetchUserProfile(uid: String, onSuccess: () -> Unit, onFailure: (String) -> Unit) {
         db.collection("users").document(uid).get()
             .addOnSuccessListener { document ->
                 if (document.exists()) {
                     currentUserData = document.toObject(User::class.java)
-                    onSuccess()
+                    // Ban kontrolü
+                    if (currentUserData?.isBanned == true) {
+                        logout()
+                        onFailure("Hesabınız askıya alınmıştır.")
+                    } else {
+                        onSuccess()
+                    }
                 } else {
-                    onSuccess()
+                    onFailure("Kullanıcı profili bulunamadı.")
                 }
             }
             .addOnFailureListener {
-                onFailure("Profil yüklenirken hata: ${it.message}")
+                onFailure("Hata: ${it.message}")
             }
     }
 
@@ -137,21 +136,52 @@ object UserManager {
                 onSuccess()
             }
             .addOnFailureListener {
-                onFailure("Veritabanı kaydı başarısız: ${it.message}")
+                onFailure("Veritabanı hatası: ${it.message}")
             }
     }
 
+    // --- YETKİ VE ERİŞİM (HATA ALINAN KISIM DÜZELTİLDİ) ---
+
+    // 1. Ürün Düzenleme Yetkisi (Hata veren fonksiyon buydu)
+    fun canEditProduct(product: Product): Boolean {
+        val role = getUserRole()
+
+        // Admin her şeyi düzenleyebilir
+        if (role == UserRole.ADMIN) return true
+
+        // Mağaza Yöneticisi veya Editör ise, sadece kendi mağazasını düzenler
+        val userStoreId = currentUserData?.storeId
+        if ((role == UserRole.MANAGER || role == UserRole.EDITOR) && userStoreId != null) {
+            return userStoreId == product.storeId
+        }
+
+        return false
+    }
+
+    // 2. Admin Panelini Görme Yetkisi
+    fun canViewAdminPanel(): Boolean {
+        val role = getUserRole()
+        return role != UserRole.CUSTOMER
+    }
+
     fun getCurrentUser(): User? = currentUserData
+
+    fun getUserRole(): UserRole = currentUserData?.role ?: UserRole.CUSTOMER
+
     fun isLoggedIn(): Boolean = auth.currentUser != null
+
     fun logout() {
         auth.signOut()
         currentUserData = null
     }
-    fun getUserRole(): UserRole = currentUserData?.role ?: UserRole.CUSTOMER
+
     fun checkSession(onResult: (Boolean) -> Unit) {
         val currentUser = auth.currentUser
         if (currentUser != null) {
-            fetchUserProfile(currentUser.uid, { onResult(true) }, { onResult(false) })
+            fetchUserProfile(currentUser.uid,
+                { onResult(true) },
+                { onResult(false) }
+            )
         } else {
             onResult(false)
         }

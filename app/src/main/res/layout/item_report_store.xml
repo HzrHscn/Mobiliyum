@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:padding="12dp"
+    android:gravity="center_vertical"
+    android:background="@drawable/ic_launcher_background"
+    android:backgroundTint="#FFFFFF"
+    android:layout_marginBottom="4dp">
+
+    <TextView
+        android:id="@+id/tvRank"
+        android:layout_width="30dp"
+        android:layout_height="wrap_content"
+        android:text="1"
+        android:textStyle="bold"
+        android:textColor="#757575"/>
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="vertical">
+        <TextView
+            android:id="@+id/tvStoreName"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Mağaza Adı"
+            android:textStyle="bold"
+            android:textColor="#333"/>
+        <TextView
+            android:id="@+id/tvCategory"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Kategori"
+            android:textSize="12sp"/>
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/tvClickCount"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="150 Tık"
+        android:textColor="#FF6F00"
+        android:textStyle="bold"/>
+</LinearLayout>

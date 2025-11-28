@@ -1,6 +1,7 @@
 package com.example.mobiliyum
 
 import android.animation.ObjectAnimator
+import android.content.Context
 import android.os.Bundle
 import android.view.View
 import android.widget.ImageView
@@ -16,11 +17,14 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var bottomNav: BottomNavigationView
 
-    // Bildirim Bileşenleri
+    // Bildirim
     private lateinit var notificationCard: CardView
     private lateinit var tvNotifTitle: TextView
     private lateinit var tvNotifBody: TextView
     private lateinit var btnCloseNotif: ImageView
+
+    // Aktif Duyuru ID'si
+    private var activeAnnouncementId: String = ""
 
     private val homeFragment = HomeFragment()
     private val cartFragment = CartFragment()
@@ -33,8 +37,6 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
 
         bottomNav = findViewById(R.id.bottomNavigationView)
-
-        // Bildirim View'larını Bağla
         notificationCard = findViewById(R.id.notificationCard)
         tvNotifTitle = findViewById(R.id.tvNotifTitle)
         tvNotifBody = findViewById(R.id.tvNotifBody)
@@ -42,92 +44,54 @@ class MainActivity : AppCompatActivity() {
 
         bottomNav.visibility = View.GONE
 
-        // Oturum Kontrolü
+        setupNavigation()
+
+        // KRİTİK: Bildirimleri dinle ve "kapatılmış mı?" kontrolü yap
+        listenForAnnouncements()
+
         UserManager.checkSession { isLoggedIn ->
             if (isLoggedIn) {
-                loadFragment(homeFragment)
-                bottomNav.visibility = View.VISIBLE
+                FavoritesManager.loadUserFavorites {
+                    loadFragment(homeFragment)
+                    bottomNav.visibility = View.VISIBLE
+                }
             } else {
                 loadFragment(welcomeFragment)
             }
         }
 
-        setupNavigation()
-        listenForAnnouncements() // BİLDİRİM DİNLEYİCİSİ
-
-        // Kapatma butonu
+        // KAPATMA BUTONU: Sadece kapatmaz, bir daha göstermemek üzere kaydeder
         btnCloseNotif.setOnClickListener {
             hideNotification()
+            if (activeAnnouncementId.isNotEmpty()) {
+                saveDismissedAnnouncement(activeAnnouncementId)
+            }
         }
-    }
 
-    // --- GERÇEK ZAMANLI BİLDİRİM DİNLEYİCİSİ ---
-    private fun listenForAnnouncements() {
-        val db = FirebaseFirestore.getInstance()
+        NotificationHelper.createNotificationChannel(this)
 
-        // Uygulama açıldıktan sonra eklenen YENİ duyuruları dinle
-        // (Basitlik için son ekleneni kontrol ediyoruz)
-        db.collection("announcements")
-            .orderBy("date", Query.Direction.DESCENDING)
-            .limit(1)
-            .addSnapshotListener { snapshots, e ->
-                if (e != null) return@addSnapshotListener
+        UserManager.checkSession { isLoggedIn ->
+            if (isLoggedIn) {
+                FavoritesManager.loadUserFavorites {
+                    loadFragment(homeFragment)
+                    bottomNav.visibility = View.VISIBLE
 
-                if (snapshots != null && !snapshots.isEmpty) {
-                    // Değişiklik türünü kontrol et (Sadece yeni eklenenler için)
-                    for (dc in snapshots.documentChanges) {
-                        if (dc.type == com.google.firebase.firestore.DocumentChange.Type.ADDED) {
-                            val title = dc.document.getString("title")
-                            val message = dc.document.getString("message")
-                            val timestamp = dc.document.getDate("date")
-
-                            // Sadece son 1 dakika içinde atılmışsa göster (Eskileri tekrar gösterme)
-                            val now = java.util.Date()
-                            val diff = now.time - (timestamp?.time ?: 0)
-
-                            if (diff < 60000) { // 60 saniye
-                                showNotification(title ?: "Duyuru", message ?: "")
-                            }
-                        }
-                    }
+                    // --- FİYAT KONTROLÜNÜ BAŞLAT ---
+                    FavoritesManager.checkPriceDrops(this)
                 }
+            } else {
+                loadFragment(welcomeFragment)
             }
-    }
-
-    private fun showNotification(title: String, message: String) {
-        tvNotifTitle.text = title
-        tvNotifBody.text = message
-
-        notificationCard.visibility = View.VISIBLE
-
-        // Yukarıdan aşağı kayma animasyonu
-        notificationCard.translationY = -300f
-        ObjectAnimator.ofFloat(notificationCard, "translationY", 0f).apply {
-            duration = 500
-            start()
         }
     }
 
-    private fun hideNotification() {
-        // Yukarı kayarak kaybolma
-        ObjectAnimator.ofFloat(notificationCard, "translationY", -300f).apply {
-            duration = 300
-            start()
-        }.doOnEnd {
-            notificationCard.visibility = View.GONE
+    override fun onResume() {
+        super.onResume()
+        // Uygulama her ön plana geldiğinde (veya açıldığında) fiyatları kontrol et
+        if (UserManager.isLoggedIn()) {
+            FavoritesManager.checkPriceDrops(this)
         }
     }
-
-    // Animator listener için extension (doOnEnd için core-ktx kütüphanesi gerekir,
-    // yoksa basitçe visibility'i animasyon bitiminde değil hemen de kapatabiliriz)
-    private fun android.animation.Animator.doOnEnd(action: (android.animation.Animator) -> Unit) {
-        this.addListener(object : android.animation.AnimatorListenerAdapter() {
-            override fun onAnimationEnd(animation: android.animation.Animator) {
-                action(animation)
-            }
-        })
-    }
-
     private fun setupNavigation() {
         bottomNav.setOnItemSelectedListener { item ->
             when (item.itemId) {
@@ -144,6 +108,75 @@ class MainActivity : AppCompatActivity() {
         supportFragmentManager.beginTransaction()
             .replace(R.id.fragmentContainer, fragment)
             .commit()
+    }
+
+    // --- YENİLENMİŞ BİLDİRİM MANTIĞI ---
+    private fun listenForAnnouncements() {
+        val db = FirebaseFirestore.getInstance()
+
+        // En son atılan 1 duyuruyu sürekli dinle
+        db.collection("announcements")
+            .orderBy("date", Query.Direction.DESCENDING)
+            .limit(1)
+            .addSnapshotListener { snapshots, e ->
+                if (e != null || snapshots == null || snapshots.isEmpty) return@addSnapshotListener
+
+                // Son duyuruyu al
+                val doc = snapshots.documents[0]
+                val id = doc.id
+                val title = doc.getString("title")
+                val message = doc.getString("message")
+
+                // KONTROL: Bu ID daha önce kapatıldı mı?
+                if (!isAnnouncementDismissed(id)) {
+                    // Kapatılmamışsa göster
+                    activeAnnouncementId = id
+                    showNotification(title ?: "Duyuru", message ?: "")
+                }
+            }
+    }
+
+    // SharedPreferences kullanarak "Bu duyuru görüldü" diye kaydet
+    private fun saveDismissedAnnouncement(id: String) {
+        val sharedPref = getSharedPreferences("AppPrefs", Context.MODE_PRIVATE)
+        with(sharedPref.edit()) {
+            putString("dismissed_announce_id", id)
+            apply()
+        }
+    }
+
+    // Kontrol et: Kayıtlı ID, gelen ID ile aynı mı?
+    private fun isAnnouncementDismissed(id: String): Boolean {
+        val sharedPref = getSharedPreferences("AppPrefs", Context.MODE_PRIVATE)
+        val dismissedId = sharedPref.getString("dismissed_announce_id", "")
+        return id == dismissedId
+    }
+
+    private fun showNotification(title: String, message: String) {
+        // Eğer zaten görünüyorsa tekrar animasyon yapma
+        if (notificationCard.visibility == View.VISIBLE && tvNotifTitle.text == title) return
+
+        tvNotifTitle.text = title
+        tvNotifBody.text = message
+
+        notificationCard.visibility = View.VISIBLE
+        notificationCard.translationY = -300f
+
+        ObjectAnimator.ofFloat(notificationCard, "translationY", 0f).apply {
+            duration = 500
+            start()
+        }
+    }
+
+    private fun hideNotification() {
+        ObjectAnimator.ofFloat(notificationCard, "translationY", -300f).apply {
+            duration = 300
+            start()
+        }.addListener(object : android.animation.AnimatorListenerAdapter() {
+            override fun onAnimationEnd(animation: android.animation.Animator) {
+                notificationCard.visibility = View.GONE
+            }
+        })
     }
 
     fun showBottomNav() { bottomNav.visibility = View.VISIBLE }

@@ -11,6 +11,7 @@ import android.widget.Toast
 import androidx.fragment.app.Fragment
 import com.google.android.material.textfield.TextInputEditText
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.Query
 import java.util.Date
 
 class ManagementFragment : Fragment() {
@@ -26,40 +27,112 @@ class ManagementFragment : Fragment() {
         val user = UserManager.getCurrentUser()
         val role = UserManager.getUserRole()
 
-        // Başlıkları Ayarla
         view.findViewById<TextView>(R.id.tvAdminWelcome).text = "Hoşgeldiniz, ${user?.fullName ?: "Yönetici"}"
         view.findViewById<TextView>(R.id.tvAdminRole).text = "Yetki: ${role.name}"
 
-        // Butonları Bağla
         val btnAnnouncements = view.findViewById<LinearLayout>(R.id.btnAnnouncements)
         val btnStores = view.findViewById<LinearLayout>(R.id.btnPendingStores)
         val btnUsers = view.findViewById<LinearLayout>(R.id.btnUsers)
         val btnReports = view.findViewById<LinearLayout>(R.id.btnReports)
 
-        // --- 1. DUYURU GÖNDERME ---
         btnAnnouncements.setOnClickListener {
             showAnnouncementDialog()
         }
 
-        // --- 2. DİĞER BUTONLAR (Şimdilik) ---
         btnStores.setOnClickListener {
-            // İleride buraya onay bekleyen mağazaları listeleyen Dialog gelecek
             showSimpleInfoDialog("Mağaza Başvuruları", "Şu an onay bekleyen yeni mağaza başvurusu bulunmamaktadır.")
         }
 
         btnUsers.setOnClickListener {
-            // İleride buraya kullanıcı istatistikleri gelecek
-            countUsersAndShow()
+            // Kullanıcı Yönetimi kısmı şu an bakımda
+            Toast.makeText(context, "Bu alan düzenleniyor...", Toast.LENGTH_SHORT).show()
         }
 
+        // RAPORLAR BUTONU
         btnReports.setOnClickListener {
-            showReportsDialog()
+            parentFragmentManager.beginTransaction()
+                .replace(R.id.fragmentContainer, ReportsFragment()) // Yeni fragment'a git
+                .addToBackStack(null)
+                .commit()
         }
 
         return view
     }
 
-    // --- DUYURU GÖNDERME MANTIĞI ---
+    // --- RAPOR EKRANI ---
+    private fun showReportsDialog() {
+        // XML'i şişir (Inflate)
+        val dialogView = LayoutInflater.from(context).inflate(R.layout.dialog_reports, null)
+
+        // Bileşenleri Bağla
+        val tvStores = dialogView.findViewById<TextView>(R.id.tvTotalStores)
+        val tvClicks = dialogView.findViewById<TextView>(R.id.tvTotalClicks)
+        val tvTopStore = dialogView.findViewById<TextView>(R.id.tvTopStore)
+        val tvTopProduct = dialogView.findViewById<TextView>(R.id.tvTopProduct)
+        val tvTopFav = dialogView.findViewById<TextView>(R.id.tvTopFavorite)
+
+        val dialog = AlertDialog.Builder(context)
+            .setView(dialogView)
+            .setPositiveButton("Kapat", null)
+            .create()
+
+        dialog.show()
+
+        // 1. Mağaza İstatistikleri ve En Popüler Mağaza
+        db.collection("stores")
+            .orderBy("clickCount", Query.Direction.DESCENDING)
+            .get()
+            .addOnSuccessListener { storeDocs ->
+                val totalStores = storeDocs.size()
+                var totalClick = 0
+
+                if (!storeDocs.isEmpty) {
+                    val bestStore = storeDocs.documents[0]
+                    val clicks = bestStore.getLong("clickCount") ?: 0
+                    tvTopStore.text = "${bestStore.getString("name")} ($clicks Görüntülenme)"
+                } else {
+                    tvTopStore.text = "Veri Yok"
+                }
+
+                for (doc in storeDocs) {
+                    totalClick += doc.getLong("clickCount")?.toInt() ?: 0
+                }
+
+                tvStores.text = totalStores.toString()
+                tvClicks.text = totalClick.toString()
+            }
+
+        // 2. En Çok İncelenen Ürün
+        db.collection("products")
+            .orderBy("clickCount", Query.Direction.DESCENDING)
+            .limit(1)
+            .get()
+            .addOnSuccessListener { productDocs ->
+                if (!productDocs.isEmpty) {
+                    val p = productDocs.documents[0]
+                    val clicks = p.getLong("clickCount") ?: 0
+                    tvTopProduct.text = "${p.getString("name")} ($clicks Tık)"
+                } else {
+                    tvTopProduct.text = "Henüz veri yok"
+                }
+            }
+
+        // 3. En Çok Favorilenen Ürün
+        db.collection("products")
+            .orderBy("favoriteCount", Query.Direction.DESCENDING)
+            .limit(1)
+            .get()
+            .addOnSuccessListener { productDocs ->
+                if (!productDocs.isEmpty) {
+                    val p = productDocs.documents[0]
+                    val count = p.getLong("favoriteCount") ?: 0
+                    tvTopFav.text = "${p.getString("name")} ($count Favori)"
+                } else {
+                    tvTopFav.text = "Henüz favori yok"
+                }
+            }
+    }
+
     private fun showAnnouncementDialog() {
         val dialogView = LayoutInflater.from(context).inflate(R.layout.dialog_send_announcement, null)
         val etTitle = dialogView.findViewById<TextInputEditText>(R.id.etAnnounceTitle)
@@ -101,8 +174,6 @@ class ManagementFragment : Fragment() {
             }
     }
 
-    // --- YARDIMCI FONKSİYONLAR ---
-
     private fun showSimpleInfoDialog(title: String, message: String) {
         AlertDialog.Builder(context)
             .setTitle(title)
@@ -111,7 +182,6 @@ class ManagementFragment : Fragment() {
             .show()
     }
 
-    // Kullanıcı Sayısını Çeken Fonksiyon
     private fun countUsersAndShow() {
         db.collection("users").get()
             .addOnSuccessListener { result ->
@@ -121,53 +191,4 @@ class ManagementFragment : Fragment() {
                 Toast.makeText(context, "Veri alınamadı.", Toast.LENGTH_SHORT).show()
             }
     }
-
-    private fun showReportsDialog() {
-        // İstatistikleri hesaplamak biraz sürebilir, önce yükleniyor gösterelim
-        Toast.makeText(context, "Raporlar hazırlanıyor...", Toast.LENGTH_SHORT).show()
-
-        var totalStores = 0
-        var totalStoreClicks = 0
-        var topProduct = "Yok"
-        var topFavProduct = "Yok"
-
-        // 1. Mağaza İstatistikleri
-        db.collection("stores").get().addOnSuccessListener { storeDocs ->
-            totalStores = storeDocs.size()
-            for (doc in storeDocs) {
-                totalStoreClicks += doc.getLong("clickCount")?.toInt() ?: 0
-            }
-
-            // 2. En Çok Tıklanan Ürün
-            db.collection("products")
-                .orderBy("clickCount", com.google.firebase.firestore.Query.Direction.DESCENDING)
-                .limit(1)
-                .get()
-                .addOnSuccessListener { productDocs ->
-                    if (!productDocs.isEmpty) {
-                        val p = productDocs.documents[0]
-                        topProduct = "${p.getString("name")} (${p.getLong("clickCount")} tık)"
-                    }
-
-                    // 3. En Çok Favorilenen Ürün (Şimdilik clickCount ile aynı mantık, favori eklenince değişir)
-                    // (Buraya favori sorgusu gelecek)
-
-                    // Tüm veriler hazır, Dialogu Göster
-                    val reportMessage = """
-                        📊 <b>GENEL İSTATİSTİKLER</b><br><br>
-                        🏪 <b>Toplam Mağaza:</b> $totalStores<br>
-                        👆 <b>Toplam Mağaza Görüntüleme:</b> $totalStoreClicks<br>
-                        🔥 <b>En Popüler Ürün:</b><br> $topProduct<br>
-                        ❤️ <b>En Çok Favorilenen:</b><br> (Veri bekleniyor)
-                    """.trimIndent()
-
-                    AlertDialog.Builder(context)
-                        .setTitle("Yönetici Raporları")
-                        .setMessage(android.text.Html.fromHtml(reportMessage, android.text.Html.FROM_HTML_MODE_LEGACY))
-                        .setPositiveButton("Tamam", null)
-                        .show()
-                }
-        }
-    }
-
 }

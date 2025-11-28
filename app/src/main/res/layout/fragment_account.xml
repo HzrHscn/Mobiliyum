@@ -215,6 +215,15 @@
                 android:visibility="gone"/>
 
             <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnMyFavorites"
+                android:layout_width="match_parent"
+                android:layout_height="50dp"
+                android:text="Favorilerim ve Fiyat Takibi"
+                android:backgroundTint="#E91E63"
+                app:icon="@drawable/ic_heart_filled"
+                android:layout_marginBottom="8dp"/>
+
+            <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnChangeName"
                 android:layout_width="match_parent"
                 android:layout_height="50dp"
