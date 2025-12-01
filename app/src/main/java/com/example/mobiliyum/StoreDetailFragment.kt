@@ -1,28 +1,50 @@
 package com.example.mobiliyum
 
+import android.content.Context
+import android.graphics.Color
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
+import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
+import androidx.cardview.widget.CardView
+import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.fragment.app.Fragment
+import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
 import com.google.firebase.firestore.FirebaseFirestore
-// Tam ekran detay sayfasını import et
-import com.example.mobiliyum.ProductDetailFragment
+import com.google.firebase.firestore.Query
 
 class StoreDetailFragment : Fragment() {
 
+    // RecyclerViews
     private lateinit var rvCategories: RecyclerView
-    private lateinit var categoryAdapter: CategoryAdapter
-    private var categorySectionList = ArrayList<CategorySection>()
+    private lateinit var rvUserChoice: RecyclerView
+    private lateinit var rvStoreChoice: RecyclerView
 
-    // Gelen Veriler
-    private var storeId: Int = 0 // --- ARTIK ID VAR ---
+    // Adapters
+    private lateinit var categoryAdapter: CategoryAdapter
+    private lateinit var userChoiceAdapter: ProductAdapter
+    private lateinit var storeChoiceAdapter: ProductAdapter
+
+    // Layouts (Gizleyip açmak için)
+    private lateinit var layoutUserChoice: LinearLayout
+    private lateinit var layoutStoreChoice: LinearLayout
+
+    // Duyuru
+    private lateinit var cardAnnouncement: CardView
+    private lateinit var tvAnnouncement: TextView
+    private lateinit var btnSeeAllAnnouncements: TextView
+    private lateinit var btnAnnouncementsPage: com.google.android.material.button.MaterialButton
+
+    // Data
+    private var categorySectionList = ArrayList<CategorySection>()
+    private var storeId: Int = 0
     private var storeName: String? = null
     private var storeImage: String? = null
     private var storeLocation: String? = null
@@ -32,7 +54,6 @@ class StoreDetailFragment : Fragment() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         arguments?.let {
-            // Paketten ID'yi çıkarıyoruz. (Varsayılan 0)
             storeId = it.getInt("id", 0)
             storeName = it.getString("name")
             storeImage = it.getString("image")
@@ -49,7 +70,18 @@ class StoreDetailFragment : Fragment() {
         val imgLogo = view.findViewById<ImageView>(R.id.imgDetailLogo)
         val tvName = view.findViewById<TextView>(R.id.tvDetailName)
         val tvLocation = view.findViewById<TextView>(R.id.tvDetailLocation)
+
         rvCategories = view.findViewById(R.id.rvProducts)
+        rvUserChoice = view.findViewById(R.id.rvUserChoice)
+        rvStoreChoice = view.findViewById(R.id.rvStoreChoice)
+
+        layoutUserChoice = view.findViewById(R.id.layoutUserChoice)
+        layoutStoreChoice = view.findViewById(R.id.layoutStoreChoice)
+
+        cardAnnouncement = view.findViewById(R.id.cardStoreAnnouncement)
+        tvAnnouncement = view.findViewById(R.id.tvStoreAnnouncement)
+        btnSeeAllAnnouncements = view.findViewById(R.id.btnSeeAllAnnouncements)
+        btnAnnouncementsPage = view.findViewById(R.id.btnStoreAnnouncementsPage)
 
         tvName.text = storeName
         tvLocation.text = storeLocation
@@ -58,23 +90,75 @@ class StoreDetailFragment : Fragment() {
         }
 
         rvCategories.layoutManager = LinearLayoutManager(context)
+        rvUserChoice.layoutManager = GridLayoutManager(context, 2)
+        rvStoreChoice.layoutManager = GridLayoutManager(context, 2)
 
-        // Verileri Çek
-        fetchProductsAndGroup()
+        rvCategories.isNestedScrollingEnabled = false
+        rvUserChoice.isNestedScrollingEnabled = false
+        rvStoreChoice.isNestedScrollingEnabled = false
+
+        setupFollowButton(view)
+
+        if (storeId != 0) {
+            fetchStoreProducts()
+            fetchLatestAnnouncement()
+        }
+
+        // "Duyurular" Butonuna tıklayınca
+        btnAnnouncementsPage.setOnClickListener {
+            openAnnouncementPage()
+        }
+
+        // "Tümünü Gör" Linkine tıklayınca
+        btnSeeAllAnnouncements.setOnClickListener {
+            openAnnouncementPage()
+        }
 
         return view
     }
 
-    private fun fetchProductsAndGroup() {
-        // ID kontrolü
-        if (storeId == 0) {
-            Toast.makeText(context, "Mağaza ID'si alınamadı!", Toast.LENGTH_SHORT).show()
-            return
-        }
+    private fun openAnnouncementPage() {
+        val fragment = StoreAnnouncementsFragment()
+        val bundle = Bundle()
+        bundle.putString("storeId", storeId.toString())
+        bundle.putString("storeName", storeName)
+        fragment.arguments = bundle
 
-        // --- KRİTİK SORGULAMA ---
-        // Artık veritabanına "StoreId'si X olan ürünleri getir" diyoruz.
-        // CSV'de girdiğin 6 numaralı ürünler, sen 6 numaralı mağazaya tıklayınca gelecek.
+        parentFragmentManager.beginTransaction()
+            .replace(R.id.fragmentContainer, fragment)
+            .addToBackStack(null)
+            .commit()
+    }
+
+    private fun setupFollowButton(view: View) {
+        val btnFollow = view.findViewById<com.google.android.material.button.MaterialButton>(R.id.btnFollowStore)
+        fun updateFollowButton() {
+            if (FavoritesManager.isFollowing(storeId)) {
+                btnFollow.text = "Takip Ediliyor"
+                btnFollow.setIconResource(R.drawable.ic_heart_filled)
+                btnFollow.setBackgroundColor(Color.GRAY)
+            } else {
+                btnFollow.text = "Takip Et"
+                btnFollow.setIconResource(android.R.drawable.ic_input_add)
+                btnFollow.setBackgroundColor(Color.parseColor("#FF6F00"))
+            }
+        }
+        updateFollowButton()
+
+        btnFollow.setOnClickListener {
+            if (!UserManager.isLoggedIn()) {
+                Toast.makeText(context, "Giriş yapmalısınız.", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            if (FavoritesManager.isFollowing(storeId)) {
+                FavoritesManager.unfollowStore(storeId) { updateFollowButton() }
+            } else {
+                FavoritesManager.followStore(storeId) { updateFollowButton() }
+            }
+        }
+    }
+
+    private fun fetchStoreProducts() {
         db.collection("products")
             .whereEqualTo("storeId", storeId)
             .get()
@@ -84,47 +168,116 @@ class StoreDetailFragment : Fragment() {
                     allProducts.add(doc.toObject(Product::class.java))
                 }
 
-                if (allProducts.isEmpty()) {
-                    // Eğer ürün yoksa boş liste göster (Hata vermesin)
-                    Toast.makeText(context, "Bu mağazada henüz ürün yok.", Toast.LENGTH_SHORT).show()
+                if (allProducts.isNotEmpty()) {
+                    groupProductsByCategory(allProducts)
+                    setupFeaturedProducts(allProducts)
+                }
+            }
+    }
+
+    // --- DUYURU ÇEKME MANTIĞI ---
+    private fun fetchLatestAnnouncement() {
+        // Firestore'dan bu mağazaya ait (relatedId == storeId) ve tipi 'store_update' olanları çek
+        db.collection("announcements")
+            .whereEqualTo("type", "store_update")
+            .whereEqualTo("relatedId", storeId.toString())
+            .orderBy("date", Query.Direction.DESCENDING)
+            .limit(1)
+            .get()
+            .addOnSuccessListener { docs ->
+                if (!docs.isEmpty) {
+                    val msg = docs.documents[0].getString("message")
+                    if (!msg.isNullOrEmpty()) {
+                        tvAnnouncement.text = msg
+                        // KARTI GÖRÜNÜR YAP
+                        cardAnnouncement.visibility = View.VISIBLE
+                    }
                 } else {
-                    // Ürünleri grupla ve göster
-                    groupProductsBycategory(allProducts)
+                    // Yoksa gizli kalsın
+                    cardAnnouncement.visibility = View.GONE
                 }
             }
             .addOnFailureListener {
-                Toast.makeText(context, "Ürünler yüklenemedi: ${it.message}", Toast.LENGTH_SHORT).show()
+                // Hata olursa (örneğin index hatası) gizli kalsın
+                cardAnnouncement.visibility = View.GONE
             }
     }
 
-    private fun groupProductsBycategory(products: List<Product>) {
-        categorySectionList.clear()
+    private fun setupFeaturedProducts(products: List<Product>) {
+        // Kullanıcı Seçimi: Favori ve Tıklamaya göre
+        val userChoiceList = products.sortedWith(compareByDescending<Product> { it.favoriteCount }.thenByDescending { it.clickCount }).take(2)
 
-        // Kategori ismine göre grupla
-        val groupedMap = products.groupBy { it.category }
-
-        for ((categoryName, productList) in groupedMap) {
-            // Kategori sayısına göre otomatik açma mantığı
-            var expanded = false
-            if (groupedMap.size <= 2) { // Az kategori varsa açık gelsin
-                expanded = true
-            }
-
-            categorySectionList.add(CategorySection(categoryName, productList, expanded))
+        if (userChoiceList.isNotEmpty()) {
+            layoutUserChoice.visibility = View.VISIBLE
+            userChoiceAdapter = ProductAdapter(userChoiceList) { product -> openProductDetail(product) }
+            rvUserChoice.adapter = userChoiceAdapter
         }
 
-        categoryAdapter = CategoryAdapter(requireContext(), categorySectionList) { clickedProduct ->
-            // Ürüne tıklanınca Detay Sayfasına Git (Tam Ekran)
-            val detailFragment = ProductDetailFragment()
-            val bundle = Bundle()
-            bundle.putSerializable("product_data", clickedProduct)
-            detailFragment.arguments = bundle
+        // Mağaza Seçimi: Son eklenenler (Simülasyon)
+        val storeChoiceList = products.takeLast(4).filter { !userChoiceList.contains(it) }.take(2)
 
-            parentFragmentManager.beginTransaction()
-                .replace(R.id.fragmentContainer, detailFragment)
-                .addToBackStack(null)
-                .commit()
+        if (storeChoiceList.isNotEmpty()) {
+            layoutStoreChoice.visibility = View.VISIBLE
+            storeChoiceAdapter = ProductAdapter(storeChoiceList) { product -> openProductDetail(product) }
+            rvStoreChoice.adapter = storeChoiceAdapter
+        }
+    }
+
+    private fun openProductDetail(product: Product) {
+        val detailFragment = ProductDetailFragment()
+        val bundle = Bundle()
+        bundle.putSerializable("product_data", product)
+        detailFragment.arguments = bundle
+        parentFragmentManager.beginTransaction()
+            .replace(R.id.fragmentContainer, detailFragment)
+            .addToBackStack(null)
+            .commit()
+    }
+
+    private fun groupProductsByCategory(products: List<Product>) {
+        categorySectionList.clear()
+        val groupedMap = products.groupBy { it.category }
+        for ((categoryName, productList) in groupedMap) {
+            val isExpanded = groupedMap.size <= 2
+            categorySectionList.add(CategorySection(categoryName, productList, isExpanded))
+        }
+        categoryAdapter = CategoryAdapter(requireContext(), categorySectionList) { clickedProduct ->
+            openProductDetail(clickedProduct)
         }
         rvCategories.adapter = categoryAdapter
     }
+}
+
+// --- YARDIMCI SINIFLAR ---
+
+data class CategorySection(
+    val categoryName: String,
+    val products: List<Product>,
+    var isExpanded: Boolean = false
+)
+
+class CategoryAdapter(
+    private val context: Context,
+    private val categoryList: List<CategorySection>,
+    private val onProductClick: (Product) -> Unit
+) : RecyclerView.Adapter<CategoryAdapter.CategoryViewHolder>() {
+
+    class CategoryViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
+        val tvTitle: TextView = itemView.findViewById(R.id.tvCategoryTitle)
+        val btnExpand: ConstraintLayout = itemView.findViewById(R.id.layoutCategoryHeader)
+        val imgArrow: ImageView = itemView.findViewById(R.id.imgExpandIcon)
+        val rvProducts: RecyclerView = itemView.findViewById(R.id.rvInnerProducts)
+    }
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int) = CategoryViewHolder(LayoutInflater.from(parent.context).inflate(R.layout.item_category_group, parent, false))
+    override fun onBindViewHolder(holder: CategoryViewHolder, position: Int) {
+        val section = categoryList[position]
+        holder.tvTitle.text = "${section.categoryName} (${section.products.size})"
+        holder.rvProducts.visibility = if (section.isExpanded) View.VISIBLE else View.GONE
+        holder.imgArrow.rotation = if (section.isExpanded) 180f else 0f
+        holder.rvProducts.layoutManager = GridLayoutManager(context, 2)
+        holder.rvProducts.adapter = ProductAdapter(section.products, onProductClick)
+        holder.rvProducts.isNestedScrollingEnabled = false
+        holder.btnExpand.setOnClickListener { section.isExpanded = !section.isExpanded; notifyItemChanged(position) }
+    }
+    override fun getItemCount() = categoryList.size
 }

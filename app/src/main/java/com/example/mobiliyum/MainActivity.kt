@@ -17,56 +17,52 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var bottomNav: BottomNavigationView
 
-    // Bildirim
+    // Bildirim Bileşenleri (Tepeden Düşen Kart)
     private lateinit var notificationCard: CardView
     private lateinit var tvNotifTitle: TextView
     private lateinit var tvNotifBody: TextView
     private lateinit var btnCloseNotif: ImageView
 
-    // Aktif Duyuru ID'si
+    // Aktif Duyuru ID'si (Kapatınca kaydetmek için)
     private var activeAnnouncementId: String = ""
 
+    // Fragmentlar
     private val homeFragment = HomeFragment()
     private val cartFragment = CartFragment()
     private val accountFragment = AccountFragment()
     private val storesFragment = StoresFragment()
     private val welcomeFragment = WelcomeFragment()
+    private val notificationsFragment = NotificationsFragment() // Ekstra olarak dursun
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
+        // View Bağlantıları
         bottomNav = findViewById(R.id.bottomNavigationView)
         notificationCard = findViewById(R.id.notificationCard)
         tvNotifTitle = findViewById(R.id.tvNotifTitle)
         tvNotifBody = findViewById(R.id.tvNotifBody)
         btnCloseNotif = findViewById(R.id.btnCloseNotif)
 
+        // Başlangıçta menüyü gizle
         bottomNav.visibility = View.GONE
 
+        // 1. Navigasyon Ayarlarını Yükle
         setupNavigation()
 
-        // KRİTİK: Bildirimleri dinle ve "kapatılmış mı?" kontrolü yap
+        // 2. Android 13+ için Bildirim İzni İste
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 101)
+            }
+        }
+
+        // 3. Bildirim Kanalını Oluştur
+        NotificationHelper.createNotificationChannel(this)
+
+        // 4. Duyuruları Dinle (Uygulama açıkken tepeden düşen kart için)
         listenForAnnouncements()
-
-        UserManager.checkSession { isLoggedIn ->
-            if (isLoggedIn) {
-                FavoritesManager.loadUserFavorites {
-                    loadFragment(homeFragment)
-                    bottomNav.visibility = View.VISIBLE
-                }
-            } else {
-                loadFragment(welcomeFragment)
-            }
-        }
-
-        // KAPATMA BUTONU: Sadece kapatmaz, bir daha göstermemek üzere kaydeder
-        btnCloseNotif.setOnClickListener {
-            hideNotification()
-            if (activeAnnouncementId.isNotEmpty()) {
-                saveDismissedAnnouncement(activeAnnouncementId)
-            }
-        }
 
         NotificationHelper.createNotificationChannel(this)
 
@@ -76,22 +72,40 @@ class MainActivity : AppCompatActivity() {
                     loadFragment(homeFragment)
                     bottomNav.visibility = View.VISIBLE
 
-                    // --- FİYAT KONTROLÜNÜ BAŞLAT ---
-                    FavoritesManager.checkPriceDrops(this)
+                    // --- CANLI TAKİBİ BAŞLAT ---
+                    FavoritesManager.startRealTimePriceAlerts(this)
                 }
             } else {
                 loadFragment(welcomeFragment)
             }
         }
-    }
 
-    override fun onResume() {
-        super.onResume()
-        // Uygulama her ön plana geldiğinde (veya açıldığında) fiyatları kontrol et
-        if (UserManager.isLoggedIn()) {
-            FavoritesManager.checkPriceDrops(this)
+        // Bildirim Kapatma Butonu
+        btnCloseNotif.setOnClickListener {
+            hideNotification()
+            // Eğer bir duyuru ID'si varsa, bunu "görüldü" olarak kaydet
+            if (activeAnnouncementId.isNotEmpty()) {
+                saveDismissedAnnouncement(activeAnnouncementId)
+            }
         }
     }
+
+    // Uygulama her ön plana geldiğinde fiyatları tekrar kontrol et
+    override fun onResume() {
+        super.onResume()
+        // Uygulama ön plana gelince takibi tazele
+        if (UserManager.isLoggedIn()) {
+            FavoritesManager.startRealTimePriceAlerts(this)
+        }
+    }
+
+    override fun onPause() {
+        super.onPause()
+        // İstersen arka planda pil tüketmesin diye durdurabilirsin
+        // Ama bildirim arka planda da gelsin istiyorsan burayı boş bırak.
+        // FavoritesManager.stopTracking()
+    }
+
     private fun setupNavigation() {
         bottomNav.setOnItemSelectedListener { item ->
             when (item.itemId) {
@@ -110,7 +124,7 @@ class MainActivity : AppCompatActivity() {
             .commit()
     }
 
-    // --- YENİLENMİŞ BİLDİRİM MANTIĞI ---
+    // --- DUYURU DİNLEME SİSTEMİ ---
     private fun listenForAnnouncements() {
         val db = FirebaseFirestore.getInstance()
 
@@ -179,6 +193,7 @@ class MainActivity : AppCompatActivity() {
         })
     }
 
+    // Fragmentlardan çağrılacak yardımcılar
     fun showBottomNav() { bottomNav.visibility = View.VISIBLE }
     fun hideBottomNav() { bottomNav.visibility = View.GONE }
 }

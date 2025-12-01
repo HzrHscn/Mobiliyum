@@ -40,6 +40,7 @@ class AccountFragment : Fragment() {
     private lateinit var tvEmail: TextView
     private lateinit var btnAdminPanel: MaterialButton
     private lateinit var btnMyFavorites: MaterialButton
+    private lateinit var btnNotifications: MaterialButton
     private lateinit var btnLogout: MaterialButton
     private lateinit var btnChangeName: MaterialButton
     private lateinit var btnChangePassword: MaterialButton
@@ -76,6 +77,7 @@ class AccountFragment : Fragment() {
         tvEmail = view.findViewById(R.id.tvProfileEmail)
         btnAdminPanel = view.findViewById(R.id.btnAdminPanel)
         btnMyFavorites = view.findViewById(R.id.btnMyFavorites)
+        btnNotifications = view.findViewById(R.id.btnNotifications)
         btnLogout = view.findViewById(R.id.btnLogout)
         btnChangeName = view.findViewById(R.id.btnChangeName)
         btnChangePassword = view.findViewById(R.id.btnChangePassword)
@@ -150,6 +152,13 @@ class AccountFragment : Fragment() {
         btnMyFavorites.setOnClickListener {
             parentFragmentManager.beginTransaction()
                 .replace(R.id.fragmentContainer, FavoritesFragment())
+                .addToBackStack(null)
+                .commit()
+        }
+
+        btnNotifications.setOnClickListener {
+            parentFragmentManager.beginTransaction()
+                .replace(R.id.fragmentContainer, NotificationsFragment())
                 .addToBackStack(null)
                 .commit()
         }

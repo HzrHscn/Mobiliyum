@@ -6,6 +6,7 @@
     android:layout_height="match_parent"
     android:background="#F5F5F5">
 
+    <!-- Üst Bar (Sabit Kısım) -->
     <com.google.android.material.appbar.AppBarLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -16,13 +17,13 @@
             android:layout_height="wrap_content"
             android:orientation="vertical"
             android:gravity="center"
-            android:padding="24dp"
+            android:padding="20dp"
             android:background="#FFFFFF">
 
             <ImageView
                 android:id="@+id/imgDetailLogo"
-                android:layout_width="100dp"
-                android:layout_height="100dp"
+                android:layout_width="80dp"
+                android:layout_height="80dp"
                 android:scaleType="fitCenter"
                 android:src="@android:drawable/ic_menu_gallery"/>
 
@@ -31,29 +32,202 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Mağaza Adı"
-                android:textSize="22sp"
+                android:textSize="20sp"
                 android:textStyle="bold"
                 android:textColor="#333"
-                android:layout_marginTop="12dp"/>
+                android:layout_marginTop="8dp"/>
 
             <TextView
                 android:id="@+id/tvDetailLocation"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="A Etap Giriş Kat No: 12"
-                android:textSize="14sp"
+                android:text="Konum Bilgisi"
+                android:textSize="12sp"
                 android:textColor="#777"
                 android:layout_marginTop="4dp"/>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center"
+                android:layout_marginTop="12dp">
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnFollowStore"
+                    android:layout_width="wrap_content"
+                    android:layout_height="40dp"
+                    android:text="Takip Et"
+                    android:textSize="11sp"
+                    android:layout_marginEnd="8dp"
+                    app:icon="@android:drawable/ic_input_add"
+                    app:cornerRadius="20dp"
+                    android:backgroundTint="#FF6F00"/>
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnStoreAnnouncementsPage"
+                    android:layout_width="wrap_content"
+                    android:layout_height="40dp"
+                    android:text="Duyurular"
+                    android:textSize="11sp"
+                    android:textColor="#FF6F00"
+                    app:icon="@android:drawable/ic_popup_reminder"
+                    app:iconTint="#FF6F00"
+                    app:strokeColor="#FF6F00"
+                    app:strokeWidth="1dp"
+                    app:cornerRadius="20dp"
+                    android:backgroundTint="#FFFFFF"/>
+
+            </LinearLayout>
 
         </LinearLayout>
     </com.google.android.material.appbar.AppBarLayout>
 
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/rvProducts"
+    <!-- Kaydırılabilir İçerik -->
+    <androidx.core.widget.NestedScrollView
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:padding="8dp"
-        android:clipToPadding="false"
-        app:layout_behavior="@string/appbar_scrolling_view_behavior"/>
+        app:layout_behavior="@string/appbar_scrolling_view_behavior"
+        android:fillViewport="true">
 
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingBottom="30dp">
+
+            <!-- 1. MAĞAZA DUYURULARI (KÜÇÜK KART) -->
+            <!-- Varsayılan olarak GONE, veri gelince VISIBLE olacak -->
+            <androidx.cardview.widget.CardView
+                android:id="@+id/cardStoreAnnouncement"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_margin="16dp"
+                app:cardBackgroundColor="#E3F2FD"
+                app:cardCornerRadius="12dp"
+                app:cardElevation="0dp"
+                android:visibility="gone">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginBottom="6dp">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="📢 Mağazadan Güncelleme"
+                            android:textStyle="bold"
+                            android:textColor="#1565C0"
+                            android:textSize="14sp"/>
+
+                        <!-- Bu buton da duyurular sayfasına götürür -->
+                        <TextView
+                            android:id="@+id/btnSeeAllAnnouncements"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Tümünü Gör >"
+                            android:textSize="12sp"
+                            android:textStyle="bold"
+                            android:textColor="#1976D2"
+                            android:padding="4dp"/>
+                    </LinearLayout>
+
+                    <TextView
+                        android:id="@+id/tvStoreAnnouncement"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Duyuru yükleniyor..."
+                        android:textColor="#424242"
+                        android:textSize="14sp"
+                        android:maxLines="3"
+                        android:ellipsize="end"/>
+                </LinearLayout>
+            </androidx.cardview.widget.CardView>
+
+            <!-- 2. KULLANICILARIN SEÇİMİ -->
+            <LinearLayout
+                android:id="@+id/layoutUserChoice"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="⭐ Kullanıcıların Gözdesi"
+                    android:textSize="18sp"
+                    android:textStyle="bold"
+                    android:textColor="#333"
+                    android:layout_marginTop="8dp"
+                    android:layout_marginBottom="12dp"
+                    android:layout_marginHorizontal="16dp"/>
+
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/rvUserChoice"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:paddingHorizontal="10dp"
+                    android:clipToPadding="false"
+                    android:nestedScrollingEnabled="false"/>
+            </LinearLayout>
+
+            <!-- 3. MAĞAZANIN SEÇİMİ -->
+            <LinearLayout
+                android:id="@+id/layoutStoreChoice"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="🏆 Mağazanın Seçimi"
+                    android:textSize="18sp"
+                    android:textStyle="bold"
+                    android:textColor="#333"
+                    android:layout_marginTop="24dp"
+                    android:layout_marginBottom="12dp"
+                    android:layout_marginHorizontal="16dp"/>
+
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/rvStoreChoice"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:paddingHorizontal="10dp"
+                    android:clipToPadding="false"
+                    android:nestedScrollingEnabled="false"/>
+            </LinearLayout>
+
+            <!-- 4. KOLEKSİYONLAR -->
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Koleksiyonlar"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:textColor="#333"
+                android:layout_marginTop="24dp"
+                android:layout_marginBottom="12dp"
+                android:layout_marginHorizontal="16dp"/>
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/rvProducts"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:nestedScrollingEnabled="false"/>
+
+        </LinearLayout>
+    </androidx.core.widget.NestedScrollView>
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

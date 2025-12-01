@@ -4,6 +4,7 @@ import android.app.AlertDialog
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.DashPathEffect
 import android.graphics.Paint
 import android.graphics.Path
 import android.os.Bundle
@@ -29,7 +30,6 @@ import java.util.Date
 import java.util.Locale
 import kotlin.math.max
 
-// --- 1. ANA FRAGMENT ---
 class FavoritesFragment : Fragment() {
 
     private lateinit var recyclerView: RecyclerView
@@ -37,10 +37,7 @@ class FavoritesFragment : Fragment() {
     private val db = FirebaseFirestore.getInstance()
     private val favoriteUiList = ArrayList<FavoriteUiItem>()
 
-    override fun onCreateView(
-        inflater: LayoutInflater, container: ViewGroup?,
-        savedInstanceState: Bundle?
-    ): View? {
+    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
         val view = inflater.inflate(R.layout.fragment_stores, container, false)
         view.findViewById<TextView>(R.id.tvTitle)?.text = "Favorilerim & Fiyat Takibi"
         view.findViewById<View>(R.id.cardSearch)?.visibility = View.GONE
@@ -95,17 +92,15 @@ class FavoritesFragment : Fragment() {
     }
 
     private fun confirmRemoveFavorite(item: FavoriteUiItem, position: Int) {
-        AlertDialog.Builder(context)
-            .setTitle("Favorilerden Çıkar")
-            .setMessage("${item.product.name} favorilerinizden çıkarılacak.")
+        AlertDialog.Builder(context).setTitle("Favorilerden Çıkar")
+            .setMessage("${item.product.name} silinecek.")
             .setPositiveButton("Çıkar") { _, _ ->
                 FavoritesManager.toggleFavorite(item.product) {
                     favoriteUiList.removeAt(position)
                     adapter.notifyItemRemoved(position)
                     adapter.notifyItemRangeChanged(position, favoriteUiList.size)
                 }
-            }
-            .setNegativeButton("İptal", null).show()
+            }.setNegativeButton("İptal", null).show()
     }
 
     private fun showAnalysisDialog(product: Product) {
@@ -114,61 +109,63 @@ class FavoritesFragment : Fragment() {
         val btnClose = dialogView.findViewById<MaterialButton>(R.id.btnCloseGraph)
         val toggleGroup = dialogView.findViewById<MaterialButtonToggleGroup>(R.id.toggleGroupPeriod)
 
-        dialogView.findViewById<TextView>(R.id.tvGraphTitle).text = "${product.name} - Fiyat Analizi"
+        dialogView.findViewById<TextView>(R.id.tvGraphTitle).text = "${product.name}"
 
+        // YENİ GRAFİK MOTORU
         val graphView = InternalGraphView(requireContext())
         graphView.layoutParams = FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
         container.addView(graphView)
 
-        // GERÇEK VERİ YÖNETİMİ
-        val realHistory = HashMap<Long, Double>()
+        // Veriyi Hazırla
+        val historyMap = HashMap<Long, Double>()
         val currentPrice = PriceUtils.parsePrice(product.price)
         val now = System.currentTimeMillis()
-        realHistory[now] = currentPrice // Bugünü ekle
+        historyMap[now] = currentPrice // Bugünü ekle
 
-        // Veritabanındaki geçmişi (String: "yyyy-MM-dd") Long'a çevir
         if (product.priceHistory.isNotEmpty()) {
             val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
-            for ((dateStr, price) in product.priceHistory) {
+            for ((k, v) in product.priceHistory) {
                 try {
-                    val date = sdf.parse(dateStr)
-                    if (date != null) realHistory[date.time] = price
-                } catch (e: Exception) {}
+                    val t = sdf.parse(k.toString())?.time
+                    if (t != null) historyMap[t] = v
+                } catch (e: Exception) {
+                    if (k.toString().toLongOrNull() != null) historyMap[k.toString().toLong()] = v
+                }
             }
         }
 
-        fun updateGraph(mode: Int) {
-            val dataToShow = HashMap<Long, Double>()
-            // Kesin filtreleme zamanı
-            val cutoff = when(mode) {
-                0 -> now - (7 * 86400000L) // 7 Gün
-                1 -> now - (30 * 86400000L) // 30 Gün
-                else -> now - (365 * 86400000L) // 1 Yıl
+        fun updateGraph(days: Int) {
+            val startTime = now - (days * 24 * 60 * 60 * 1000L)
+
+            // Seçilen aralıktaki verileri al
+            val filteredData = historyMap.filterKeys { it >= startTime }.toMutableMap()
+
+            // Eğer aralığın başında veri yoksa, grafiğin düzgün başlaması için
+            // o tarihe en yakın önceki fiyatı veya şimdiki fiyatı başlangıç noktası yap
+            if (!filteredData.containsKey(startTime)) {
+                // Bu tarihten önceki en son fiyatı bulmaya çalış, yoksa currentPrice
+                // Basitlik için currentPrice veya listedeki en eski fiyatı alıyoruz
+                val oldestAvailable = historyMap.keys.minOrNull() ?: now
+                val startPrice = historyMap[oldestAvailable] ?: currentPrice
+                filteredData[startTime] = startPrice
             }
 
-            // Filtrele
-            val filtered = realHistory.filterKeys { it >= cutoff }
+            // Bitiş noktası (Bugün) kesin olsun
+            filteredData[now] = currentPrice
 
-            // Eğer veri boşsa veya tekse, grafiğin düzgün görünmesi için başa aynı değeri koy
-            if (filtered.size <= 1) {
-                dataToShow[now] = currentPrice
-                dataToShow[cutoff] = currentPrice // Düz çizgi için başlangıç
-            } else {
-                dataToShow.putAll(filtered)
-            }
-
-            val format = if(mode == 2) "MMM" else "dd MMM"
-            graphView.setData(dataToShow, format)
+            // Grafiğe Min/Max zaman aralığını ve veriyi gönder
+            graphView.setData(filteredData, startTime, now)
         }
 
-        updateGraph(1)
+        updateGraph(30) // Varsayılan: Aylık
         toggleGroup.check(R.id.btnMonth)
+
         toggleGroup.addOnButtonCheckedListener { _, id, isChecked ->
             if (isChecked) {
                 when(id) {
-                    R.id.btnWeek -> updateGraph(0)
-                    R.id.btnMonth -> updateGraph(1)
-                    R.id.btnYear -> updateGraph(2)
+                    R.id.btnWeek -> updateGraph(7)
+                    R.id.btnMonth -> updateGraph(30)
+                    R.id.btnYear -> updateGraph(365)
                 }
             }
         }
@@ -179,10 +176,10 @@ class FavoritesFragment : Fragment() {
     }
 }
 
-// --- 2. VERİ MODELİ ---
+// --- VERİ MODELİ ---
 data class FavoriteUiItem(val product: Product, var isAlertOn: Boolean)
 
-// --- 3. ADAPTER ---
+// --- ADAPTER ---
 class FavoritesAdapter(
     private val items: List<FavoriteUiItem>,
     private val onDetailClick: (Product) -> Unit,
@@ -224,51 +221,87 @@ class FavoritesAdapter(
     override fun getItemCount() = items.size
 }
 
-// --- 4. GRAFİK MOTORU ---
+// --- ZAMAN EKSENLİ GRAFİK MOTORU (HATASIZ) ---
 class InternalGraphView @JvmOverloads constructor(c: Context, a: AttributeSet? = null) : View(c, a) {
-    private val pLine = Paint().apply { color = Color.parseColor("#4CAF50"); strokeWidth = 6f; style = Paint.Style.STROKE; isAntiAlias = true }
+    private val pLine = Paint().apply { color = Color.parseColor("#4CAF50"); strokeWidth = 5f; style = Paint.Style.STROKE; isAntiAlias = true }
     private val pDot = Paint().apply { color = Color.parseColor("#FF6F00"); style = Paint.Style.FILL; isAntiAlias = true }
-    private val pText = Paint().apply { color = Color.DKGRAY; textSize = 28f; isAntiAlias = true; textAlign = Paint.Align.CENTER }
-    private var pts: List<Pair<Long, Double>> = emptyList()
-    private var fmt = "dd MMM"
+    private val pGrid = Paint().apply { color = Color.LTGRAY; strokeWidth = 2f; style = Paint.Style.STROKE; pathEffect = DashPathEffect(floatArrayOf(10f, 10f), 0f) }
+    private val pText = Paint().apply { color = Color.DKGRAY; textSize = 24f; isAntiAlias = true; textAlign = Paint.Align.CENTER }
 
-    fun setData(h: Map<Long, Double>, f: String) { pts = h.toList().sortedBy { it.first }; fmt = f; invalidate() }
+    private var dataMap: Map<Long, Double> = emptyMap()
+    private var minTime: Long = 0
+    private var maxTime: Long = 0
+
+    fun setData(data: Map<Long, Double>, start: Long, end: Long) {
+        dataMap = data
+        minTime = start
+        maxTime = end
+        invalidate()
+    }
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
-        if (pts.isEmpty()) return
-        val pad = 80f
-        val w = width - pad - 40f
-        val h = height - pad - 40f
-        val maxP = pts.maxOf { it.second }
-        val minP = pts.minOf { it.second }
-        val diff = maxP - minP
-        val vMax = if (diff == 0.0) maxP * 1.1 else maxP + (diff * 0.1)
-        val vMin = if (diff == 0.0) maxP * 0.9 else minP - (diff * 0.1)
-        val rng = vMax - vMin
-        val stepX = if (pts.size > 1) w / (pts.size - 1) else 0f
-        val sdf = SimpleDateFormat(fmt, Locale("tr", "TR"))
-        val path = Path()
+        if (dataMap.isEmpty()) return
 
-        if (pts.size == 1) {
-            val x = pad + w / 2
-            val y = h / 2
-            canvas.drawCircle(x, y, 12f, pDot)
-            canvas.drawText("${pts[0].second.toInt()}₺", x, y - 30, pText)
-            canvas.drawText(sdf.format(Date(pts[0].first)), x, height - 20f, pText)
-            return
+        val padLeft = 80f
+        val padBottom = 60f
+        val padTop = 40f
+        val padRight = 40f
+
+        val w = width - padLeft - padRight
+        val h = height - padBottom - padTop
+
+        // Y EKSENİ (FİYAT) HESABI
+        val maxP = dataMap.values.maxOrNull() ?: 100.0
+        val minP = dataMap.values.minOrNull() ?: 0.0
+        // Grafik üstte ve altta yapışmasın diye %10 pay
+        val rangeP = max((maxP - minP) * 1.2, 1.0)
+        val baseP = minP - (rangeP * 0.1)
+
+        // X EKSENİ (ZAMAN) HESABI
+        val rangeT = max(maxTime - minTime, 1L)
+
+        // 1. Grid Çizgileri ve Tarih Etiketleri (Sabit 5 nokta)
+        val sdf = SimpleDateFormat("dd MMM", Locale("tr"))
+        val labelCount = 5
+        for (i in 0 until labelCount) {
+            val fraction = i.toFloat() / (labelCount - 1)
+            val x = padLeft + (fraction * w)
+            val time = minTime + (fraction * rangeT).toLong()
+
+            // Dikey Grid
+            canvas.drawLine(x, padTop, x, height - padBottom, pGrid)
+            // Tarih
+            canvas.drawText(sdf.format(Date(time)), x, height - 10f, pText)
         }
 
-        for (i in pts.indices) {
-            val (d, p) = pts[i]
-            val x = pad + (i * stepX)
-            val frac = (p - vMin) / rng
-            val y = (height - pad) - (frac * h).toFloat()
-            if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
-            canvas.drawCircle(x, y, 10f, pDot)
-            canvas.drawText("${p.toInt()}₺", x, y - 25, pText)
-            // Çakışmayı önlemek için basit mantık
-            if (pts.size < 8 || i % 2 == 0) canvas.drawText(sdf.format(Date(d)), x, height - 20f, pText)
+        // 2. Grafiği Çiz (Veri Noktaları)
+        val path = Path()
+        val sortedPoints = dataMap.toList().sortedBy { it.first }
+        var firstPoint = true
+
+        for ((t, p) in sortedPoints) {
+            // Zamanın grafikteki X konumu
+            val fractionX = (t - minTime).toFloat() / rangeT.toFloat()
+            val x = padLeft + (fractionX * w)
+
+            // Fiyatın grafikteki Y konumu
+            val fractionY = ((p - baseP) / rangeP).toFloat()
+            val y = (height - padBottom) - (fractionY * h)
+
+            // Çizgi
+            if (firstPoint) {
+                path.moveTo(x, y)
+                firstPoint = false
+            } else {
+                path.lineTo(x, y)
+            }
+
+            // Nokta
+            canvas.drawCircle(x, y, 8f, pDot)
+
+            // Fiyat Etiketi (Sadece değişim noktalarında veya hepsinde)
+            canvas.drawText("${p.toInt()}", x, y - 15f, pText)
         }
         canvas.drawPath(path, pLine)
     }

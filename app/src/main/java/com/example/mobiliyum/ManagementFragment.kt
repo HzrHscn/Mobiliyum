@@ -156,18 +156,42 @@ class ManagementFragment : Fragment() {
     }
 
     private fun sendAnnouncementToFirebase(title: String, message: String) {
+        val user = UserManager.getCurrentUser() ?: return
+        val role = UserManager.getUserRole()
+
+        // Bildirim Tipini Belirle
+        // Eğer Admin/SRV ise "general" (Herkese)
+        // Eğer Manager ise "store_update" (Sadece takipçilere)
+
+        val type = if (role == UserRole.MANAGER || role == UserRole.EDITOR) "store_update" else "general"
+        val relatedId = if (type == "store_update") user.storeId.toString() else ""
+
+        // Yetki Kontrolü (Mağaza çalışanı ama mağazası yoksa hata ver)
+        if (type == "store_update" && (user.storeId == null || user.storeId == 0)) {
+            Toast.makeText(context, "Hangi mağazanın yöneticisi olduğunuz belirlenemedi.", Toast.LENGTH_LONG).show()
+            return
+        }
+
+        // YENİ: Karakter Sınırı Kontrolü
+        if (message.length > 300) {
+            Toast.makeText(context, "Bildirim mesajı 300 karakterden uzun olamaz. (Şu an: ${message.length})", Toast.LENGTH_LONG).show()
+            return
+        }
+
         val announcement = hashMapOf(
             "title" to title,
             "message" to message,
-            "date" to Date(),
-            "author" to (UserManager.getCurrentUser()?.fullName ?: "Admin"),
-            "isActive" to true
+            "date" to java.util.Date(),
+            "author" to user.fullName,
+            "type" to type, // YENİ: Bildirim Tipi
+            "relatedId" to relatedId // YENİ: Hangi mağaza?
         )
 
         db.collection("announcements")
             .add(announcement)
             .addOnSuccessListener {
-                Toast.makeText(context, "Duyuru başarıyla yayınlandı!", Toast.LENGTH_LONG).show()
+                val hedef = if(type=="general") "Tüm kullanıcılara" else "Mağaza takipçilerine"
+                Toast.makeText(context, "Duyuru $hedef gönderildi!", Toast.LENGTH_LONG).show()
             }
             .addOnFailureListener {
                 Toast.makeText(context, "Hata: ${it.message}", Toast.LENGTH_LONG).show()
