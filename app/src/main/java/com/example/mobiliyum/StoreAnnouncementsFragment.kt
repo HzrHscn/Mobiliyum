@@ -12,9 +12,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.button.MaterialButtonToggleGroup
 import com.google.firebase.firestore.FirebaseFirestore
-import com.google.firebase.firestore.Query
 import java.text.SimpleDateFormat
-import java.util.Date
 import java.util.Locale
 
 class StoreAnnouncementsFragment : Fragment() {
@@ -24,10 +22,7 @@ class StoreAnnouncementsFragment : Fragment() {
     private lateinit var toggleGroup: MaterialButtonToggleGroup
 
     private val db = FirebaseFirestore.getInstance()
-
-    // Tüm duyuruları hafızada tutacağız, filtrelemeyi burada yapacağız (Daha hızlı)
     private val allList = ArrayList<NotificationItem>()
-    private val filteredList = ArrayList<NotificationItem>()
 
     private var storeId: String = ""
     private var storeName: String = ""
@@ -53,31 +48,28 @@ class StoreAnnouncementsFragment : Fragment() {
         tvTitle.text = "$storeName - Duyurular"
         recyclerView.layoutManager = LinearLayoutManager(context)
 
-        // Filtre Butonları
         toggleGroup.addOnButtonCheckedListener { _, checkedId, isChecked ->
             if (isChecked) {
                 when (checkedId) {
                     R.id.btn1Month -> filterList(30)
                     R.id.btn6Months -> filterList(180)
                     R.id.btn1Year -> filterList(365)
-                    R.id.btnAllTime -> filterList(-1) // Tümü
+                    R.id.btnAllTime -> filterList(-1)
                 }
             }
         }
 
         loadAllAnnouncements()
-
         return view
     }
 
     private fun loadAllAnnouncements() {
         if (storeId.isEmpty()) return
 
-        // Sadece bu mağazaya ait duyuruları çek (En yeniden en eskiye)
+        // İNDEKS HATASINI ÖNLEMEK İÇİN: orderBy("date") kaldırıldı.
         db.collection("announcements")
             .whereEqualTo("type", "store_update")
             .whereEqualTo("relatedId", storeId)
-            .orderBy("date", Query.Direction.DESCENDING)
             .get()
             .addOnSuccessListener { documents ->
                 allList.clear()
@@ -92,15 +84,12 @@ class StoreAnnouncementsFragment : Fragment() {
     }
 
     private fun filterList(days: Int) {
-        filteredList.clear()
+        val filteredList = ArrayList<NotificationItem>()
 
         if (days == -1) {
-            // Tümü
             filteredList.addAll(allList)
         } else {
-            // Zaman hesabı (Şimdiki zaman - gün sayısı)
             val cutoffTime = System.currentTimeMillis() - (days * 24 * 60 * 60 * 1000L)
-
             for (item in allList) {
                 if (item.date.time >= cutoffTime) {
                     filteredList.add(item)
@@ -108,7 +97,9 @@ class StoreAnnouncementsFragment : Fragment() {
             }
         }
 
-        // Listeyi güncelle
+        // SIRALAMAYI BURADA YAPIYORUZ (Yeniden Eskiye)
+        filteredList.sortByDescending { it.date }
+
         recyclerView.adapter = AnnouncementAdapter(filteredList)
     }
 
@@ -129,13 +120,10 @@ class StoreAnnouncementsFragment : Fragment() {
             holder.title.text = item.title
             holder.msg.text = item.message
             holder.date.text = SimpleDateFormat("dd MMM yyyy", Locale("tr")).format(item.date)
-
-            // İkon (Mağaza güncellemesi olduğu için sabit ikon)
             holder.icon.setImageResource(android.R.drawable.ic_menu_myplaces)
-            holder.icon.setColorFilter(android.graphics.Color.parseColor("#1976D2")) // Mavi
+            holder.icon.setColorFilter(android.graphics.Color.parseColor("#1976D2"))
 
             holder.container.setOnClickListener {
-                // Popup Detay
                 AlertDialog.Builder(context)
                     .setTitle(item.title)
                     .setMessage(item.message)

@@ -32,7 +32,7 @@ class StoreDetailFragment : Fragment() {
     private lateinit var userChoiceAdapter: ProductAdapter
     private lateinit var storeChoiceAdapter: ProductAdapter
 
-    // Layouts (Gizleyip açmak için)
+    // Layouts
     private lateinit var layoutUserChoice: LinearLayout
     private lateinit var layoutStoreChoice: LinearLayout
 
@@ -42,8 +42,8 @@ class StoreDetailFragment : Fragment() {
     private lateinit var btnSeeAllAnnouncements: TextView
     private lateinit var btnAnnouncementsPage: com.google.android.material.button.MaterialButton
 
-    // Data
     private var categorySectionList = ArrayList<CategorySection>()
+
     private var storeId: Int = 0
     private var storeName: String? = null
     private var storeImage: String? = null
@@ -104,15 +104,8 @@ class StoreDetailFragment : Fragment() {
             fetchLatestAnnouncement()
         }
 
-        // "Duyurular" Butonuna tıklayınca
-        btnAnnouncementsPage.setOnClickListener {
-            openAnnouncementPage()
-        }
-
-        // "Tümünü Gör" Linkine tıklayınca
-        btnSeeAllAnnouncements.setOnClickListener {
-            openAnnouncementPage()
-        }
+        btnAnnouncementsPage.setOnClickListener { openAnnouncementPage() }
+        btnSeeAllAnnouncements.setOnClickListener { openAnnouncementPage() }
 
         return view
     }
@@ -123,7 +116,6 @@ class StoreDetailFragment : Fragment() {
         bundle.putString("storeId", storeId.toString())
         bundle.putString("storeName", storeName)
         fragment.arguments = bundle
-
         parentFragmentManager.beginTransaction()
             .replace(R.id.fragmentContainer, fragment)
             .addToBackStack(null)
@@ -167,7 +159,6 @@ class StoreDetailFragment : Fragment() {
                 for (doc in documents) {
                     allProducts.add(doc.toObject(Product::class.java))
                 }
-
                 if (allProducts.isNotEmpty()) {
                     groupProductsByCategory(allProducts)
                     setupFeaturedProducts(allProducts)
@@ -175,47 +166,43 @@ class StoreDetailFragment : Fragment() {
             }
     }
 
-    // --- DUYURU ÇEKME MANTIĞI ---
+    // --- DUYURU ÇEKME (DÜZELTİLDİ: Index hatasını önlemek için orderBy kaldırıldı) ---
     private fun fetchLatestAnnouncement() {
-        // Firestore'dan bu mağazaya ait (relatedId == storeId) ve tipi 'store_update' olanları çek
         db.collection("announcements")
             .whereEqualTo("type", "store_update")
             .whereEqualTo("relatedId", storeId.toString())
-            .orderBy("date", Query.Direction.DESCENDING)
-            .limit(1)
-            .get()
+            .get() // Sadece filtrele, sıralamayı burada yapma
             .addOnSuccessListener { docs ->
                 if (!docs.isEmpty) {
-                    val msg = docs.documents[0].getString("message")
-                    if (!msg.isNullOrEmpty()) {
-                        tvAnnouncement.text = msg
-                        // KARTI GÖRÜNÜR YAP
+                    // Kod tarafında tarihe göre sırala ve ilkini al
+                    val latestDoc = docs.map { it.toObject(NotificationItem::class.java) }
+                        .sortedByDescending { it.date }
+                        .firstOrNull()
+
+                    if (latestDoc != null && latestDoc.message.isNotEmpty()) {
+                        tvAnnouncement.text = latestDoc.message
                         cardAnnouncement.visibility = View.VISIBLE
+                    } else {
+                        cardAnnouncement.visibility = View.GONE
                     }
                 } else {
-                    // Yoksa gizli kalsın
                     cardAnnouncement.visibility = View.GONE
                 }
             }
             .addOnFailureListener {
-                // Hata olursa (örneğin index hatası) gizli kalsın
                 cardAnnouncement.visibility = View.GONE
             }
     }
 
     private fun setupFeaturedProducts(products: List<Product>) {
-        // Kullanıcı Seçimi: Favori ve Tıklamaya göre
         val userChoiceList = products.sortedWith(compareByDescending<Product> { it.favoriteCount }.thenByDescending { it.clickCount }).take(2)
-
         if (userChoiceList.isNotEmpty()) {
             layoutUserChoice.visibility = View.VISIBLE
             userChoiceAdapter = ProductAdapter(userChoiceList) { product -> openProductDetail(product) }
             rvUserChoice.adapter = userChoiceAdapter
         }
 
-        // Mağaza Seçimi: Son eklenenler (Simülasyon)
         val storeChoiceList = products.takeLast(4).filter { !userChoiceList.contains(it) }.take(2)
-
         if (storeChoiceList.isNotEmpty()) {
             layoutStoreChoice.visibility = View.VISIBLE
             storeChoiceAdapter = ProductAdapter(storeChoiceList) { product -> openProductDetail(product) }
@@ -228,10 +215,7 @@ class StoreDetailFragment : Fragment() {
         val bundle = Bundle()
         bundle.putSerializable("product_data", product)
         detailFragment.arguments = bundle
-        parentFragmentManager.beginTransaction()
-            .replace(R.id.fragmentContainer, detailFragment)
-            .addToBackStack(null)
-            .commit()
+        parentFragmentManager.beginTransaction().replace(R.id.fragmentContainer, detailFragment).addToBackStack(null).commit()
     }
 
     private fun groupProductsByCategory(products: List<Product>) {
@@ -249,19 +233,9 @@ class StoreDetailFragment : Fragment() {
 }
 
 // --- YARDIMCI SINIFLAR ---
+data class CategorySection(val categoryName: String, val products: List<Product>, var isExpanded: Boolean = false)
 
-data class CategorySection(
-    val categoryName: String,
-    val products: List<Product>,
-    var isExpanded: Boolean = false
-)
-
-class CategoryAdapter(
-    private val context: Context,
-    private val categoryList: List<CategorySection>,
-    private val onProductClick: (Product) -> Unit
-) : RecyclerView.Adapter<CategoryAdapter.CategoryViewHolder>() {
-
+class CategoryAdapter(private val context: Context, private val categoryList: List<CategorySection>, private val onProductClick: (Product) -> Unit) : RecyclerView.Adapter<CategoryAdapter.CategoryViewHolder>() {
     class CategoryViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         val tvTitle: TextView = itemView.findViewById(R.id.tvCategoryTitle)
         val btnExpand: ConstraintLayout = itemView.findViewById(R.id.layoutCategoryHeader)
