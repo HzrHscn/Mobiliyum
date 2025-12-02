@@ -1,39 +1,261 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/mainAdminLayout"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#F5F5F5">
+    android:background="#F5F5F5"
+    android:orientation="vertical">
 
+    <!-- Üst Başlık -->
     <TextView
         android:id="@+id/tvAdminTitle"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Yönetim Paneli"
-        android:textSize="24sp"
-        android:textStyle="bold"
-        android:textColor="#FFFFFF"
-        android:background="#212121"
-        android:padding="24dp"
-        app:layout_constraintTop_toTopOf="parent"/>
+        android:background="#1976D2"
+        android:padding="20dp"
+        android:text="Sistem Admin Paneli"
+        android:textColor="@android:color/white"
+        android:textSize="22sp"
+        android:textStyle="bold" />
 
-    <androidx.core.widget.NestedScrollView
+    <ScrollView
         android:layout_width="match_parent"
-        android:layout_height="0dp"
-        app:layout_constraintTop_toBottomOf="@+id/tvAdminTitle"
-        app:layout_constraintBottom_toBottomOf="parent">
+        android:layout_height="match_parent">
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:paddingBottom="30dp">
+            android:padding="16dp">
 
-            <androidx.cardview.widget.CardView
-                android:id="@+id/cardInfo"
+            <!-- Hoşgeldiniz -->
+            <TextView
+                android:id="@+id/tvAdminWelcome"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Hoşgeldiniz, Yönetici"
+                android:textColor="#333"
+                android:textSize="18sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tvAdminRole"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="16dp"
+                android:text="Yetki: ADMIN"
+                android:textColor="#757575" />
+
+            <!-- GRID MENÜ -->
+            <GridLayout
+                android:id="@+id/gridLayoutAdmin"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_margin="16dp"
+                android:columnCount="2"
+                android:rowCount="3">
+
+                <!-- 1. Duyurular -->
+                <androidx.cardview.widget.CardView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_rowWeight="1"
+                    android:layout_columnWeight="1"
+                    android:layout_margin="8dp"
+                    app:cardCornerRadius="12dp"
+                    app:cardElevation="4dp">
+
+                    <LinearLayout
+                        android:id="@+id/btnAnnouncements"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center"
+                        android:orientation="vertical"
+                        android:padding="24dp">
+
+                        <ImageView
+                            android:layout_width="48dp"
+                            android:layout_height="48dp"
+                            android:src="@android:drawable/ic_dialog_info"
+                            app:tint="#1976D2" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:text="Duyurular"
+                            android:textStyle="bold" />
+                    </LinearLayout>
+                </androidx.cardview.widget.CardView>
+
+                <!-- 2. Onay Bekleyenler / Vitrin Yönetimi -->
+                <androidx.cardview.widget.CardView
+                    android:id="@+id/cardPendingBox"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_rowWeight="1"
+                    android:layout_columnWeight="1"
+                    android:layout_margin="8dp"
+                    app:cardCornerRadius="12dp"
+                    app:cardElevation="4dp">
+
+                    <LinearLayout
+                        android:id="@+id/btnPendingStores"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center"
+                        android:orientation="vertical"
+                        android:padding="24dp">
+
+                        <ImageView
+                            android:id="@+id/imgPendingIcon"
+                            android:layout_width="48dp"
+                            android:layout_height="48dp"
+                            android:src="@android:drawable/ic_input_add"
+                            app:tint="#43A047" />
+
+                        <TextView
+                            android:id="@+id/tvPendingTitle"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:text="Onay Bekleyenler"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/tvPendingCount"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="0 Bekleyen"
+                            android:textColor="#757575"
+                            android:textSize="12sp" />
+                    </LinearLayout>
+                </androidx.cardview.widget.CardView>
+
+                <!-- 3. Kullanıcılar / Ürünler / Vitrin -->
+                <androidx.cardview.widget.CardView
+                    android:id="@+id/cardUsersBox"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_rowWeight="1"
+                    android:layout_columnWeight="1"
+                    android:layout_margin="8dp"
+                    app:cardCornerRadius="12dp"
+                    app:cardElevation="4dp">
+
+                    <LinearLayout
+                        android:id="@+id/btnUsers"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center"
+                        android:orientation="vertical"
+                        android:padding="24dp">
+
+                        <ImageView
+                            android:id="@+id/imgUsersIcon"
+                            android:layout_width="48dp"
+                            android:layout_height="48dp"
+                            android:src="@android:drawable/ic_menu_myplaces"
+                            app:tint="#FB8C00" />
+
+                        <TextView
+                            android:id="@+id/tvUsersTitle"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:text="Kullanıcılar"
+                            android:textAlignment="center"
+                            android:textStyle="bold" />
+                    </LinearLayout>
+                </androidx.cardview.widget.CardView>
+
+                <!-- 4. Raporlar / İstatistikler -->
+                <androidx.cardview.widget.CardView
+                    android:id="@+id/cardReportsBox"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_rowWeight="1"
+                    android:layout_columnWeight="1"
+                    android:layout_margin="8dp"
+                    app:cardCornerRadius="12dp"
+                    app:cardElevation="4dp">
+
+                    <LinearLayout
+                        android:id="@+id/btnReports"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center"
+                        android:orientation="vertical"
+                        android:padding="24dp">
+
+                        <ImageView
+                            android:layout_width="48dp"
+                            android:layout_height="48dp"
+                            android:src="@android:drawable/ic_menu_sort_by_size"
+                            app:tint="#5E35B1" />
+
+                        <TextView
+                            android:id="@+id/tvReportsTitle"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:text="Raporlar"
+                            android:textStyle="bold" />
+                    </LinearLayout>
+                </androidx.cardview.widget.CardView>
+
+                <!-- 5. Editör Talepleri (YENİ EKLENEN KISIM) -->
+                <androidx.cardview.widget.CardView
+                    android:id="@+id/cardEditorRequests"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_rowWeight="1"
+                    android:layout_columnWeight="1"
+                    android:layout_margin="8dp"
+                    android:visibility="gone"
+                    app:cardCornerRadius="12dp"
+                    app:cardElevation="4dp">
+
+                    <LinearLayout
+                        android:id="@+id/btnEditorRequests"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center"
+                        android:orientation="vertical"
+                        android:padding="24dp">
+
+                        <ImageView
+                            android:layout_width="48dp"
+                            android:layout_height="48dp"
+                            android:src="@android:drawable/ic_dialog_email"
+                            app:tint="#E91E63" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:text="Editör Talepleri"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/tvEditorReqCount"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="0 Bekleyen"
+                            android:textColor="#757575"
+                            android:textSize="12sp" />
+                    </LinearLayout>
+                </androidx.cardview.widget.CardView>
+
+            </GridLayout>
+
+            <!-- Personel Yönetimi (Alt Kısım) -->
+            <androidx.cardview.widget.CardView
+                android:id="@+id/cardStaffManagement"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_margin="8dp"
+                android:visibility="gone"
                 app:cardCornerRadius="12dp"
                 app:cardElevation="4dp">
 
@@ -41,249 +263,62 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
-                    android:padding="20dp">
-
-                    <TextView
-                        android:id="@+id/tvAdminWelcome"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Hoşgeldiniz"
-                        android:textSize="18sp"
-                        android:textStyle="bold"
-                        android:textColor="#333"/>
-
-                    <TextView
-                        android:id="@+id/tvAdminRole"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Yetki Seviyesi: ..."
-                        android:textSize="14sp"
-                        android:textColor="#4CAF50"
-                        android:layout_marginTop="4dp"/>
-                </LinearLayout>
-            </androidx.cardview.widget.CardView>
-
-            <!-- MÜDÜR İÇİN PERSONEL YÖNETİMİ ALANI -->
-            <androidx.cardview.widget.CardView
-                android:id="@+id/cardStaffManagement"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginHorizontal="16dp"
-                android:layout_marginBottom="16dp"
-                app:cardCornerRadius="12dp"
-                app:cardElevation="4dp"
-                android:visibility="gone">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:padding="20dp">
+                    android:padding="16dp">
 
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Personel (Editör) Atama"
-                        android:textStyle="bold"
+                        android:text="Personel Yönetimi (Editör Ata)"
                         android:textSize="16sp"
-                        android:textColor="#1976D2"
-                        android:layout_marginBottom="12dp"/>
-
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="Editör yapmak istediğiniz kullanıcının sisteme kayıtlı e-posta adresini giriniz."
-                        android:textSize="12sp"
-                        android:textColor="#757575"
-                        android:layout_marginBottom="8dp"/>
+                        android:textStyle="bold" />
 
                     <com.google.android.material.textfield.TextInputLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:hint="Kullanıcı E-Posta"
-                        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox">
+                        android:layout_marginTop="8dp"
+                        android:hint="Kullanıcı E-postası">
+
                         <com.google.android.material.textfield.TextInputEditText
                             android:id="@+id/etStaffEmail"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:inputType="textEmailAddress"/>
+                            android:inputType="textEmailAddress" />
                     </com.google.android.material.textfield.TextInputLayout>
 
-                    <com.google.android.material.button.MaterialButton
+                    <Button
                         android:id="@+id/btnSearchUser"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="Kullanıcıyı Bul"
-                        android:layout_marginTop="8dp"/>
+                        android:layout_marginTop="8dp"
+                        android:text="Kullanıcı Ara" />
 
+                    <!-- Sonuç Alanı -->
                     <LinearLayout
                         android:id="@+id/layoutUserResult"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
                         android:orientation="vertical"
-                        android:background="#F0F0F0"
-                        android:padding="12dp"
-                        android:layout_marginTop="12dp"
                         android:visibility="gone">
 
                         <TextView
                             android:id="@+id/tvResultUserInfo"
-                            android:layout_width="match_parent"
+                            android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Bulunan Kişi: Ahmet Yılmaz"
-                            android:textStyle="bold"
-                            android:textColor="#333"/>
+                            android:text="Bulunan Kişi: Ali Veli"
+                            android:textStyle="bold" />
 
-                        <com.google.android.material.button.MaterialButton
+                        <Button
                             android:id="@+id/btnMakeEditor"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:text="Editör Olarak Ata"
-                            android:backgroundTint="#4CAF50"
-                            android:layout_marginTop="8dp"/>
+                            android:backgroundTint="#4CAF50" />
                     </LinearLayout>
 
                 </LinearLayout>
             </androidx.cardview.widget.CardView>
 
-            <GridLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:columnCount="2"
-                android:rowCount="2"
-                android:layout_margin="8dp">
-
-                <!-- Satın Alma Onayları Butonu -->
-                <androidx.cardview.widget.CardView
-                    android:layout_width="0dp"
-                    android:layout_height="140dp"
-                    android:layout_columnWeight="1"
-                    android:layout_rowWeight="1"
-                    android:layout_margin="8dp"
-                    app:cardCornerRadius="12dp"
-                    app:cardElevation="2dp">
-                    <LinearLayout
-                        android:id="@+id/btnPendingStores"
-                        android:layout_width="match_parent"
-                        android:layout_height="match_parent"
-                        android:orientation="vertical"
-                        android:gravity="center"
-                        android:background="?attr/selectableItemBackground">
-                        <ImageView
-                            android:layout_width="40dp"
-                            android:layout_height="40dp"
-                            android:src="@android:drawable/ic_dialog_email"
-                            app:tint="#FF9800"/>
-                        <TextView
-                            android:id="@+id/tvBox1Title"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="Satın Alma Onayları"
-                            android:textStyle="bold"
-                            android:textAlignment="center"
-                            android:layout_marginTop="12dp"/>
-                        <TextView
-                            android:id="@+id/tvBox1Subtitle"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="Bekleyen: -"
-                            android:textSize="12sp"
-                            android:textColor="#757575"/>
-                    </LinearLayout>
-                </androidx.cardview.widget.CardView>
-
-                <!-- Kullanıcı Yönetimi Butonu -->
-                <androidx.cardview.widget.CardView
-                    android:id="@+id/cardUsersBox"
-                    android:layout_width="0dp"
-                    android:layout_height="140dp"
-                    android:layout_columnWeight="1"
-                    android:layout_rowWeight="1"
-                    android:layout_margin="8dp"
-                    app:cardCornerRadius="12dp"
-                    app:cardElevation="2dp">
-                    <LinearLayout
-                        android:id="@+id/btnUsers"
-                        android:layout_width="match_parent"
-                        android:layout_height="match_parent"
-                        android:orientation="vertical"
-                        android:gravity="center"
-                        android:background="?attr/selectableItemBackground">
-                        <ImageView
-                            android:layout_width="40dp"
-                            android:layout_height="40dp"
-                            android:src="@android:drawable/ic_menu_myplaces"
-                            app:tint="#2196F3"/>
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="Kullanıcı Yönetimi"
-                            android:textStyle="bold"
-                            android:layout_marginTop="12dp"/>
-                    </LinearLayout>
-                </androidx.cardview.widget.CardView>
-
-                <!-- Duyuru Gönder Butonu -->
-                <androidx.cardview.widget.CardView
-                    android:layout_width="0dp"
-                    android:layout_height="140dp"
-                    android:layout_columnWeight="1"
-                    android:layout_rowWeight="1"
-                    android:layout_margin="8dp"
-                    app:cardCornerRadius="12dp"
-                    app:cardElevation="2dp">
-                    <LinearLayout
-                        android:id="@+id/btnAnnouncements"
-                        android:layout_width="match_parent"
-                        android:layout_height="match_parent"
-                        android:orientation="vertical"
-                        android:gravity="center"
-                        android:background="?attr/selectableItemBackground">
-                        <ImageView
-                            android:layout_width="40dp"
-                            android:layout_height="40dp"
-                            android:src="@android:drawable/ic_popup_reminder"
-                            app:tint="#E91E63"/>
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="Duyuru Gönder"
-                            android:textStyle="bold"
-                            android:layout_marginTop="12dp"/>
-                    </LinearLayout>
-                </androidx.cardview.widget.CardView>
-
-                <!-- Raporlar Butonu -->
-                <androidx.cardview.widget.CardView
-                    android:layout_width="0dp"
-                    android:layout_height="140dp"
-                    android:layout_columnWeight="1"
-                    android:layout_rowWeight="1"
-                    android:layout_margin="8dp"
-                    app:cardCornerRadius="12dp"
-                    app:cardElevation="2dp">
-                    <LinearLayout
-                        android:id="@+id/btnReports"
-                        android:layout_width="match_parent"
-                        android:layout_height="match_parent"
-                        android:orientation="vertical"
-                        android:gravity="center"
-                        android:background="?attr/selectableItemBackground">
-                        <ImageView
-                            android:layout_width="40dp"
-                            android:layout_height="40dp"
-                            android:src="@android:drawable/ic_menu_sort_by_size"
-                            app:tint="#4CAF50"/>
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="Genel Raporlar"
-                            android:textStyle="bold"
-                            android:layout_marginTop="12dp"/>
-                    </LinearLayout>
-                </androidx.cardview.widget.CardView>
-
-            </GridLayout>
         </LinearLayout>
-    </androidx.core.widget.NestedScrollView>
-</androidx.constraintlayout.widget.ConstraintLayout>
+    </ScrollView>
+</LinearLayout>

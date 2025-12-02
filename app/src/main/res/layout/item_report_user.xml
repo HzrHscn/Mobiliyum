@@ -12,57 +12,85 @@
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:padding="16dp"
-        android:gravity="center_vertical">
+        android:orientation="vertical"
+        android:padding="16dp">
 
         <LinearLayout
-            android:layout_width="0dp"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:orientation="vertical">
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
 
-            <TextView
-                android:id="@+id/tvUserName"
-                android:layout_width="wrap_content"
+            <LinearLayout
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:text="Ad Soyad"
-                android:textStyle="bold"
-                android:textSize="16sp"
-                android:textColor="#333"/>
+                android:layout_weight="1"
+                android:orientation="horizontal">
 
-            <TextView
-                android:id="@+id/tvUserEmail"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="email@example.com"
-                android:textSize="13sp"
-                android:textColor="#757575"
-                android:layout_marginTop="2dp"/>
+                <TextView
+                    android:id="@+id/tvUserName"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Ad Soyad"
+                    android:textStyle="bold"
+                    android:textSize="16sp"
+                    android:textColor="#333"/>
 
-            <TextView
-                android:id="@+id/tvUserRole"
-                android:layout_width="85dp"
-                android:layout_height="33dp"
-                android:layout_marginTop="6dp"
-                android:background="@drawable/ic_launcher_background"
-                android:backgroundTint="#F5F5F5"
-                android:paddingHorizontal="8dp"
-                android:paddingVertical="2dp"
-                android:text="MÜŞTERİ"
-                android:textColor="#616161"
-                android:textSize="10sp"
-                android:textStyle="bold" />
+                <TextView
+                    android:id="@+id/tvUserEmail"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="6dp"
+                    android:text="email@example.com"
+                    android:textColor="#757575"
+                    android:textSize="13sp" />
+
+                <TextView
+                    android:id="@+id/tvUserRole"
+                    android:layout_width="wrap_content"
+                    android:layout_height="20dp"
+                    android:layout_marginTop="2dp"
+                    android:background="@drawable/ic_launcher_background"
+                    android:backgroundTint="#E3F2FD"
+                    android:paddingHorizontal="8dp"
+                    android:paddingVertical="2dp"
+                    android:text="MÜŞTERİ"
+                    android:textColor="#1976D2"
+                    android:textSize="10sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
         </LinearLayout>
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnBanUser"
-            android:layout_width="wrap_content"
-            android:layout_height="40dp"
-            android:text="Banla"
-            android:textSize="12sp"
-            app:cornerRadius="20dp"
-            android:backgroundTint="#D32F2F"/>
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="#EEEEEE"
+            android:layout_marginVertical="2dp"/>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="end">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnChangeRole"
+                android:layout_width="wrap_content"
+                android:layout_height="40dp"
+                android:text="Rol Değiştir"
+                android:textSize="11sp"
+                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                android:layout_marginEnd="8dp"/>
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnBanUser"
+                android:layout_width="wrap_content"
+                android:layout_height="40dp"
+                android:text="Banla"
+                android:textSize="11sp"
+                app:cornerRadius="20dp"
+                android:backgroundTint="#D32F2F"/>
+        </LinearLayout>
 
     </LinearLayout>
 </androidx.cardview.widget.CardView>

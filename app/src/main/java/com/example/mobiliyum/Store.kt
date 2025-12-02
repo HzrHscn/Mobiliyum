@@ -7,5 +7,9 @@ data class Store(
     val category: String = "",
     val imageUrl: String = "",
     val location: String = "",
-    val clickCount: Int = 0 // YENİ: Tıklanma Sayısı
+    val clickCount: Int = 0,
+    // YENİ: Tarih bazlı tıklanma geçmişi (Format: "yyyy-MM-dd" -> Tık Sayısı)
+    val clickHistory: HashMap<String, Int> = hashMapOf(),
+    // YENİ: Mağazanın Seçimi (Vitrin) için seçilen ürün ID'leri
+    val featuredProductIds: List<Int> = listOf()
 ) : Serializable

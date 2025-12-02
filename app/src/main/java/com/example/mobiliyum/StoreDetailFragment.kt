@@ -20,6 +20,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
+import java.util.Date
 
 class StoreDetailFragment : Fragment() {
 
@@ -34,14 +35,12 @@ class StoreDetailFragment : Fragment() {
     private lateinit var layoutUserChoice: LinearLayout
     private lateinit var layoutStoreChoice: LinearLayout
 
-    // Duyuru
     private lateinit var cardAnnouncement: CardView
     private lateinit var tvAnnouncement: TextView
     private lateinit var btnSeeAllAnnouncements: TextView
+    private lateinit var btnFollowStore: com.google.android.material.button.MaterialButton
 
-    // Son duyuruyu tutmak için değişken (Popup için)
     private var currentAnnouncement: NotificationItem? = null
-
     private var categorySectionList = ArrayList<CategorySection>()
 
     private var storeId: Int = 0
@@ -70,6 +69,7 @@ class StoreDetailFragment : Fragment() {
         val imgLogo = view.findViewById<ImageView>(R.id.imgDetailLogo)
         val tvName = view.findViewById<TextView>(R.id.tvDetailName)
         val tvLocation = view.findViewById<TextView>(R.id.tvDetailLocation)
+        btnFollowStore = view.findViewById(R.id.btnFollowStore)
 
         rvCategories = view.findViewById(R.id.rvProducts)
         rvUserChoice = view.findViewById(R.id.rvUserChoice)
@@ -88,6 +88,7 @@ class StoreDetailFragment : Fragment() {
             Glide.with(this).load(storeImage).into(imgLogo)
         }
 
+        // LayoutManager Ayarları - Grid 2 Sütun
         rvCategories.layoutManager = LinearLayoutManager(context)
         rvUserChoice.layoutManager = GridLayoutManager(context, 2)
         rvStoreChoice.layoutManager = GridLayoutManager(context, 2)
@@ -96,14 +97,13 @@ class StoreDetailFragment : Fragment() {
         rvUserChoice.isNestedScrollingEnabled = false
         rvStoreChoice.isNestedScrollingEnabled = false
 
-        setupFollowButton(view)
+        setupFollowButton()
 
         if (storeId != 0) {
             fetchStoreProducts()
             fetchLatestAnnouncement()
         }
 
-        // Mavi Karta Tıklayınca Popup Aç
         cardAnnouncement.setOnClickListener {
             if (currentAnnouncement != null) {
                 AlertDialog.Builder(context)
@@ -114,14 +114,12 @@ class StoreDetailFragment : Fragment() {
             }
         }
 
-        // Tüm Duyuruları Gör Linkine tıklayınca
         btnSeeAllAnnouncements.setOnClickListener {
             val fragment = StoreAnnouncementsFragment()
             val bundle = Bundle()
             bundle.putString("storeId", storeId.toString())
             bundle.putString("storeName", storeName)
             fragment.arguments = bundle
-
             parentFragmentManager.beginTransaction()
                 .replace(R.id.fragmentContainer, fragment)
                 .addToBackStack(null)
@@ -131,30 +129,29 @@ class StoreDetailFragment : Fragment() {
         return view
     }
 
-    private fun setupFollowButton(view: View) {
-        val btnFollow = view.findViewById<com.google.android.material.button.MaterialButton>(R.id.btnFollowStore)
-        fun updateFollowButton() {
+    private fun setupFollowButton() {
+        fun updateFollowButtonState() {
             if (FavoritesManager.isFollowing(storeId)) {
-                btnFollow.text = "Takip Ediliyor"
-                btnFollow.setIconResource(R.drawable.ic_heart_filled)
-                btnFollow.setBackgroundColor(Color.GRAY)
+                btnFollowStore.text = "Takip Ediliyor"
+                btnFollowStore.setIconResource(R.drawable.ic_heart_filled)
+                btnFollowStore.setBackgroundColor(Color.GRAY)
             } else {
-                btnFollow.text = "Takip Et"
-                btnFollow.setIconResource(android.R.drawable.ic_input_add)
-                btnFollow.setBackgroundColor(Color.parseColor("#FF6F00"))
+                btnFollowStore.text = "Takip Et"
+                btnFollowStore.setIconResource(android.R.drawable.ic_input_add)
+                btnFollowStore.setBackgroundColor(Color.parseColor("#FF6F00"))
             }
         }
-        updateFollowButton()
+        updateFollowButtonState()
 
-        btnFollow.setOnClickListener {
+        btnFollowStore.setOnClickListener {
             if (!UserManager.isLoggedIn()) {
                 Toast.makeText(context, "Giriş yapmalısınız.", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
             if (FavoritesManager.isFollowing(storeId)) {
-                FavoritesManager.unfollowStore(storeId) { updateFollowButton() }
+                FavoritesManager.unfollowStore(storeId) { updateFollowButtonState() }
             } else {
-                FavoritesManager.followStore(storeId) { updateFollowButton() }
+                FavoritesManager.followStore(storeId) { updateFollowButtonState() }
             }
         }
     }
@@ -183,13 +180,12 @@ class StoreDetailFragment : Fragment() {
             .get()
             .addOnSuccessListener { docs ->
                 if (!docs.isEmpty) {
-                    // Kod tarafında sırala
                     val latestDoc = docs.map { it.toObject(NotificationItem::class.java) }
                         .sortedByDescending { it.date }
                         .firstOrNull()
 
                     if (latestDoc != null && latestDoc.message.isNotEmpty()) {
-                        currentAnnouncement = latestDoc // Değişkene ata
+                        currentAnnouncement = latestDoc
                         tvAnnouncement.text = latestDoc.message
                         cardAnnouncement.visibility = View.VISIBLE
                     } else {
@@ -205,18 +201,35 @@ class StoreDetailFragment : Fragment() {
     }
 
     private fun setupFeaturedProducts(products: List<Product>) {
-        val userChoiceList = products.sortedWith(compareByDescending<Product> { it.favoriteCount }.thenByDescending { it.clickCount }).take(2)
-        if (userChoiceList.isNotEmpty()) {
-            layoutUserChoice.visibility = View.VISIBLE
-            userChoiceAdapter = ProductAdapter(userChoiceList) { product -> openProductDetail(product) }
-            rvUserChoice.adapter = userChoiceAdapter
-        }
+        db.collection("stores").document(storeId.toString()).get().addOnSuccessListener { doc ->
+            val store = doc.toObject(Store::class.java)
 
-        val storeChoiceList = products.takeLast(4).filter { !userChoiceList.contains(it) }.take(2)
-        if (storeChoiceList.isNotEmpty()) {
-            layoutStoreChoice.visibility = View.VISIBLE
-            storeChoiceAdapter = ProductAdapter(storeChoiceList) { product -> openProductDetail(product) }
-            rvStoreChoice.adapter = storeChoiceAdapter
+            // 1. MAĞAZANIN SEÇİMİ (VİTRİN)
+            var storeChoiceList: List<Product> = emptyList()
+
+            if (store != null && store.featuredProductIds.isNotEmpty()) {
+                storeChoiceList = products.filter { store.featuredProductIds.contains(it.id) }
+            }
+
+            // DÜZELTME: Eğer seçim yoksa veya 2'den azsa, otomatik doldur (en az 4 tane veya hepsi)
+            if (storeChoiceList.size < 2) {
+                storeChoiceList = products.takeLast(4).take(2) // En az 4 tane göster ki 2 satır dolsun
+            }
+
+            if (storeChoiceList.isNotEmpty()) {
+                layoutStoreChoice.visibility = View.VISIBLE
+                storeChoiceAdapter = ProductAdapter(storeChoiceList) { product -> openProductDetail(product) }
+                rvStoreChoice.adapter = storeChoiceAdapter
+            }
+
+            // 2. KULLANICININ GÖZDESİ (DÜZELTME: Sayıyı 4'e çıkardım)
+            val userChoiceList = products.sortedWith(compareByDescending<Product> { it.favoriteCount }.thenByDescending { it.clickCount }).take(2)
+
+            if (userChoiceList.isNotEmpty()) {
+                layoutUserChoice.visibility = View.VISIBLE
+                userChoiceAdapter = ProductAdapter(userChoiceList) { product -> openProductDetail(product) }
+                rvUserChoice.adapter = userChoiceAdapter
+            }
         }
     }
 
@@ -232,8 +245,7 @@ class StoreDetailFragment : Fragment() {
         categorySectionList.clear()
         val groupedMap = products.groupBy { it.category }
         for ((categoryName, productList) in groupedMap) {
-            val isExpanded = groupedMap.size <= 2
-            categorySectionList.add(CategorySection(categoryName, productList, isExpanded))
+            categorySectionList.add(CategorySection(categoryName, productList, false))
         }
         categoryAdapter = CategoryAdapter(requireContext(), categorySectionList) { clickedProduct ->
             openProductDetail(clickedProduct)
@@ -242,6 +254,7 @@ class StoreDetailFragment : Fragment() {
     }
 }
 
+// Helper Classes
 data class CategorySection(val categoryName: String, val products: List<Product>, var isExpanded: Boolean = false)
 
 class CategoryAdapter(private val context: Context, private val categoryList: List<CategorySection>, private val onProductClick: (Product) -> Unit) : RecyclerView.Adapter<CategoryAdapter.CategoryViewHolder>() {
@@ -257,10 +270,15 @@ class CategoryAdapter(private val context: Context, private val categoryList: Li
         holder.tvTitle.text = "${section.categoryName} (${section.products.size})"
         holder.rvProducts.visibility = if (section.isExpanded) View.VISIBLE else View.GONE
         holder.imgArrow.rotation = if (section.isExpanded) 180f else 0f
+
         holder.rvProducts.layoutManager = GridLayoutManager(context, 2)
         holder.rvProducts.adapter = ProductAdapter(section.products, onProductClick)
         holder.rvProducts.isNestedScrollingEnabled = false
-        holder.btnExpand.setOnClickListener { section.isExpanded = !section.isExpanded; notifyItemChanged(position) }
+
+        holder.btnExpand.setOnClickListener {
+            section.isExpanded = !section.isExpanded
+            notifyItemChanged(position)
+        }
     }
     override fun getItemCount() = categoryList.size
 }

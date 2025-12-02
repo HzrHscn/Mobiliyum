@@ -7,23 +7,20 @@ import android.content.res.ColorStateList
 import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
+import android.text.InputFilter
 import android.text.InputType
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.view.Window
-import android.widget.EditText
-import android.widget.ImageView
-import android.widget.LinearLayout
-import android.widget.RatingBar
-import android.widget.TextView
-import android.widget.Toast
+import android.widget.*
 import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.textfield.TextInputEditText
+import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import java.util.Date
 
@@ -37,7 +34,11 @@ class ProductDetailFragment : Fragment() {
     private lateinit var btnAddToCart: MaterialButton
     private lateinit var imgCategoryIcon: ImageView
 
-    // Review
+    // AÇIKLAMA ALANI (Backend Kısmı)
+    private lateinit var tvProductDescription: TextView
+    private lateinit var tvDescriptionToggle: TextView
+    private var isDescriptionExpanded = false
+
     private lateinit var rvReviews: RecyclerView
     private lateinit var btnAddReview: MaterialButton
     private lateinit var tvAvgRating: TextView
@@ -45,7 +46,7 @@ class ProductDetailFragment : Fragment() {
     private lateinit var tvRatingCount: TextView
     private lateinit var tvNoReviews: TextView
     private lateinit var btnSeeAllReviews: TextView
-    private lateinit var btnHideReviews: TextView // YENİ
+    private lateinit var btnHideReviews: TextView
     private lateinit var tvBestReviewTitle: TextView
 
     private var allReviewsList = listOf<Review>()
@@ -65,11 +66,17 @@ class ProductDetailFragment : Fragment() {
 
         if (currentProduct == null) return view
 
-        // View Bağlantıları
+        incrementClickCount()
+
+        // View Tanımlamaları
         val imgProduct = view.findViewById<ImageView>(R.id.imgProductDetail)
         val tvName = view.findViewById<TextView>(R.id.tvProductName)
-        val tvCategory = view.findViewById<TextView>(R.id.tvProductCategory)
         val tvPrice = view.findViewById<TextView>(R.id.tvProductPrice)
+        val tvCategory = view.findViewById<TextView>(R.id.tvProductCategory)
+
+        // Açıklama Tanımlamaları
+        tvProductDescription = view.findViewById(R.id.tvProductDescription)
+        tvDescriptionToggle = view.findViewById(R.id.tvDescriptionToggle)
 
         btnAddToCart = view.findViewById(R.id.btnAddToCart)
         btnGoToStore = view.findViewById(R.id.btnGoToStore)
@@ -90,23 +97,25 @@ class ProductDetailFragment : Fragment() {
 
         rvReviews.layoutManager = LinearLayoutManager(context)
 
+        // Verileri Yerleştir
         tvName.text = currentProduct!!.name
         //tvCategory.text = currentProduct!!.category
         tvPrice.text = PriceUtils.formatPriceStyled(currentProduct!!.price)
         Glide.with(this).load(currentProduct!!.imageUrl).into(imgProduct)
 
-        // YENİ: RESİM ZOOM (Tıklayınca Açılır)
-        imgProduct.setOnClickListener {
-            showZoomImageDialog(currentProduct!!.imageUrl)
-        }
+        imgProduct.setOnClickListener { showZoomImageDialog(currentProduct!!.imageUrl) }
 
         setupCategoryIcon(currentProduct!!.category)
+
+        // Açıklamayı Hazırla (Backend Kısmı)
+        setupDescription(currentProduct!!.description)
+
         refreshProductData()
 
         if (UserManager.canEditProduct(currentProduct!!)) {
-            btnAddToCart.text = "Fiyatı Güncelle"
+            btnAddToCart.text = "Ürünü Düzenle"
             btnAddToCart.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#D32F2F"))
-            btnAddToCart.setOnClickListener { showUpdatePriceDialog() }
+            btnAddToCart.setOnClickListener { showEditOptionsDialog() }
         } else {
             btnAddToCart.setOnClickListener {
                 CartManager.addToCart(currentProduct!!)
@@ -120,9 +129,7 @@ class ProductDetailFragment : Fragment() {
                 Toast.makeText(context, "Giriş yapmalısınız.", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
-            FavoritesManager.toggleFavorite(currentProduct!!) { isFav ->
-                updateFavoriteUI(isFav)
-            }
+            FavoritesManager.toggleFavorite(currentProduct!!) { isFav -> updateFavoriteUI(isFav) }
         }
 
         btnGoToStore.setOnClickListener {
@@ -132,33 +139,65 @@ class ProductDetailFragment : Fragment() {
 
         btnAddReview.setOnClickListener { handleReviewClick() }
 
-        // "Tümünü Gör" Butonu
         btnSeeAllReviews.setOnClickListener {
             rvReviews.adapter = ReviewAdapter(allReviewsList)
             btnSeeAllReviews.visibility = View.GONE
-            btnHideReviews.visibility = View.VISIBLE // Gizle butonu açılır
+            btnHideReviews.visibility = View.VISIBLE
             tvBestReviewTitle.visibility = View.GONE
         }
 
-        // "Yorumları Gizle" Butonu
         btnHideReviews.setOnClickListener {
-            setupReviews() // Başa dön (Sadece en iyiyi göster)
+            setupReviews()
             btnHideReviews.visibility = View.GONE
         }
 
         return view
     }
 
-    // YENİ: Zoom Dialog Fonksiyonu
+    // --- AÇIKLAMA GİZLE/GÖSTER MANTIĞI ---
+    private fun setupDescription(desc: String?) {
+        val text = if (desc.isNullOrEmpty()) "Bu ürün için henüz bir açıklama girilmemiş." else desc
+        tvProductDescription.text = text
+
+        // Başlangıç ayarları
+        isDescriptionExpanded = false
+        tvProductDescription.maxLines = 2
+        tvDescriptionToggle.visibility = View.GONE
+
+        // Metin yüklendikten sonra satır sayısını kontrol et
+        tvProductDescription.post {
+            if (tvProductDescription.lineCount > 1) {
+                tvDescriptionToggle.visibility = View.VISIBLE
+                tvDescriptionToggle.text = "Açıklamanın Tümünü Gör"
+
+                tvDescriptionToggle.setOnClickListener {
+                    if (isDescriptionExpanded) {
+                        // Kapat
+                        tvProductDescription.maxLines = 2
+                        tvDescriptionToggle.text = "Açıklamanın Tümünü Gör"
+                    } else {
+                        // Aç
+                        tvProductDescription.maxLines = Int.MAX_VALUE
+                        tvDescriptionToggle.text = "Açıklamayı Gizle"
+                    }
+                    isDescriptionExpanded = !isDescriptionExpanded
+                }
+            }
+        }
+    }
+
+    private fun incrementClickCount() {
+        val db = FirebaseFirestore.getInstance()
+        db.collection("products").document(currentProduct!!.id.toString())
+            .update("clickCount", FieldValue.increment(1))
+    }
+
     private fun showZoomImageDialog(imageUrl: String) {
         val dialog = Dialog(requireContext(), android.R.style.Theme_Black_NoTitleBar_Fullscreen)
         dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
-
-        // ZoomableImageView'ı kodla oluşturup dialoga ekliyoruz
         val zoomView = ZoomableImageView(requireContext())
         zoomView.layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
         Glide.with(this).load(imageUrl).into(zoomView)
-
         dialog.setContentView(zoomView)
         dialog.show()
     }
@@ -170,14 +209,12 @@ class ProductDetailFragment : Fragment() {
                 val freshProduct = document.toObject(Product::class.java)
                 if (freshProduct != null) {
                     currentProduct = freshProduct
-
+                    setupDescription(freshProduct.description)
                     val rating = freshProduct.rating
                     val count = freshProduct.reviewCount
-
                     tvAvgRating.text = String.format("%.1f", rating)
                     rbProductAvg.rating = rating
                     tvRatingCount.text = "($count Değerlendirme)"
-
                     setupReviews()
                 }
             }
@@ -186,7 +223,6 @@ class ProductDetailFragment : Fragment() {
     private fun setupReviews() {
         ReviewManager.getReviews(currentProduct!!.id) { reviews ->
             allReviewsList = reviews
-
             if (reviews.isEmpty()) {
                 tvNoReviews.visibility = View.VISIBLE
                 rvReviews.visibility = View.GONE
@@ -196,15 +232,11 @@ class ProductDetailFragment : Fragment() {
             } else {
                 tvNoReviews.visibility = View.GONE
                 rvReviews.visibility = View.VISIBLE
-
-                // Varsayılan Görünüm: Tek Satır (En İyi Yorum)
                 val fiveStarReviews = reviews.filter { it.rating == 5f }
-
                 if (reviews.size > 1) {
                     btnSeeAllReviews.visibility = View.VISIBLE
                     btnSeeAllReviews.text = "Tüm Yorumları Gör (${reviews.size})"
-                    btnHideReviews.visibility = View.GONE // Başlangıçta gizli
-
+                    btnHideReviews.visibility = View.GONE
                     val featuredList = ArrayList<Review>()
                     if (fiveStarReviews.isNotEmpty()) {
                         featuredList.add(fiveStarReviews.random())
@@ -214,7 +246,6 @@ class ProductDetailFragment : Fragment() {
                         tvBestReviewTitle.visibility = View.GONE
                     }
                     rvReviews.adapter = ReviewAdapter(featuredList)
-
                 } else {
                     btnSeeAllReviews.visibility = View.GONE
                     btnHideReviews.visibility = View.GONE
@@ -268,6 +299,27 @@ class ProductDetailFragment : Fragment() {
         }.setNegativeButton("Vazgeç", null).show()
     }
 
+    private fun showEditOptionsDialog() {
+        val dialogView = LayoutInflater.from(context).inflate(R.layout.dialog_edit_options, null)
+        val dialog = AlertDialog.Builder(context)
+            .setView(dialogView)
+            .create()
+
+        dialog.window?.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
+
+        dialogView.findViewById<View>(R.id.cardOptionPrice).setOnClickListener {
+            dialog.dismiss()
+            showUpdatePriceDialog()
+        }
+
+        dialogView.findViewById<View>(R.id.cardOptionInfo).setOnClickListener {
+            dialog.dismiss()
+            showUpdateInfoDialog()
+        }
+
+        dialog.show()
+    }
+
     private fun showUpdatePriceDialog() {
         val input = EditText(context)
         input.inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL
@@ -294,6 +346,56 @@ class ProductDetailFragment : Fragment() {
         }
     }
 
+    private fun showUpdateInfoDialog() {
+        val context = requireContext()
+        val layout = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(48, 48, 48, 48)
+        }
+
+        val etName = EditText(context).apply {
+            hint = "Ürün Adı"
+            setText(currentProduct?.name)
+            setPadding(0, 0, 0, 32)
+        }
+
+        val etDesc = EditText(context).apply {
+            hint = "Açıklama (Max 500 karakter)"
+            setText(currentProduct?.description)
+            minLines = 4
+            gravity = android.view.Gravity.TOP
+            filters = arrayOf(InputFilter.LengthFilter(500))
+        }
+
+        layout.addView(etName)
+        layout.addView(etDesc)
+
+        AlertDialog.Builder(context)
+            .setTitle("Bilgileri Güncelle")
+            .setView(layout)
+            .setPositiveButton("Kaydet") { _, _ ->
+                val newName = etName.text.toString()
+                val newDesc = etDesc.text.toString()
+
+                if (newName.isNotEmpty()) {
+                    val db = FirebaseFirestore.getInstance()
+                    db.collection("products").document(currentProduct!!.id.toString())
+                        .update(mapOf(
+                            "name" to newName,
+                            "description" to newDesc
+                        ))
+                        .addOnSuccessListener {
+                            Toast.makeText(context, "Güncellendi!", Toast.LENGTH_SHORT).show()
+                            view?.findViewById<TextView>(R.id.tvProductName)?.text = newName
+                            setupDescription(newDesc)
+                            currentProduct = currentProduct?.copy(name = newName, description = newDesc)
+                        }
+                }
+            }
+            .setNegativeButton("İptal", null)
+            .show()
+    }
+
     private fun updateFavoriteUI(isFavorite: Boolean) {
         if (isFavorite) {
             imgFavoriteIcon.setImageResource(R.drawable.ic_heart_filled)
@@ -310,40 +412,17 @@ class ProductDetailFragment : Fragment() {
 
     private fun setupCategoryIcon(catName: String) {
         val lower = catName.lowercase()
-
-        // Kategori ismine göre ikon seçimi
-        // R.drawable.yatakodaLogo gibi kendi dosya isimlerini buraya yazmalısın
         val iconRes = when {
-            // Yatak Odası
             lower.contains("yatak odası") -> R.drawable.yatakodalogo
-
-            // Yatak
-            lower.contains("yatak") -> R.drawable.yataklogo // Dosya adın neyse onu yaz
-
-            // Koltuk veya Köşe Takımları
+            lower.contains("yatak") -> R.drawable.yataklogo
             lower.contains("koltuk") || lower.contains("köşe") || lower.contains("sofa") -> R.drawable.oturmaodalogo
-
-            // Yemek Odası
             lower.contains("yemek") -> R.drawable.yemekodalogo
-
-            // Genç veya Bebek Odası
             lower.contains("genç") || lower.contains("bebek") -> R.drawable.cocukodalogo
-
-            // Ofis ve Makam
             lower.contains("ofis") || lower.contains("makam") -> R.drawable.ofislogo
-
-            // TV Ünitesi
             lower.contains("tv") || lower.contains("ünite") -> R.drawable.tvlogo
-
-            // Varsayılan (Eşleşme olmazsa)
             else -> android.R.drawable.ic_menu_sort_by_size
         }
-
-        // İkonu ayarla
         imgCategoryIcon.setImageResource(iconRes)
-
-        // İsteğe bağlı: İkon rengini orijinal kalsın istiyorsan tint'i temizle
-        // Eğer ikonların renkliyse bu satırı ekle, siyah-beyazsa sil.
         imgCategoryIcon.imageTintList = null
     }
 

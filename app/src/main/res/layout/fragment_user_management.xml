@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#F5F5F5"
+    android:orientation="vertical">
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="#FFFFFF"
+        android:padding="16dp"
+        android:text="Kullanıcı Yönetimi"
+        android:textColor="#333"
+        android:textSize="20sp"
+        android:textStyle="bold" />
+
+    <!-- Arama ve Filtreleme Alanı -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="#FFFFFF"
+        android:orientation="vertical"
+        android:paddingHorizontal="16dp"
+        android:paddingBottom="16dp">
+
+        <EditText
+            android:id="@+id/etUserSearch"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:background="@drawable/ic_launcher_background"
+            android:backgroundTint="#F5F5F5"
+            android:drawableStart="@android:drawable/ic_menu_search"
+            android:drawablePadding="8dp"
+            android:hint="İsim, E-posta veya Mağaza ID ara..."
+            android:paddingHorizontal="12dp"
+            android:textSize="14sp" />
+
+        <HorizontalScrollView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:scrollbars="none">
+
+            <com.google.android.material.button.MaterialButtonToggleGroup
+                android:id="@+id/toggleUserRoles"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                app:singleSelection="true"
+                app:selectionRequired="true"
+                app:checkedButton="@id/btnRoleAll">
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnRoleAll"
+                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Tümü"
+                    android:textSize="12sp" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnRoleAdmin"
+                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Admin"
+                    android:textSize="12sp" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnRoleManager"
+                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Müdür"
+                    android:textSize="12sp" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnRoleEditor"
+                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Editör"
+                    android:textSize="12sp" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnRoleCustomer"
+                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Müşteri"
+                    android:textSize="12sp" />
+
+            </com.google.android.material.button.MaterialButtonToggleGroup>
+        </HorizontalScrollView>
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/tvUserCount"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:padding="8dp"
+        android:text="Toplam: 0 Kullanıcı"
+        android:textAlignment="center"
+        android:textColor="#757575"
+        android:textSize="12sp" />
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/rvUserList"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:clipToPadding="false"
+        android:padding="8dp" />
+
+</LinearLayout>

@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="24dp">
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Filtreleme Seçenekleri"
+        android:textStyle="bold"
+        android:textSize="18sp"
+        android:layout_marginBottom="16dp"/>
+
+    <!-- Fiyat Aralığı -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Fiyat Aralığı (TL)"
+        android:textColor="#555"/>
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginTop="8dp">
+        <EditText
+            android:id="@+id/etMinPrice"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:hint="Min"
+            android:inputType="number"/>
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text=" - "
+            android:padding="8dp"/>
+        <EditText
+            android:id="@+id/etMaxPrice"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:hint="Max"
+            android:inputType="number"/>
+    </LinearLayout>
+
+    <!-- Kategori -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Kategori"
+        android:textColor="#555"
+        android:layout_marginTop="16dp"/>
+    <Spinner
+        android:id="@+id/spinnerCategory"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:background="@android:drawable/btn_dropdown"
+        android:layout_marginTop="8dp"/>
+
+    <!-- Mağaza (Sadece Admin için görünür olabilir, şimdilik genel koyuyoruz) -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Mağaza"
+        android:textColor="#555"
+        android:layout_marginTop="16dp"/>
+    <Spinner
+        android:id="@+id/spinnerStore"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:background="@android:drawable/btn_dropdown"
+        android:layout_marginTop="8dp"/>
+
+</LinearLayout>

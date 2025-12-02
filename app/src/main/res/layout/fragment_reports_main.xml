@@ -25,6 +25,21 @@
             android:paddingHorizontal="12dp"
             android:textSize="14sp"/>
 
+        <!-- YENİ: Filtre Butonu -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnFilterReport"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginStart="8dp"
+            android:insetLeft="0dp"
+            android:insetTop="0dp"
+            android:insetRight="0dp"
+            android:insetBottom="0dp"
+            app:icon="@android:drawable/ic_menu_manage"
+            app:iconGravity="textStart"
+            app:iconPadding="0dp"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"/>
+
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnSortReport"
             android:layout_width="wrap_content"
@@ -39,7 +54,7 @@
         android:id="@+id/tabLayoutReports"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        app:tabMode="scrollable"
+        app:tabMode="fixed"
         app:tabSelectedTextColor="#FF6F00"
         app:tabIndicatorColor="#FF6F00"/>
 

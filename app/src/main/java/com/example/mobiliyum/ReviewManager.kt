@@ -2,6 +2,7 @@ package com.example.mobiliyum
 
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.Query
 
 object ReviewManager {
     private val db = FirebaseFirestore.getInstance()
@@ -64,10 +65,10 @@ object ReviewManager {
         )
 
         db.runTransaction { transaction ->
-            // 1. Ürünün en güncel halini veritabanından oku (Snapshottan değil!)
+            // 1. Ürünün en güncel halini veritabanından oku
             val snapshot = transaction.get(productRef)
 
-            // 2. Mevcut değerleri al (Güvenli null kontrolü)
+            // 2. Mevcut değerleri al
             val currentTotalRating = snapshot.getDouble("totalRating") ?: (snapshot.getDouble("rating")!! * snapshot.getLong("reviewCount")!!)
             val currentCount = snapshot.getLong("reviewCount") ?: 0
 
@@ -86,20 +87,26 @@ object ReviewManager {
         }.addOnSuccessListener {
             onComplete(true)
         }.addOnFailureListener { e ->
-            // Hata olursa logla
             onComplete(false)
         }
     }
 
-    // 4. YÖNETİCİ: BEKLEYEN TALEPLERİ ÇEK (DÜZELTİLDİ)
-    // orderBy kaldırıldı, client-side sıralama yapılıyor.
-    fun getPendingRequests(onSuccess: (List<PurchaseRequest>) -> Unit, onFailure: (String) -> Unit) {
-        db.collection("purchase_requests")
+    // 4. YÖNETİCİ: BEKLEYEN TALEPLERİ ÇEK (DÜZELTİLDİ: Mağaza Filtreli)
+    // storeId parametresi eklendi. Eğer null ise (Admin) hepsi gelir, doluysa (Manager) sadece o mağaza gelir.
+    fun getPendingRequests(storeId: Int? = null, onSuccess: (List<PurchaseRequest>) -> Unit, onFailure: (String) -> Unit) {
+
+        var query: Query = db.collection("purchase_requests")
             .whereEqualTo("status", "PENDING")
-            .get() // orderBy("requestDate") SİLİNDİ
+
+        // EĞER MAĞAZA ID VARSA FİLTRELE
+        if (storeId != null) {
+            query = query.whereEqualTo("storeId", storeId)
+        }
+
+        query.get()
             .addOnSuccessListener { docs ->
                 val list = docs.toObjects(PurchaseRequest::class.java)
-                // Kod içinde sırala (En yeni en üstte)
+                // Kod içinde tarihe göre sırala (En yeni en üstte)
                 val sortedList = list.sortedByDescending { it.requestDate }
                 onSuccess(sortedList)
             }
@@ -147,7 +154,7 @@ object ReviewManager {
     fun getReviews(productId: Int, onSuccess: (List<Review>) -> Unit) {
         db.collection("reviews")
             .whereEqualTo("productId", productId)
-            .get() // Buradaki orderBy da riskli olabilir, kaldırıp kodda sıralayalım
+            .get()
             .addOnSuccessListener { docs ->
                 val list = docs.toObjects(Review::class.java)
                 val sorted = list.sortedByDescending { it.date }

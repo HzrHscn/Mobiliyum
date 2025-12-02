@@ -9,8 +9,12 @@ import androidx.appcompat.widget.SearchView
 import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 class StoresFragment : Fragment() {
 
@@ -33,11 +37,20 @@ class StoresFragment : Fragment() {
         recyclerView.setHasFixedSize(true)
 
         storeAdapter = StoreAdapter(storeList) { selectedStore ->
-            // 1. Firestore'da Tıklanma Sayısını Artır (Arka planda)
-            db.collection("stores").document(selectedStore.id.toString())
-                .update("clickCount", com.google.firebase.firestore.FieldValue.increment(1))
+            // --- DÜZELTME 3: İSTATİSTİK KAYDI ---
+            val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
 
-            // 2. Detay sayfasına git
+            // 1. Toplam tıklanmayı artır
+            // 2. Bugünün tarihine (clickHistory.2023-12-12) tıklama ekle
+            val updates = mapOf(
+                "clickCount" to FieldValue.increment(1),
+                "clickHistory.$today" to FieldValue.increment(1)
+            )
+
+            db.collection("stores").document(selectedStore.id.toString())
+                .update(updates)
+
+            // Detay sayfasına git
             val detailFragment = StoreDetailFragment()
             val bundle = Bundle()
             bundle.putInt("id", selectedStore.id)
@@ -58,8 +71,6 @@ class StoresFragment : Fragment() {
 
         return view
     }
-
-    // ... (Diğer fonksiyonlar aynı kalabilir: setupSearchView, fetchStoresFromFirestore)
 
     private fun setupSearchView() {
         searchView.setOnClickListener { searchView.onActionViewExpanded() }

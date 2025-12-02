@@ -30,6 +30,7 @@
                 android:orientation="vertical"
                 android:padding="16dp">
 
+                <!-- Kategori ve Favori Satırı -->
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -44,7 +45,7 @@
                         android:backgroundTint="#F0F0F0"
                         android:orientation="horizontal"
                         android:gravity="center_vertical"
-                        android:paddingHorizontal="2dp"
+                        android:paddingHorizontal="4dp"
                         android:paddingVertical="2dp">
 
                         <ImageView
@@ -53,13 +54,13 @@
                             android:layout_height="100dp"
                             android:src="@android:drawable/ic_menu_sort_by_size"
                             app:tint="#616161"
-                            android:layout_marginEnd="2dp"/>
+                            android:layout_marginEnd="4dp"/>
 
                         <TextView
                             android:id="@+id/tvProductCategory"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text=" K \n A \n T \n E \n G \n O \n R \n İ"
+                            android:text=" K \n A  \n T  \n E  \n G  \n O  \n R  \n İ"
                             android:textColor="#616161"
                             android:textSize="11sp"
                             android:textStyle="bold" />
@@ -94,28 +95,61 @@
                             android:text="Favorilere Ekle"
                             android:textSize="10sp"
                             android:textColor="#E91E63"
-                            android:layout_marginTop="2dp"/>
+                            android:layout_marginTop="4dp"/>
                     </LinearLayout>
                 </LinearLayout>
 
-                <TextView
-                    android:id="@+id/tvProductName"
+                <!-- İSİM VE FİYAT YAN YANA (İSTEĞİNİZ ÜZERİNE DÜZENLENDİ) -->
+                <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="Ürün İsmi"
-                    android:textColor="#212121"
-                    android:textSize="26sp"
-                    android:textStyle="bold" />
+                    android:orientation="horizontal"
+                    android:gravity="top">
+
+                    <TextView
+                        android:id="@+id/tvProductName"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="Ürün İsmi"
+                        android:textColor="#212121"
+                        android:textSize="22sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/tvProductPrice"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="0.00 ₺"
+                        android:textColor="#4CAF50"
+                        android:textSize="20sp"
+                        android:textStyle="bold"
+                        android:layout_marginStart="8dp"/>
+                </LinearLayout>
+
+                <!-- AÇIKLAMA ALANI (YENİ EKLENDİ) -->
+                <TextView
+                    android:id="@+id/tvProductDescription"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text="Ürün açıklaması burada yer alacak..."
+                    android:textColor="#616161"
+                    android:textSize="14sp"
+                    android:maxLines="2"
+                    android:ellipsize="end" />
 
                 <TextView
-                    android:id="@+id/tvProductPrice"
+                    android:id="@+id/tvDescriptionToggle"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="2dp"
-                    android:text="0.00 ₺"
-                    android:textColor="#4CAF50"
-                    android:textSize="24sp"
-                    android:textStyle="bold" />
+                    android:text="Tümünü Gör"
+                    android:textColor="#1976D2"
+                    android:textStyle="bold"
+                    android:paddingTop="2dp"
+                    android:visibility="gone"
+                    android:clickable="true"
+                    android:focusable="true"/>
 
                 <View
                     android:layout_width="match_parent"
@@ -123,12 +157,12 @@
                     android:layout_marginVertical="4dp"
                     android:background="#EEEEEE" />
 
+                <!-- Değerlendirmeler -->
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="horizontal"
-                    android:gravity="center_vertical"
-                    android:layout_marginTop="4dp">
+                    android:gravity="center_vertical">
 
                     <TextView
                         android:id="@+id/tvAvgRating"
@@ -208,7 +242,7 @@
                     android:id="@+id/rvReviews"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="2dp"
+                    android:layout_marginTop="4dp"
                     android:nestedScrollingEnabled="false"/>
 
                 <TextView
@@ -220,7 +254,7 @@
                     android:textStyle="bold"
                     android:textColor="#1565C0"
                     android:gravity="center"
-                    android:padding="12dp"
+                    android:padding="4dp"
                     android:visibility="gone"
                     android:clickable="true"
                     android:focusable="true"
@@ -235,7 +269,7 @@
                     android:textStyle="bold"
                     android:textColor="#757575"
                     android:gravity="center"
-                    android:padding="12dp"
+                    android:padding="4dp"
                     android:visibility="gone"
                     android:clickable="true"
                     android:focusable="true"
@@ -249,7 +283,7 @@
                     android:textSize="14sp"
                     android:textColor="#9E9E9E"
                     android:gravity="center"
-                    android:padding="16dp"
+                    android:padding="4dp"
                     android:visibility="gone"/>
 
             </LinearLayout>
