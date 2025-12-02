@@ -52,16 +52,19 @@ class NotificationsFragment : Fragment() {
         val user = UserManager.getCurrentUser() ?: return
         allNotifications.clear()
 
+        // 1. Kişisel Bildirimler
         db.collection("users").document(user.id).collection("notifications").get()
             .addOnSuccessListener { userDocs ->
                 for (doc in userDocs) {
                     allNotifications.add(doc.toObject(NotificationItem::class.java))
                 }
 
+                // 2. Genel Duyurular
                 db.collection("announcements").orderBy("date", Query.Direction.DESCENDING).get()
                     .addOnSuccessListener { globalDocs ->
                         for (doc in globalDocs) {
                             val item = doc.toObject(NotificationItem::class.java)
+                            // Mağaza bildirimi ise ve takip ediliyorsa ekle
                             if (item.type == "store_update") {
                                 val storeId = item.relatedId.toIntOrNull()
                                 if (storeId != null && FavoritesManager.isFollowing(storeId)) {
@@ -71,7 +74,8 @@ class NotificationsFragment : Fragment() {
                                 allNotifications.add(item)
                             }
                         }
-                        filterList(0)
+                        // İlk açılışta ilk sekmeyi filtrele
+                        filterList(tabLayout.selectedTabPosition)
                     }
             }
     }
@@ -86,12 +90,10 @@ class NotificationsFragment : Fragment() {
         recyclerView.adapter = NotifAdapter(filtered)
     }
 
-    // --- TIKLAMA MANTIĞI DÜZELTİLDİ ---
+    // --- DÜZELTİLEN TIKLAMA YÖNLENDİRMESİ ---
     private fun handleNotificationClick(item: NotificationItem) {
         if (item.type == "price_alert" && item.relatedId.isNotEmpty()) {
-            // 1. Ürün ID'sini al
-            // 2. Ürünü veritabanından çek
-            // 3. Detay sayfasını aç
+            // 1. Fiyat Alarmı -> Ürün Detayına Git
             db.collection("products").document(item.relatedId).get()
                 .addOnSuccessListener { document ->
                     val product = document.toObject(Product::class.java)
@@ -105,12 +107,33 @@ class NotificationsFragment : Fragment() {
                             .replace(R.id.fragmentContainer, fragment)
                             .addToBackStack(null)
                             .commit()
-                    } else {
-                        Toast.makeText(context, "Ürün bulunamadı.", Toast.LENGTH_SHORT).show()
                     }
                 }
-        } else {
-            // Diğer bildirimler için POPUP aç
+        }
+        else if (item.type == "store_update" && item.relatedId.isNotEmpty()) {
+            // 2. MAĞAZA DUYURUSU -> MAĞAZA DETAYINA GİT
+            // ID'yi kullanarak mağazayı bul ve git
+            db.collection("stores").document(item.relatedId).get()
+                .addOnSuccessListener { document ->
+                    val store = document.toObject(Store::class.java)
+                    if (store != null) {
+                        val fragment = StoreDetailFragment()
+                        val bundle = Bundle()
+                        bundle.putInt("id", store.id)
+                        bundle.putString("name", store.name)
+                        bundle.putString("image", store.imageUrl)
+                        bundle.putString("location", store.location)
+                        fragment.arguments = bundle
+
+                        parentFragmentManager.beginTransaction()
+                            .replace(R.id.fragmentContainer, fragment)
+                            .addToBackStack(null)
+                            .commit()
+                    }
+                }
+        }
+        else {
+            // 3. Diğerleri -> Popup Aç
             showDetailPopup(item)
         }
     }

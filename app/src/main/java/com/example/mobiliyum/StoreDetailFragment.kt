@@ -1,5 +1,6 @@
 package com.example.mobiliyum
 
+import android.app.AlertDialog
 import android.content.Context
 import android.graphics.Color
 import android.os.Bundle
@@ -22,17 +23,14 @@ import com.google.firebase.firestore.Query
 
 class StoreDetailFragment : Fragment() {
 
-    // RecyclerViews
     private lateinit var rvCategories: RecyclerView
     private lateinit var rvUserChoice: RecyclerView
     private lateinit var rvStoreChoice: RecyclerView
 
-    // Adapters
     private lateinit var categoryAdapter: CategoryAdapter
     private lateinit var userChoiceAdapter: ProductAdapter
     private lateinit var storeChoiceAdapter: ProductAdapter
 
-    // Layouts
     private lateinit var layoutUserChoice: LinearLayout
     private lateinit var layoutStoreChoice: LinearLayout
 
@@ -40,7 +38,9 @@ class StoreDetailFragment : Fragment() {
     private lateinit var cardAnnouncement: CardView
     private lateinit var tvAnnouncement: TextView
     private lateinit var btnSeeAllAnnouncements: TextView
-    private lateinit var btnAnnouncementsPage: com.google.android.material.button.MaterialButton
+
+    // Son duyuruyu tutmak için değişken (Popup için)
+    private var currentAnnouncement: NotificationItem? = null
 
     private var categorySectionList = ArrayList<CategorySection>()
 
@@ -81,7 +81,6 @@ class StoreDetailFragment : Fragment() {
         cardAnnouncement = view.findViewById(R.id.cardStoreAnnouncement)
         tvAnnouncement = view.findViewById(R.id.tvStoreAnnouncement)
         btnSeeAllAnnouncements = view.findViewById(R.id.btnSeeAllAnnouncements)
-        btnAnnouncementsPage = view.findViewById(R.id.btnStoreAnnouncementsPage)
 
         tvName.text = storeName
         tvLocation.text = storeLocation
@@ -104,22 +103,32 @@ class StoreDetailFragment : Fragment() {
             fetchLatestAnnouncement()
         }
 
-        btnAnnouncementsPage.setOnClickListener { openAnnouncementPage() }
-        btnSeeAllAnnouncements.setOnClickListener { openAnnouncementPage() }
+        // Mavi Karta Tıklayınca Popup Aç
+        cardAnnouncement.setOnClickListener {
+            if (currentAnnouncement != null) {
+                AlertDialog.Builder(context)
+                    .setTitle(currentAnnouncement!!.title)
+                    .setMessage(currentAnnouncement!!.message)
+                    .setPositiveButton("Kapat", null)
+                    .show()
+            }
+        }
+
+        // Tüm Duyuruları Gör Linkine tıklayınca
+        btnSeeAllAnnouncements.setOnClickListener {
+            val fragment = StoreAnnouncementsFragment()
+            val bundle = Bundle()
+            bundle.putString("storeId", storeId.toString())
+            bundle.putString("storeName", storeName)
+            fragment.arguments = bundle
+
+            parentFragmentManager.beginTransaction()
+                .replace(R.id.fragmentContainer, fragment)
+                .addToBackStack(null)
+                .commit()
+        }
 
         return view
-    }
-
-    private fun openAnnouncementPage() {
-        val fragment = StoreAnnouncementsFragment()
-        val bundle = Bundle()
-        bundle.putString("storeId", storeId.toString())
-        bundle.putString("storeName", storeName)
-        fragment.arguments = bundle
-        parentFragmentManager.beginTransaction()
-            .replace(R.id.fragmentContainer, fragment)
-            .addToBackStack(null)
-            .commit()
     }
 
     private fun setupFollowButton(view: View) {
@@ -159,6 +168,7 @@ class StoreDetailFragment : Fragment() {
                 for (doc in documents) {
                     allProducts.add(doc.toObject(Product::class.java))
                 }
+
                 if (allProducts.isNotEmpty()) {
                     groupProductsByCategory(allProducts)
                     setupFeaturedProducts(allProducts)
@@ -166,20 +176,20 @@ class StoreDetailFragment : Fragment() {
             }
     }
 
-    // --- DUYURU ÇEKME (DÜZELTİLDİ: Index hatasını önlemek için orderBy kaldırıldı) ---
     private fun fetchLatestAnnouncement() {
         db.collection("announcements")
             .whereEqualTo("type", "store_update")
             .whereEqualTo("relatedId", storeId.toString())
-            .get() // Sadece filtrele, sıralamayı burada yapma
+            .get()
             .addOnSuccessListener { docs ->
                 if (!docs.isEmpty) {
-                    // Kod tarafında tarihe göre sırala ve ilkini al
+                    // Kod tarafında sırala
                     val latestDoc = docs.map { it.toObject(NotificationItem::class.java) }
                         .sortedByDescending { it.date }
                         .firstOrNull()
 
                     if (latestDoc != null && latestDoc.message.isNotEmpty()) {
+                        currentAnnouncement = latestDoc // Değişkene ata
                         tvAnnouncement.text = latestDoc.message
                         cardAnnouncement.visibility = View.VISIBLE
                     } else {
@@ -232,7 +242,6 @@ class StoreDetailFragment : Fragment() {
     }
 }
 
-// --- YARDIMCI SINIFLAR ---
 data class CategorySection(val categoryName: String, val products: List<Product>, var isExpanded: Boolean = false)
 
 class CategoryAdapter(private val context: Context, private val categoryList: List<CategorySection>, private val onProductClick: (Product) -> Unit) : RecyclerView.Adapter<CategoryAdapter.CategoryViewHolder>() {
