@@ -86,7 +86,7 @@ class FavoritesFragment : Fragment() {
     private fun openDetail(product: Product) {
         val detailFragment = ProductDetailFragment()
         val bundle = Bundle()
-        bundle.putSerializable("product_data", product)
+        bundle.putParcelable("product_data", product)
         detailFragment.arguments = bundle
         parentFragmentManager.beginTransaction().replace(R.id.fragmentContainer, detailFragment).addToBackStack(null).commit()
     }

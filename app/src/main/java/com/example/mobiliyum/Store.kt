@@ -1,6 +1,9 @@
 package com.example.mobiliyum
-import java.io.Serializable
 
+import android.os.Parcelable
+import kotlinx.parcelize.Parcelize
+
+@Parcelize
 data class Store(
     val id: Int = 0,
     val name: String = "",
@@ -12,4 +15,4 @@ data class Store(
     val clickHistory: HashMap<String, Int> = hashMapOf(),
     // YENİ: Mağazanın Seçimi (Vitrin) için seçilen ürün ID'leri
     val featuredProductIds: List<Int> = listOf()
-) : Serializable
+) : Parcelable

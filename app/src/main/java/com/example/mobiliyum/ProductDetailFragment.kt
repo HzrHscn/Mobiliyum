@@ -9,6 +9,7 @@ import android.net.Uri
 import android.os.Bundle
 import android.text.InputFilter
 import android.text.InputType
+import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -18,113 +19,76 @@ import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
-import com.google.android.material.button.MaterialButton
+import com.example.mobiliyum.databinding.FragmentProductDetailBinding
+import com.example.mobiliyum.databinding.ItemReviewBinding // Adapter için
 import com.google.android.material.textfield.TextInputEditText
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import java.util.Date
 
 class ProductDetailFragment : Fragment() {
+
+    private var _binding: FragmentProductDetailBinding? = null
+    private val binding get() = _binding!!
+
     private var currentProduct: Product? = null
-
-    private lateinit var layoutFavorite: LinearLayout
-    private lateinit var imgFavoriteIcon: ImageView
-    private lateinit var tvFavoriteText: TextView
-    private lateinit var btnGoToStore: MaterialButton
-    private lateinit var btnAddToCart: MaterialButton
-    private lateinit var imgCategoryIcon: ImageView
-
-    // AÇIKLAMA ALANI (Backend Kısmı)
-    private lateinit var tvProductDescription: TextView
-    private lateinit var tvDescriptionToggle: TextView
     private var isDescriptionExpanded = false
-
-    private lateinit var rvReviews: RecyclerView
-    private lateinit var btnAddReview: MaterialButton
-    private lateinit var tvAvgRating: TextView
-    private lateinit var rbProductAvg: RatingBar
-    private lateinit var tvRatingCount: TextView
-    private lateinit var tvNoReviews: TextView
-    private lateinit var btnSeeAllReviews: TextView
-    private lateinit var btnHideReviews: TextView
-    private lateinit var tvBestReviewTitle: TextView
-
     private var allReviewsList = listOf<Review>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         arguments?.let {
-            currentProduct = it.getSerializable("product_data") as Product?
+            // ADIM 1: Parcelable Güvenli Alımı (API seviyesine göre)
+            currentProduct = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                it.getParcelable("product_data", Product::class.java)
+            } else {
+                @Suppress("DEPRECATION")
+                it.getParcelable("product_data")
+            }
         }
     }
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
-    ): View? {
-        val view = inflater.inflate(R.layout.fragment_product_detail, container, false)
+    ): View {
+        _binding = FragmentProductDetailBinding.inflate(inflater, container, false)
+        return binding.root
+    }
 
-        if (currentProduct == null) return view
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+
+        if (currentProduct == null) return
 
         incrementClickCount()
 
-        // View Tanımlamaları
-        val imgProduct = view.findViewById<ImageView>(R.id.imgProductDetail)
-        val tvName = view.findViewById<TextView>(R.id.tvProductName)
-        val tvPrice = view.findViewById<TextView>(R.id.tvProductPrice)
-        val tvCategory = view.findViewById<TextView>(R.id.tvProductCategory)
-
-        // Açıklama Tanımlamaları
-        tvProductDescription = view.findViewById(R.id.tvProductDescription)
-        tvDescriptionToggle = view.findViewById(R.id.tvDescriptionToggle)
-
-        btnAddToCart = view.findViewById(R.id.btnAddToCart)
-        btnGoToStore = view.findViewById(R.id.btnGoToStore)
-        imgCategoryIcon = view.findViewById(R.id.imgCategoryIcon)
-        layoutFavorite = view.findViewById(R.id.layoutFavorite)
-        imgFavoriteIcon = view.findViewById(R.id.imgFavoriteIcon)
-        tvFavoriteText = view.findViewById(R.id.tvFavoriteText)
-
-        rvReviews = view.findViewById(R.id.rvReviews)
-        btnAddReview = view.findViewById(R.id.btnAddReview)
-        tvAvgRating = view.findViewById(R.id.tvAvgRating)
-        rbProductAvg = view.findViewById(R.id.rbProductAvg)
-        tvRatingCount = view.findViewById(R.id.tvRatingCount)
-        tvNoReviews = view.findViewById(R.id.tvNoReviews)
-        btnSeeAllReviews = view.findViewById(R.id.btnSeeAllReviews)
-        btnHideReviews = view.findViewById(R.id.btnHideReviews)
-        tvBestReviewTitle = view.findViewById(R.id.tvBestReviewTitle)
-
-        rvReviews.layoutManager = LinearLayoutManager(context)
+        binding.rvReviews.layoutManager = LinearLayoutManager(context)
 
         // Verileri Yerleştir
-        tvName.text = currentProduct!!.name
-        //tvCategory.text = currentProduct!!.category
-        tvPrice.text = PriceUtils.formatPriceStyled(currentProduct!!.price)
-        Glide.with(this).load(currentProduct!!.imageUrl).into(imgProduct)
+        binding.tvProductName.text = currentProduct!!.name
+        binding.tvProductPrice.text = PriceUtils.formatPriceStyled(currentProduct!!.price)
+        Glide.with(this).load(currentProduct!!.imageUrl).into(binding.imgProductDetail)
 
-        imgProduct.setOnClickListener { showZoomImageDialog(currentProduct!!.imageUrl) }
+        binding.imgProductDetail.setOnClickListener { showZoomImageDialog(currentProduct!!.imageUrl) }
 
         setupCategoryIcon(currentProduct!!.category)
-
-        // Açıklamayı Hazırla (Backend Kısmı)
         setupDescription(currentProduct!!.description)
-
         refreshProductData()
 
         if (UserManager.canEditProduct(currentProduct!!)) {
-            btnAddToCart.text = "Ürünü Düzenle"
-            btnAddToCart.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#D32F2F"))
-            btnAddToCart.setOnClickListener { showEditOptionsDialog() }
+            binding.btnAddToCart.text = "Ürünü Düzenle"
+            binding.btnAddToCart.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#D32F2F"))
+            binding.btnAddToCart.setOnClickListener { showEditOptionsDialog() }
         } else {
-            btnAddToCart.setOnClickListener {
+            binding.btnAddToCart.setOnClickListener {
                 CartManager.addToCart(currentProduct!!)
                 Toast.makeText(context, "Sepete eklendi", Toast.LENGTH_SHORT).show()
             }
         }
 
         updateFavoriteUI(FavoritesManager.isFavorite(currentProduct!!.id))
-        layoutFavorite.setOnClickListener {
+        binding.layoutFavorite.setOnClickListener {
             if (!UserManager.isLoggedIn()) {
                 Toast.makeText(context, "Giriş yapmalısınız.", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
@@ -132,53 +96,46 @@ class ProductDetailFragment : Fragment() {
             FavoritesManager.toggleFavorite(currentProduct!!) { isFav -> updateFavoriteUI(isFav) }
         }
 
-        btnGoToStore.setOnClickListener {
+        binding.btnGoToStore.setOnClickListener {
             val url = currentProduct!!.productUrl
             if (url.isNotEmpty()) openWebsite(url)
         }
 
-        btnAddReview.setOnClickListener { handleReviewClick() }
+        binding.btnAddReview.setOnClickListener { handleReviewClick() }
 
-        btnSeeAllReviews.setOnClickListener {
-            rvReviews.adapter = ReviewAdapter(allReviewsList)
-            btnSeeAllReviews.visibility = View.GONE
-            btnHideReviews.visibility = View.VISIBLE
-            tvBestReviewTitle.visibility = View.GONE
+        binding.btnSeeAllReviews.setOnClickListener {
+            binding.rvReviews.adapter = ReviewAdapter(allReviewsList)
+            binding.btnSeeAllReviews.visibility = View.GONE
+            binding.btnHideReviews.visibility = View.VISIBLE
+            binding.tvBestReviewTitle.visibility = View.GONE
         }
 
-        btnHideReviews.setOnClickListener {
+        binding.btnHideReviews.setOnClickListener {
             setupReviews()
-            btnHideReviews.visibility = View.GONE
+            binding.btnHideReviews.visibility = View.GONE
         }
-
-        return view
     }
 
-    // --- AÇIKLAMA GİZLE/GÖSTER MANTIĞI ---
     private fun setupDescription(desc: String?) {
         val text = if (desc.isNullOrEmpty()) "Bu ürün için henüz bir açıklama girilmemiş." else desc
-        tvProductDescription.text = text
+        binding.tvProductDescription.text = text
 
-        // Başlangıç ayarları
         isDescriptionExpanded = false
-        tvProductDescription.maxLines = 2
-        tvDescriptionToggle.visibility = View.GONE
+        binding.tvProductDescription.maxLines = 2
+        binding.tvDescriptionToggle.visibility = View.GONE
 
-        // Metin yüklendikten sonra satır sayısını kontrol et
-        tvProductDescription.post {
-            if (tvProductDescription.lineCount > 1) {
-                tvDescriptionToggle.visibility = View.VISIBLE
-                tvDescriptionToggle.text = "Açıklamanın Tümünü Gör"
+        binding.tvProductDescription.post {
+            if (binding.tvProductDescription.lineCount > 1) {
+                binding.tvDescriptionToggle.visibility = View.VISIBLE
+                binding.tvDescriptionToggle.text = "Açıklamanın Tümünü Gör"
 
-                tvDescriptionToggle.setOnClickListener {
+                binding.tvDescriptionToggle.setOnClickListener {
                     if (isDescriptionExpanded) {
-                        // Kapat
-                        tvProductDescription.maxLines = 2
-                        tvDescriptionToggle.text = "Açıklamanın Tümünü Gör"
+                        binding.tvProductDescription.maxLines = 2
+                        binding.tvDescriptionToggle.text = "Açıklamanın Tümünü Gör"
                     } else {
-                        // Aç
-                        tvProductDescription.maxLines = Int.MAX_VALUE
-                        tvDescriptionToggle.text = "Açıklamayı Gizle"
+                        binding.tvProductDescription.maxLines = Int.MAX_VALUE
+                        binding.tvDescriptionToggle.text = "Açıklamayı Gizle"
                     }
                     isDescriptionExpanded = !isDescriptionExpanded
                 }
@@ -212,9 +169,9 @@ class ProductDetailFragment : Fragment() {
                     setupDescription(freshProduct.description)
                     val rating = freshProduct.rating
                     val count = freshProduct.reviewCount
-                    tvAvgRating.text = String.format("%.1f", rating)
-                    rbProductAvg.rating = rating
-                    tvRatingCount.text = "($count Değerlendirme)"
+                    binding.tvAvgRating.text = String.format("%.1f", rating)
+                    binding.rbProductAvg.rating = rating
+                    binding.tvRatingCount.text = "($count Değerlendirme)"
                     setupReviews()
                 }
             }
@@ -224,33 +181,33 @@ class ProductDetailFragment : Fragment() {
         ReviewManager.getReviews(currentProduct!!.id) { reviews ->
             allReviewsList = reviews
             if (reviews.isEmpty()) {
-                tvNoReviews.visibility = View.VISIBLE
-                rvReviews.visibility = View.GONE
-                btnSeeAllReviews.visibility = View.GONE
-                btnHideReviews.visibility = View.GONE
-                tvBestReviewTitle.visibility = View.GONE
+                binding.tvNoReviews.visibility = View.VISIBLE
+                binding.rvReviews.visibility = View.GONE
+                binding.btnSeeAllReviews.visibility = View.GONE
+                binding.btnHideReviews.visibility = View.GONE
+                binding.tvBestReviewTitle.visibility = View.GONE
             } else {
-                tvNoReviews.visibility = View.GONE
-                rvReviews.visibility = View.VISIBLE
+                binding.tvNoReviews.visibility = View.GONE
+                binding.rvReviews.visibility = View.VISIBLE
                 val fiveStarReviews = reviews.filter { it.rating == 5f }
                 if (reviews.size > 1) {
-                    btnSeeAllReviews.visibility = View.VISIBLE
-                    btnSeeAllReviews.text = "Tüm Yorumları Gör (${reviews.size})"
-                    btnHideReviews.visibility = View.GONE
+                    binding.btnSeeAllReviews.visibility = View.VISIBLE
+                    binding.btnSeeAllReviews.text = "Tüm Yorumları Gör (${reviews.size})"
+                    binding.btnHideReviews.visibility = View.GONE
                     val featuredList = ArrayList<Review>()
                     if (fiveStarReviews.isNotEmpty()) {
                         featuredList.add(fiveStarReviews.random())
-                        tvBestReviewTitle.visibility = View.VISIBLE
+                        binding.tvBestReviewTitle.visibility = View.VISIBLE
                     } else {
                         featuredList.add(reviews[0])
-                        tvBestReviewTitle.visibility = View.GONE
+                        binding.tvBestReviewTitle.visibility = View.GONE
                     }
-                    rvReviews.adapter = ReviewAdapter(featuredList)
+                    binding.rvReviews.adapter = ReviewAdapter(featuredList)
                 } else {
-                    btnSeeAllReviews.visibility = View.GONE
-                    btnHideReviews.visibility = View.GONE
-                    tvBestReviewTitle.visibility = View.GONE
-                    rvReviews.adapter = ReviewAdapter(reviews)
+                    binding.btnSeeAllReviews.visibility = View.GONE
+                    binding.btnHideReviews.visibility = View.GONE
+                    binding.tvBestReviewTitle.visibility = View.GONE
+                    binding.rvReviews.adapter = ReviewAdapter(reviews)
                 }
             }
         }
@@ -285,38 +242,45 @@ class ProductDetailFragment : Fragment() {
         val dialogView = LayoutInflater.from(context).inflate(R.layout.dialog_add_review, null)
         val ratingBar = dialogView.findViewById<RatingBar>(R.id.rbUserRating)
         val etComment = dialogView.findViewById<TextInputEditText>(R.id.etUserComment)
-        AlertDialog.Builder(context).setView(dialogView).setPositiveButton("Yayınla") { _, _ ->
-            val rating = ratingBar.rating
-            val comment = etComment.text.toString()
-            if (rating > 0) {
-                ReviewManager.addReview(currentProduct!!, rating, comment) { success ->
-                    if (success) {
-                        Toast.makeText(context, "Teşekkürler!", Toast.LENGTH_SHORT).show()
-                        refreshProductData()
+
+        AlertDialog.Builder(context)
+            .setView(dialogView)
+            .setPositiveButton("Yayınla") { _, _ ->
+                val rating = ratingBar.rating
+                val comment = etComment.text.toString()
+
+                if (rating > 0) {
+                    // Yükleniyor göstergesi eklenebilir burada (Opsiyonel)
+                    ReviewManager.addReview(currentProduct!!, rating, comment) { success ->
+                        if (success) {
+                            Toast.makeText(context, "Yorumunuz başarıyla yayınlandı!", Toast.LENGTH_SHORT).show()
+                            refreshProductData() // Ekranı yenile
+                        } else {
+                            // İŞTE EKSİK OLAN KISIM BURASIYDI:
+                            Toast.makeText(context, "Yorum gönderilemedi. Lütfen internetinizi kontrol edin.", Toast.LENGTH_LONG).show()
+                        }
                     }
+                } else {
+                    Toast.makeText(context, "Lütfen puan veriniz.", Toast.LENGTH_SHORT).show()
                 }
             }
-        }.setNegativeButton("Vazgeç", null).show()
+            .setNegativeButton("Vazgeç", null)
+            .show()
     }
 
     private fun showEditOptionsDialog() {
         val dialogView = LayoutInflater.from(context).inflate(R.layout.dialog_edit_options, null)
-        val dialog = AlertDialog.Builder(context)
-            .setView(dialogView)
-            .create()
-
+        val dialog = AlertDialog.Builder(context).setView(dialogView).create()
         dialog.window?.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
 
         dialogView.findViewById<View>(R.id.cardOptionPrice).setOnClickListener {
             dialog.dismiss()
             showUpdatePriceDialog()
         }
-
         dialogView.findViewById<View>(R.id.cardOptionInfo).setOnClickListener {
             dialog.dismiss()
             showUpdateInfoDialog()
         }
-
         dialog.show()
     }
 
@@ -352,57 +316,45 @@ class ProductDetailFragment : Fragment() {
             orientation = LinearLayout.VERTICAL
             setPadding(48, 48, 48, 48)
         }
-
         val etName = EditText(context).apply {
             hint = "Ürün Adı"
             setText(currentProduct?.name)
             setPadding(0, 0, 0, 32)
         }
-
         val etDesc = EditText(context).apply {
             hint = "Açıklama (Max 500 karakter)"
             setText(currentProduct?.description)
             minLines = 4
-            gravity = android.view.Gravity.TOP
+            gravity = Gravity.TOP
             filters = arrayOf(InputFilter.LengthFilter(500))
         }
-
         layout.addView(etName)
         layout.addView(etDesc)
 
-        AlertDialog.Builder(context)
-            .setTitle("Bilgileri Güncelle")
-            .setView(layout)
-            .setPositiveButton("Kaydet") { _, _ ->
-                val newName = etName.text.toString()
-                val newDesc = etDesc.text.toString()
-
-                if (newName.isNotEmpty()) {
-                    val db = FirebaseFirestore.getInstance()
-                    db.collection("products").document(currentProduct!!.id.toString())
-                        .update(mapOf(
-                            "name" to newName,
-                            "description" to newDesc
-                        ))
-                        .addOnSuccessListener {
-                            Toast.makeText(context, "Güncellendi!", Toast.LENGTH_SHORT).show()
-                            view?.findViewById<TextView>(R.id.tvProductName)?.text = newName
-                            setupDescription(newDesc)
-                            currentProduct = currentProduct?.copy(name = newName, description = newDesc)
-                        }
-                }
+        AlertDialog.Builder(context).setTitle("Bilgileri Güncelle").setView(layout).setPositiveButton("Kaydet") { _, _ ->
+            val newName = etName.text.toString()
+            val newDesc = etDesc.text.toString()
+            if (newName.isNotEmpty()) {
+                val db = FirebaseFirestore.getInstance()
+                db.collection("products").document(currentProduct!!.id.toString())
+                    .update(mapOf("name" to newName, "description" to newDesc))
+                    .addOnSuccessListener {
+                        Toast.makeText(context, "Güncellendi!", Toast.LENGTH_SHORT).show()
+                        binding.tvProductName.text = newName
+                        setupDescription(newDesc)
+                        currentProduct = currentProduct?.copy(name = newName, description = newDesc)
+                    }
             }
-            .setNegativeButton("İptal", null)
-            .show()
+        }.setNegativeButton("İptal", null).show()
     }
 
     private fun updateFavoriteUI(isFavorite: Boolean) {
         if (isFavorite) {
-            imgFavoriteIcon.setImageResource(R.drawable.ic_heart_filled)
-            tvFavoriteText.text = "Favorilerden Çıkar"
+            binding.imgFavoriteIcon.setImageResource(R.drawable.ic_heart_filled)
+            binding.tvFavoriteText.text = "Favorilerden Çıkar"
         } else {
-            imgFavoriteIcon.setImageResource(R.drawable.ic_heart_outline)
-            tvFavoriteText.text = "Favorilere Ekle"
+            binding.imgFavoriteIcon.setImageResource(R.drawable.ic_heart_outline)
+            binding.tvFavoriteText.text = "Favorilere Ekle"
         }
     }
 
@@ -422,24 +374,29 @@ class ProductDetailFragment : Fragment() {
             lower.contains("tv") || lower.contains("ünite") -> R.drawable.tvlogo
             else -> android.R.drawable.ic_menu_sort_by_size
         }
-        imgCategoryIcon.setImageResource(iconRes)
-        imgCategoryIcon.imageTintList = null
+        binding.imgCategoryIcon.setImageResource(iconRes)
+        binding.imgCategoryIcon.imageTintList = null
+    }
+
+    override fun onDestroyView() {
+        super.onDestroyView()
+        _binding = null
     }
 
     inner class ReviewAdapter(private val items: List<Review>) : RecyclerView.Adapter<ReviewAdapter.VH>() {
-        inner class VH(v: View) : RecyclerView.ViewHolder(v) {
-            val name: TextView = v.findViewById(R.id.tvReviewerName)
-            val comment: TextView = v.findViewById(R.id.tvReviewComment)
-            val rating: RatingBar = v.findViewById(R.id.rbReview)
-            val verified: View = v.findViewById(R.id.imgVerified)
+        inner class VH(val binding: ItemReviewBinding) : RecyclerView.ViewHolder(binding.root)
+
+        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
+            val binding = ItemReviewBinding.inflate(LayoutInflater.from(parent.context), parent, false)
+            return VH(binding)
         }
-        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int) = VH(LayoutInflater.from(parent.context).inflate(R.layout.item_review, parent, false))
+
         override fun onBindViewHolder(holder: VH, position: Int) {
             val item = items[position]
-            holder.name.text = item.userName
-            holder.comment.text = item.comment
-            holder.rating.rating = item.rating
-            holder.verified.visibility = if(item.isVerified) View.VISIBLE else View.GONE
+            holder.binding.tvReviewerName.text = item.userName
+            holder.binding.tvReviewComment.text = item.comment
+            holder.binding.rbReview.rating = item.rating
+            holder.binding.imgVerified.visibility = if(item.isVerified) View.VISIBLE else View.GONE
         }
         override fun getItemCount() = items.size
     }

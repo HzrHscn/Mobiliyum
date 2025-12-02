@@ -7,54 +7,39 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.Button
-import android.widget.TextView
 import android.widget.Toast
 import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.LinearLayoutManager
-import androidx.recyclerview.widget.RecyclerView
-// Düzeltildi: ProductDetailDialogFragment sınıfını artık doğru bir şekilde import ediyoruz.
-import com.example.mobiliyum.ProductDetailDialogFragment
+import com.example.mobiliyum.databinding.FragmentCartBinding // ViewBinding
 
 class CartFragment : Fragment() {
 
-    private lateinit var recyclerView: RecyclerView
-    private lateinit var tvTotal: TextView
-    private lateinit var btnRemoveSelected: Button
-    private lateinit var btnOpenSelected: Button
-    private lateinit var emptyView: View
-    private lateinit var contentView: View
+    private var _binding: FragmentCartBinding? = null
+    private val binding get() = _binding!!
 
     private var cartAdapter: CartAdapter? = null
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
-    ): View? {
-        val view = inflater.inflate(R.layout.fragment_cart, container, false)
+    ): View {
+        _binding = FragmentCartBinding.inflate(inflater, container, false)
+        return binding.root
+    }
 
-        // Bileşenleri Bağla
-        recyclerView = view.findViewById(R.id.rvCartItems)
-        tvTotal = view.findViewById(R.id.tvCartTotal)
-        emptyView = view.findViewById(R.id.layoutEmptyCart)
-        contentView = view.findViewById(R.id.layoutCartContent)
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
 
-        // Butonları Bağla
-        btnRemoveSelected = view.findViewById(R.id.btnRemoveSelected)
-        btnOpenSelected = view.findViewById(R.id.btnOpenSelected)
-
-        // Listener'ları ayarla
-        btnRemoveSelected.setOnClickListener {
+        // Buton Dinleyicileri (findViewById yerine binding)
+        binding.btnRemoveSelected.setOnClickListener {
             handleRemoveSelected()
         }
 
-        btnOpenSelected.setOnClickListener {
+        binding.btnOpenSelected.setOnClickListener {
             handleOpenSelectedLinks()
         }
 
         loadCart()
-
-        return view
     }
 
     override fun onResume() {
@@ -66,35 +51,30 @@ class CartFragment : Fragment() {
         val items = CartManager.getCartItems()
 
         if (items.isEmpty()) {
-            emptyView.visibility = View.VISIBLE
-            contentView.visibility = View.GONE
+            binding.layoutEmptyCart.visibility = View.VISIBLE
+            binding.layoutCartContent.visibility = View.GONE
         } else {
-            emptyView.visibility = View.GONE
-            contentView.visibility = View.VISIBLE
+            binding.layoutEmptyCart.visibility = View.GONE
+            binding.layoutCartContent.visibility = View.VISIBLE
 
-            recyclerView.layoutManager = LinearLayoutManager(context)
-            cartAdapter = CartAdapter(items) { /* Tıklama boş şimdilik */ }
-            recyclerView.adapter = cartAdapter
+            binding.rvCartItems.layoutManager = LinearLayoutManager(context)
+            cartAdapter = CartAdapter(items) { product ->
+                // Tıklama ile detay dialogu açma
+                handleProductClick(product)
+            }
+            binding.rvCartItems.adapter = cartAdapter
 
-            // DÜZELTME: Toplam tutarı PriceUtils ile hesaplayıp yazdırıyoruz
-            // CartManager'ın getTotalPrice'ını Double döndürecek şekilde güncelleyeceğiz
+            // Toplam tutarı hesapla ve göster
             val totalAmount = CartManager.calculateTotalAmount()
-            tvTotal.text = PriceUtils.formatPriceStyled(totalAmount)
+            binding.tvCartTotal.text = PriceUtils.formatPriceStyled(totalAmount)
         }
     }
 
-    /**
-     * Tıklanan ürün için detay pop-up'ı açar.
-     * Bu fonksiyon artık ProductDetailDialogFragment'ı çağırıyor.
-     */
     private fun handleProductClick(product: Product) {
         ProductDetailDialogFragment.newInstance(product)
             .show(parentFragmentManager, "ProductDetailDialog")
     }
 
-    /**
-     * Seçili ürünleri sepetten kaldırır.
-     */
     private fun handleRemoveSelected() {
         val selectedProducts = cartAdapter?.getSelectedProducts()
 
@@ -118,9 +98,6 @@ class CartFragment : Fragment() {
             .show()
     }
 
-    /**
-     * Seçili ürünlerin linklerini toplu halde açar.
-     */
     private fun handleOpenSelectedLinks() {
         val selectedProducts = cartAdapter?.getSelectedProducts()
 
@@ -145,7 +122,6 @@ class CartFragment : Fragment() {
             .show()
     }
 
-    // Harici site açma ve domain çekme yardımcı fonksiyonları
     private fun openWebsite(url: String) {
         try {
             val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
@@ -162,5 +138,10 @@ class CartFragment : Fragment() {
         } catch (e: Exception) {
             url
         }
+    }
+
+    override fun onDestroyView() {
+        super.onDestroyView()
+        _binding = null
     }
 }

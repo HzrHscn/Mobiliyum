@@ -5,21 +5,19 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.ImageView
-import android.widget.TextView
 import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import com.google.android.material.button.MaterialButtonToggleGroup
+import com.example.mobiliyum.databinding.FragmentStoreAnnouncementsBinding // ViewBinding
+import com.example.mobiliyum.databinding.ItemNotificationBinding // Adapter Binding
 import com.google.firebase.firestore.FirebaseFirestore
 import java.text.SimpleDateFormat
 import java.util.Locale
 
 class StoreAnnouncementsFragment : Fragment() {
 
-    private lateinit var recyclerView: RecyclerView
-    private lateinit var tvTitle: TextView
-    private lateinit var toggleGroup: MaterialButtonToggleGroup
+    private var _binding: FragmentStoreAnnouncementsBinding? = null
+    private val binding get() = _binding!!
 
     private val db = FirebaseFirestore.getInstance()
     private val allList = ArrayList<NotificationItem>()
@@ -38,17 +36,18 @@ class StoreAnnouncementsFragment : Fragment() {
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
-    ): View? {
-        val view = inflater.inflate(R.layout.fragment_store_announcements, container, false)
+    ): View {
+        _binding = FragmentStoreAnnouncementsBinding.inflate(inflater, container, false)
+        return binding.root
+    }
 
-        recyclerView = view.findViewById(R.id.rvStoreAnnouncements)
-        tvTitle = view.findViewById(R.id.tvPageTitle)
-        toggleGroup = view.findViewById(R.id.toggleFilter)
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
 
-        tvTitle.text = "$storeName - Duyurular"
-        recyclerView.layoutManager = LinearLayoutManager(context)
+        binding.tvPageTitle.text = "$storeName - Duyurular"
+        binding.rvStoreAnnouncements.layoutManager = LinearLayoutManager(context)
 
-        toggleGroup.addOnButtonCheckedListener { _, checkedId, isChecked ->
+        binding.toggleFilter.addOnButtonCheckedListener { _, checkedId, isChecked ->
             if (isChecked) {
                 when (checkedId) {
                     R.id.btn1Month -> filterList(30)
@@ -60,13 +59,11 @@ class StoreAnnouncementsFragment : Fragment() {
         }
 
         loadAllAnnouncements()
-        return view
     }
 
     private fun loadAllAnnouncements() {
         if (storeId.isEmpty()) return
 
-        // İNDEKS HATASINI ÖNLEMEK İÇİN: orderBy("date") kaldırıldı.
         db.collection("announcements")
             .whereEqualTo("type", "store_update")
             .whereEqualTo("relatedId", storeId)
@@ -78,7 +75,7 @@ class StoreAnnouncementsFragment : Fragment() {
                 }
 
                 // Varsayılan Filtre: 1 AY
-                toggleGroup.check(R.id.btn1Month)
+                binding.toggleFilter.check(R.id.btn1Month)
                 filterList(30)
             }
     }
@@ -97,33 +94,35 @@ class StoreAnnouncementsFragment : Fragment() {
             }
         }
 
-        // SIRALAMAYI BURADA YAPIYORUZ (Yeniden Eskiye)
         filteredList.sortByDescending { it.date }
-
-        recyclerView.adapter = AnnouncementAdapter(filteredList)
+        binding.rvStoreAnnouncements.adapter = AnnouncementAdapter(filteredList)
     }
 
-    inner class AnnouncementAdapter(private val items: List<NotificationItem>) : RecyclerView.Adapter<AnnouncementAdapter.VH>() {
-        inner class VH(v: View) : RecyclerView.ViewHolder(v) {
-            val title: TextView = v.findViewById(R.id.tvNotifTitle)
-            val msg: TextView = v.findViewById(R.id.tvNotifMessage)
-            val date: TextView = v.findViewById(R.id.tvNotifDate)
-            val icon: ImageView = v.findViewById(R.id.imgNotifIcon)
-            val container: View = v
-        }
+    override fun onDestroyView() {
+        super.onDestroyView()
+        _binding = null
+    }
 
-        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int) =
-            VH(LayoutInflater.from(parent.context).inflate(R.layout.item_notification, parent, false))
+    // ADAPTER
+    inner class AnnouncementAdapter(private val items: List<NotificationItem>) : RecyclerView.Adapter<AnnouncementAdapter.VH>() {
+
+        inner class VH(val binding: ItemNotificationBinding) : RecyclerView.ViewHolder(binding.root)
+
+        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
+            val binding = ItemNotificationBinding.inflate(LayoutInflater.from(parent.context), parent, false)
+            return VH(binding)
+        }
 
         override fun onBindViewHolder(holder: VH, position: Int) {
             val item = items[position]
-            holder.title.text = item.title
-            holder.msg.text = item.message
-            holder.date.text = SimpleDateFormat("dd MMM yyyy", Locale("tr")).format(item.date)
-            holder.icon.setImageResource(android.R.drawable.ic_menu_myplaces)
-            holder.icon.setColorFilter(android.graphics.Color.parseColor("#1976D2"))
+            holder.binding.tvNotifTitle.text = item.title
+            holder.binding.tvNotifMessage.text = item.message
+            holder.binding.tvNotifDate.text = SimpleDateFormat("dd MMM yyyy", Locale("tr")).format(item.date)
 
-            holder.container.setOnClickListener {
+            holder.binding.imgNotifIcon.setImageResource(android.R.drawable.ic_menu_myplaces)
+            holder.binding.imgNotifIcon.setColorFilter(android.graphics.Color.parseColor("#1976D2"))
+
+            holder.itemView.setOnClickListener {
                 AlertDialog.Builder(context)
                     .setTitle(item.title)
                     .setMessage(item.message)

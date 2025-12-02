@@ -4,13 +4,13 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.CheckBox
 import android.widget.TextView
 import android.widget.Toast
 import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
+import com.example.mobiliyum.databinding.ItemCartProductBinding // Adapter Binding
 import com.google.android.material.button.MaterialButton
 import com.google.firebase.firestore.FirebaseFirestore
 
@@ -26,6 +26,7 @@ class StoreShowcaseFragment : Fragment() {
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View? {
+        // Programatik Layout (XML kullanmıyor, bu yüzden Binding yok)
         val context = requireContext()
         val layout = android.widget.LinearLayout(context).apply {
             orientation = android.widget.LinearLayout.VERTICAL
@@ -59,9 +60,7 @@ class StoreShowcaseFragment : Fragment() {
         }
         layout.addView(recyclerView)
 
-        // 1. BUTONU ÖNCE OLUŞTURUYORUZ
         btnSubmit = MaterialButton(context).apply {
-            // Varsayılan metin
             text = "İşlemi Tamamla"
             setBackgroundColor(android.graphics.Color.parseColor("#FF6F00"))
             layoutParams = android.widget.LinearLayout.LayoutParams(
@@ -71,7 +70,6 @@ class StoreShowcaseFragment : Fragment() {
         }
         layout.addView(btnSubmit)
 
-        // 2. ŞİMDİ ROL KONTROLÜ YAPIP METNİ GÜNCELLİYORUZ
         val user = UserManager.getCurrentUser()
         if (user?.role == UserRole.EDITOR) {
             btnSubmit.text = "Seçimi Onaya Gönder"
@@ -100,7 +98,6 @@ class StoreShowcaseFragment : Fragment() {
         return layout
     }
 
-    // ... (loadMyProducts, updateShowcaseDirectly ve Adapter kodları aynı kalacak, buraya tekrar yapıştırmıyorum)
     private fun loadMyProducts() {
         val user = UserManager.getCurrentUser() ?: return
         val storeId = user.storeId ?: return
@@ -132,33 +129,34 @@ class StoreShowcaseFragment : Fragment() {
             }
     }
 
+    // ADAPTER (ViewBinding ile güncellendi)
     inner class ShowcaseSelectionAdapter(private val items: List<Product>) : RecyclerView.Adapter<ShowcaseSelectionAdapter.VH>() {
-        inner class VH(v: View) : RecyclerView.ViewHolder(v) {
-            val img: android.widget.ImageView = v.findViewById(R.id.imgProduct)
-            val name: TextView = v.findViewById(R.id.tvProductName)
-            val price: TextView = v.findViewById(R.id.tvProductPrice)
-            val check: CheckBox = v.findViewById(R.id.cbSelectProduct)
-        }
+
+        inner class VH(val binding: ItemCartProductBinding) : RecyclerView.ViewHolder(binding.root)
+
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
-            val v = LayoutInflater.from(parent.context).inflate(R.layout.item_cart_product, parent, false)
-            return VH(v)
+            val binding = ItemCartProductBinding.inflate(LayoutInflater.from(parent.context), parent, false)
+            return VH(binding)
         }
+
         override fun onBindViewHolder(holder: VH, position: Int) {
             val item = items[position]
-            holder.name.text = item.name
-            holder.price.text = PriceUtils.formatPriceStyled(item.price)
-            Glide.with(holder.itemView).load(item.imageUrl).into(holder.img)
-            holder.check.setOnCheckedChangeListener(null)
-            holder.check.isChecked = selectedIds.contains(item.id)
-            holder.check.setOnCheckedChangeListener { _, isChecked ->
+            holder.binding.tvProductName.text = item.name
+            holder.binding.tvProductPrice.text = PriceUtils.formatPriceStyled(item.price)
+            Glide.with(holder.itemView).load(item.imageUrl).into(holder.binding.imgProduct)
+
+            holder.binding.cbSelectProduct.setOnCheckedChangeListener(null)
+            holder.binding.cbSelectProduct.isChecked = selectedIds.contains(item.id)
+
+            holder.binding.cbSelectProduct.setOnCheckedChangeListener { _, isChecked ->
                 if (isChecked) {
                     if (selectedIds.size >= 2) {
-                        holder.check.isChecked = false
+                        holder.binding.cbSelectProduct.isChecked = false
                         Toast.makeText(context, "En fazla 2 ürün seçebilirsiniz.", Toast.LENGTH_SHORT).show()
                     } else { selectedIds.add(item.id) }
                 } else { selectedIds.remove(item.id) }
             }
-            holder.itemView.setOnClickListener { holder.check.toggle() }
+            holder.itemView.setOnClickListener { holder.binding.cbSelectProduct.toggle() }
         }
         override fun getItemCount() = items.size
     }

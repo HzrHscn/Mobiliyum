@@ -1,29 +1,27 @@
 package com.example.mobiliyum
 
 import android.app.AlertDialog
+import android.content.res.ColorStateList
 import android.graphics.Color
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.EditText
-import android.widget.TextView
 import android.widget.Toast
 import androidx.core.widget.addTextChangedListener
 import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import com.google.android.material.button.MaterialButton
-import com.google.android.material.button.MaterialButtonToggleGroup
+import com.example.mobiliyum.databinding.FragmentUserManagementBinding // ViewBinding
+import com.example.mobiliyum.databinding.ItemReportUserBinding // Adapter için
 import com.google.firebase.firestore.FirebaseFirestore
 import java.util.Locale
 
 class UserManagementFragment : Fragment() {
 
-    private lateinit var rvUsers: RecyclerView
-    private lateinit var etSearch: EditText
-    private lateinit var toggleRoles: MaterialButtonToggleGroup
-    private lateinit var tvCount: TextView
+    private var _binding: FragmentUserManagementBinding? = null
+    private val binding get() = _binding!!
 
     private val db = FirebaseFirestore.getInstance()
     private val allUsers = ArrayList<User>()
@@ -36,24 +34,24 @@ class UserManagementFragment : Fragment() {
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
-    ): View? {
-        val view = inflater.inflate(R.layout.fragment_user_management, container, false)
+    ): View {
+        _binding = FragmentUserManagementBinding.inflate(inflater, container, false)
+        return binding.root
+    }
 
-        rvUsers = view.findViewById(R.id.rvUserList)
-        etSearch = view.findViewById(R.id.etUserSearch)
-        toggleRoles = view.findViewById(R.id.toggleUserRoles)
-        tvCount = view.findViewById(R.id.tvUserCount)
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
 
-        rvUsers.layoutManager = LinearLayoutManager(context)
+        binding.rvUserList.layoutManager = LinearLayoutManager(context)
 
         // Arama Dinleyicisi
-        etSearch.addTextChangedListener {
+        binding.etUserSearch.addTextChangedListener {
             currentSearchText = it.toString()
             applyFilters()
         }
 
         // Rol Filtre Dinleyicisi
-        toggleRoles.addOnButtonCheckedListener { _, checkedId, isChecked ->
+        binding.toggleUserRoles.addOnButtonCheckedListener { _, checkedId, isChecked ->
             if (isChecked) {
                 currentRoleFilter = when(checkedId) {
                     R.id.btnRoleAdmin -> UserRole.ADMIN
@@ -67,7 +65,6 @@ class UserManagementFragment : Fragment() {
         }
 
         loadUsers()
-        return view
     }
 
     private fun loadUsers() {
@@ -97,11 +94,11 @@ class UserManagementFragment : Fragment() {
             roleMatch && searchMatch
         }
 
-        tvCount.text = "Listelenen: ${filtered.size} Kullanıcı"
+        binding.tvUserCount.text = "Listelenen: ${filtered.size} Kullanıcı"
 
         if (adapter == null) {
             adapter = UserManagementAdapter(filtered)
-            rvUsers.adapter = adapter
+            binding.rvUserList.adapter = adapter
         } else {
             adapter!!.updateList(filtered)
         }
@@ -175,6 +172,11 @@ class UserManagementFragment : Fragment() {
             }
     }
 
+    override fun onDestroyView() {
+        super.onDestroyView()
+        _binding = null
+    }
+
     // --- ADAPTER ---
     inner class UserManagementAdapter(private var items: List<User>) : RecyclerView.Adapter<UserManagementAdapter.VH>() {
 
@@ -183,36 +185,29 @@ class UserManagementFragment : Fragment() {
             notifyDataSetChanged()
         }
 
-        inner class VH(v: View) : RecyclerView.ViewHolder(v) {
-            val name: TextView = v.findViewById(R.id.tvUserName)
-            val email: TextView = v.findViewById(R.id.tvUserEmail)
-            val role: TextView = v.findViewById(R.id.tvUserRole)
-            val btnBan: MaterialButton = v.findViewById(R.id.btnBanUser)
-            // DİKKAT: Burada XML dosyasındaki ID ile eşleştiğinden emin oluyoruz (btnChangeRole)
-            val btnRole: MaterialButton = v.findViewById(R.id.btnChangeRole)
-        }
+        inner class VH(val binding: ItemReportUserBinding) : RecyclerView.ViewHolder(binding.root)
 
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
-            val v = LayoutInflater.from(parent.context).inflate(R.layout.item_report_user, parent, false)
-            return VH(v)
+            val binding = ItemReportUserBinding.inflate(LayoutInflater.from(parent.context), parent, false)
+            return VH(binding)
         }
 
         override fun onBindViewHolder(holder: VH, position: Int) {
             val user = items[position]
-            holder.name.text = user.fullName
-            holder.email.text = "${user.email} ${if(user.storeId != 0 && user.storeId != null) "(Mağaza: ${user.storeId})" else ""}"
-            holder.role.text = user.role.name
+            holder.binding.tvUserName.text = user.fullName
+            holder.binding.tvUserEmail.text = "${user.email} ${if(user.storeId != 0 && user.storeId != null) "(Mağaza: ${user.storeId})" else ""}"
+            holder.binding.tvUserRole.text = user.role.name
 
             if (user.isBanned) {
-                holder.btnBan.text = "Banı Aç"
-                holder.btnBan.backgroundTintList = android.content.res.ColorStateList.valueOf(Color.GRAY)
+                holder.binding.btnBanUser.text = "Banı Aç"
+                holder.binding.btnBanUser.backgroundTintList = ColorStateList.valueOf(Color.GRAY)
             } else {
-                holder.btnBan.text = "Banla"
-                holder.btnBan.backgroundTintList = android.content.res.ColorStateList.valueOf(Color.RED)
+                holder.binding.btnBanUser.text = "Banla"
+                holder.binding.btnBanUser.backgroundTintList = ColorStateList.valueOf(Color.RED)
             }
-            holder.btnBan.setOnClickListener { toggleBan(user) }
+            holder.binding.btnBanUser.setOnClickListener { toggleBan(user) }
 
-            holder.btnRole.setOnClickListener { showRoleDialog(user) }
+            holder.binding.btnChangeRole.setOnClickListener { showRoleDialog(user) }
         }
 
         override fun getItemCount() = items.size

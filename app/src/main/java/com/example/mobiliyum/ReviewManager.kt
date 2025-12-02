@@ -3,6 +3,7 @@ package com.example.mobiliyum
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
+import java.util.Date
 
 object ReviewManager {
     private val db = FirebaseFirestore.getInstance()
@@ -46,7 +47,7 @@ object ReviewManager {
             .addOnFailureListener { onResult(false) }
     }
 
-    // 3. KULLANICI: YORUM EKLE (TRANSACTION İLE GÜVENLİ HESAPLAMA)
+    // 3. KULLANICI: YORUM EKLE (DÜZELTİLDİ: NULL POINTER HATASI GİDERİLDİ)
     fun addReview(product: Product, rating: Float, comment: String, onComplete: (Boolean) -> Unit) {
         val user = UserManager.getCurrentUser() ?: return
 
@@ -60,24 +61,29 @@ object ReviewManager {
             userName = user.fullName,
             rating = rating,
             comment = comment,
-            date = java.util.Date(),
-            isVerified = false // Yeni yorumlar onaysız başlar
+            date = Date(),
+            isVerified = true,
+            // YENİ ALANLAR:
+            productName = product.name,
+            productImageUrl = product.imageUrl
         )
 
         db.runTransaction { transaction ->
-            // 1. Ürünün en güncel halini veritabanından oku
             val snapshot = transaction.get(productRef)
 
-            // 2. Mevcut değerleri al
-            val currentTotalRating = snapshot.getDouble("totalRating") ?: (snapshot.getDouble("rating")!! * snapshot.getLong("reviewCount")!!)
-            val currentCount = snapshot.getLong("reviewCount") ?: 0
+            // GÜVENLİ HESAPLAMA: Değerler null ise 0 kabul et (Çökme önleyici)
+            val currentRating = snapshot.getDouble("rating") ?: 0.0
+            val currentCountLong = snapshot.getLong("reviewCount") ?: 0L
 
-            // 3. Matematiği Yap: Toplam / Adet
+            // Eğer totalRating yoksa eskiden hesapla, o da yoksa 0.0
+            val currentTotalRating = snapshot.getDouble("totalRating")
+                ?: (currentRating * currentCountLong)
+
             val newTotalRating = currentTotalRating + rating
-            val newCount = currentCount + 1
+            val newCount = currentCountLong + 1
             val newAverage = (newTotalRating / newCount).toFloat()
 
-            // 4. Yazma İşlemleri
+            // Yazma İşlemleri
             transaction.set(reviewRef, review)
             transaction.update(productRef, mapOf(
                 "totalRating" to newTotalRating,
@@ -87,18 +93,16 @@ object ReviewManager {
         }.addOnSuccessListener {
             onComplete(true)
         }.addOnFailureListener { e ->
+            // Hata logu eklenebilir: Log.e("ReviewError", e.message.toString())
             onComplete(false)
         }
     }
 
-    // 4. YÖNETİCİ: BEKLEYEN TALEPLERİ ÇEK (DÜZELTİLDİ: Mağaza Filtreli)
-    // storeId parametresi eklendi. Eğer null ise (Admin) hepsi gelir, doluysa (Manager) sadece o mağaza gelir.
+    // 4. YÖNETİCİ: BEKLEYEN TALEPLERİ ÇEK
     fun getPendingRequests(storeId: Int? = null, onSuccess: (List<PurchaseRequest>) -> Unit, onFailure: (String) -> Unit) {
-
         var query: Query = db.collection("purchase_requests")
             .whereEqualTo("status", "PENDING")
 
-        // EĞER MAĞAZA ID VARSA FİLTRELE
         if (storeId != null) {
             query = query.whereEqualTo("storeId", storeId)
         }
@@ -106,16 +110,14 @@ object ReviewManager {
         query.get()
             .addOnSuccessListener { docs ->
                 val list = docs.toObjects(PurchaseRequest::class.java)
-                // Kod içinde tarihe göre sırala (En yeni en üstte)
-                val sortedList = list.sortedByDescending { it.requestDate }
-                onSuccess(sortedList)
+                onSuccess(list.sortedByDescending { it.requestDate })
             }
             .addOnFailureListener { e ->
                 onFailure(e.message ?: "Veri çekilemedi")
             }
     }
 
-    // 5. YÖNETİCİ: TALEBİ ONAYLA VEYA REDDET
+    // 5. YÖNETİCİ: TALEBİ ONAYLA VEYA REDDET (DÜZELTİLDİ: BİLDİRİM NESNESİ)
     fun processRequest(request: PurchaseRequest, isApproved: Boolean, onComplete: (Boolean) -> Unit) {
         val status = if (isApproved) "APPROVED" else "REJECTED"
 
@@ -124,24 +126,30 @@ object ReviewManager {
             batch.update(reqRef, "status", status)
 
             if (isApproved) {
+                // A) İzin Belgesi Oluştur
                 val userPermRef = db.collection("users").document(request.userId)
                     .collection("approved_purchases").document(request.productId.toString())
 
                 val permissionData = hashMapOf(
                     "productId" to request.productId,
                     "productName" to request.productName,
-                    "grantedAt" to java.util.Date()
+                    "grantedAt" to Date()
                 )
                 batch.set(userPermRef, permissionData)
 
+                // B) Bildirim Gönder (NotificationItem kullanarak)
                 val notifRef = db.collection("users").document(request.userId).collection("notifications").document()
-                val notif = hashMapOf(
-                    "title" to "Satın Alım Onaylandı ✅",
-                    "message" to "${request.productName} için satın alımınız doğrulandı. Artık değerlendirme yapabilirsiniz!",
-                    "date" to java.util.Date(),
-                    "type" to "general"
+
+                val notification = NotificationItem(
+                    id = notifRef.id,
+                    title = "Satın Alım Onaylandı ✅",
+                    message = "${request.productName} için doğrulama başarılı. Artık puan ve yorum yapabilirsiniz!",
+                    date = Date(),
+                    type = "general",
+                    relatedId = request.productId.toString(),
+                    isRead = false
                 )
-                batch.set(notifRef, notif)
+                batch.set(notifRef, notification)
             }
         }.addOnSuccessListener {
             onComplete(true)
@@ -157,8 +165,21 @@ object ReviewManager {
             .get()
             .addOnSuccessListener { docs ->
                 val list = docs.toObjects(Review::class.java)
-                val sorted = list.sortedByDescending { it.date }
-                onSuccess(sorted)
+                onSuccess(list.sortedByDescending { it.date })
+            }
+    }
+
+    fun getUserReviews(onSuccess: (List<Review>) -> Unit) {
+        val userId = UserManager.getCurrentUser()?.id ?: return
+        db.collection("reviews")
+            .whereEqualTo("userId", userId)
+            .get()
+            .addOnSuccessListener { docs ->
+                val list = docs.toObjects(Review::class.java)
+                onSuccess(list.sortedByDescending { it.date })
+            }
+            .addOnFailureListener {
+                onSuccess(emptyList()) // Hata olursa boş liste dön
             }
     }
 }

@@ -1,17 +1,18 @@
 package com.example.mobiliyum
 
 import android.app.AlertDialog
+import android.graphics.Color
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
-import android.widget.ImageView
 import android.widget.TextView
-import android.widget.Toast
 import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.example.mobiliyum.databinding.FragmentNotificationsBinding
+import com.example.mobiliyum.databinding.ItemNotificationBinding // Adapter için
 import com.google.android.material.tabs.TabLayout
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
@@ -20,23 +21,26 @@ import java.util.Locale
 
 class NotificationsFragment : Fragment() {
 
-    private lateinit var recyclerView: RecyclerView
-    private lateinit var tabLayout: TabLayout
+    private var _binding: FragmentNotificationsBinding? = null
+    private val binding get() = _binding!!
+
     private val db = FirebaseFirestore.getInstance()
     private val allNotifications = ArrayList<NotificationItem>()
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
-    ): View? {
-        val view = inflater.inflate(R.layout.fragment_notifications, container, false)
+    ): View {
+        _binding = FragmentNotificationsBinding.inflate(inflater, container, false)
+        return binding.root
+    }
 
-        recyclerView = view.findViewById(R.id.rvNotifications)
-        tabLayout = view.findViewById(R.id.tabLayoutNotif)
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
 
-        recyclerView.layoutManager = LinearLayoutManager(context)
+        binding.rvNotifications.layoutManager = LinearLayoutManager(context)
 
-        tabLayout.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
+        binding.tabLayoutNotif.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
             override fun onTabSelected(tab: TabLayout.Tab?) {
                 filterList(tab?.position ?: 0)
             }
@@ -45,7 +49,6 @@ class NotificationsFragment : Fragment() {
         })
 
         loadAllNotifications()
-        return view
     }
 
     private fun loadAllNotifications() {
@@ -64,7 +67,6 @@ class NotificationsFragment : Fragment() {
                     .addOnSuccessListener { globalDocs ->
                         for (doc in globalDocs) {
                             val item = doc.toObject(NotificationItem::class.java)
-                            // Mağaza bildirimi ise ve takip ediliyorsa ekle
                             if (item.type == "store_update") {
                                 val storeId = item.relatedId.toIntOrNull()
                                 if (storeId != null && FavoritesManager.isFollowing(storeId)) {
@@ -74,8 +76,7 @@ class NotificationsFragment : Fragment() {
                                 allNotifications.add(item)
                             }
                         }
-                        // İlk açılışta ilk sekmeyi filtrele
-                        filterList(tabLayout.selectedTabPosition)
+                        filterList(binding.tabLayoutNotif.selectedTabPosition)
                     }
             }
     }
@@ -87,20 +88,19 @@ class NotificationsFragment : Fragment() {
             else -> allNotifications.filter { it.type == "general" }
         }.sortedByDescending { it.date }
 
-        recyclerView.adapter = NotifAdapter(filtered)
+        binding.rvNotifications.adapter = NotifAdapter(filtered)
     }
 
-    // --- DÜZELTİLEN TIKLAMA YÖNLENDİRMESİ ---
     private fun handleNotificationClick(item: NotificationItem) {
         if (item.type == "price_alert" && item.relatedId.isNotEmpty()) {
-            // 1. Fiyat Alarmı -> Ürün Detayına Git
             db.collection("products").document(item.relatedId).get()
                 .addOnSuccessListener { document ->
                     val product = document.toObject(Product::class.java)
                     if (product != null) {
                         val fragment = ProductDetailFragment()
                         val bundle = Bundle()
-                        bundle.putSerializable("product_data", product)
+                        // ADIM 1: Parcelable kullanımı
+                        bundle.putParcelable("product_data", product)
                         fragment.arguments = bundle
 
                         parentFragmentManager.beginTransaction()
@@ -111,8 +111,6 @@ class NotificationsFragment : Fragment() {
                 }
         }
         else if (item.type == "store_update" && item.relatedId.isNotEmpty()) {
-            // 2. MAĞAZA DUYURUSU -> MAĞAZA DETAYINA GİT
-            // ID'yi kullanarak mağazayı bul ve git
             db.collection("stores").document(item.relatedId).get()
                 .addOnSuccessListener { document ->
                     val store = document.toObject(Store::class.java)
@@ -133,12 +131,12 @@ class NotificationsFragment : Fragment() {
                 }
         }
         else {
-            // 3. Diğerleri -> Popup Aç
             showDetailPopup(item)
         }
     }
 
     private fun showDetailPopup(item: NotificationItem) {
+        // Dialog layoutları için ViewBinding zorunlu değil ama temizlik için layout inflater kullanıyoruz
         val dialogView = LayoutInflater.from(context).inflate(R.layout.dialog_notification_detail, null)
 
         dialogView.findViewById<TextView>(R.id.tvDialogTitle).text = item.title
@@ -157,40 +155,43 @@ class NotificationsFragment : Fragment() {
         dialog.show()
     }
 
-    inner class NotifAdapter(private val items: List<NotificationItem>) : RecyclerView.Adapter<NotifAdapter.VH>() {
-        inner class VH(v: View) : RecyclerView.ViewHolder(v) {
-            val title: TextView = v.findViewById(R.id.tvNotifTitle)
-            val msg: TextView = v.findViewById(R.id.tvNotifMessage)
-            val date: TextView = v.findViewById(R.id.tvNotifDate)
-            val icon: ImageView = v.findViewById(R.id.imgNotifIcon)
-            val container: View = v
-        }
+    override fun onDestroyView() {
+        super.onDestroyView()
+        _binding = null
+    }
 
-        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int) =
-            VH(LayoutInflater.from(parent.context).inflate(R.layout.item_notification, parent, false))
+    // ADAPTER (ViewBinding'li)
+    inner class NotifAdapter(private val items: List<NotificationItem>) : RecyclerView.Adapter<NotifAdapter.VH>() {
+
+        inner class VH(val binding: ItemNotificationBinding) : RecyclerView.ViewHolder(binding.root)
+
+        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
+            val binding = ItemNotificationBinding.inflate(LayoutInflater.from(parent.context), parent, false)
+            return VH(binding)
+        }
 
         override fun onBindViewHolder(holder: VH, position: Int) {
             val item = items[position]
-            holder.title.text = item.title
-            holder.msg.text = item.message
-            holder.date.text = SimpleDateFormat("dd MMM HH:mm", Locale("tr")).format(item.date)
+            holder.binding.tvNotifTitle.text = item.title
+            holder.binding.tvNotifMessage.text = item.message
+            holder.binding.tvNotifDate.text = SimpleDateFormat("dd MMM HH:mm", Locale("tr")).format(item.date)
 
             when (item.type) {
                 "price_alert" -> {
-                    holder.icon.setImageResource(android.R.drawable.ic_dialog_info)
-                    holder.icon.setColorFilter(android.graphics.Color.RED)
+                    holder.binding.imgNotifIcon.setImageResource(android.R.drawable.ic_dialog_info)
+                    holder.binding.imgNotifIcon.setColorFilter(Color.RED)
                 }
                 "store_update" -> {
-                    holder.icon.setImageResource(android.R.drawable.ic_menu_myplaces)
-                    holder.icon.setColorFilter(android.graphics.Color.BLUE)
+                    holder.binding.imgNotifIcon.setImageResource(android.R.drawable.ic_menu_myplaces)
+                    holder.binding.imgNotifIcon.setColorFilter(Color.BLUE)
                 }
                 else -> {
-                    holder.icon.setImageResource(android.R.drawable.ic_popup_reminder)
-                    holder.icon.setColorFilter(android.graphics.Color.parseColor("#FF6F00"))
+                    holder.binding.imgNotifIcon.setImageResource(android.R.drawable.ic_popup_reminder)
+                    holder.binding.imgNotifIcon.setColorFilter(Color.parseColor("#FF6F00"))
                 }
             }
 
-            holder.container.setOnClickListener {
+            holder.itemView.setOnClickListener {
                 handleNotificationClick(item)
             }
         }

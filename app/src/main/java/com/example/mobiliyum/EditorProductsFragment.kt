@@ -107,7 +107,7 @@ class EditorProductsFragment : Fragment() {
         private fun openEdit(product: Product) {
             val fragment = ProductDetailFragment()
             val args = Bundle()
-            args.putSerializable("product_data", product)
+            args.putParcelable("product_data", product)
             fragment.arguments = args
 
             parentFragmentManager.beginTransaction()

@@ -1,33 +1,54 @@
 package com.example.mobiliyum
 
+import com.google.firebase.firestore.FirebaseFirestore
+
 object CartManager {
+
     private val cartItems = ArrayList<Product>()
+    private val db = FirebaseFirestore.getInstance()
 
-    fun addToCart(product: Product) = cartItems.add(product)
-    fun removeFromCart(product: Product) = cartItems.remove(product)
-    fun getCartItems(): List<Product> = cartItems
-    fun clearCart() = cartItems.clear()
+    // Sepete Ekle
+    fun addToCart(product: Product) {
+        // Aynı ürün tekrar eklenirse adet artırmak yerine şimdilik listeye ekliyoruz.
+        // İsterseniz burada "contains" kontrolü yapabilirsiniz.
+        if (!cartItems.any { it.id == product.id }) {
+            cartItems.add(product)
+        }
+    }
 
-    // String döndüren eski fonksiyon yerine hesaplama yapıp Double döndüren fonksiyon
+    // Sepetten Çıkar
+    fun removeFromCart(product: Product) {
+        val iterator = cartItems.iterator()
+        while (iterator.hasNext()) {
+            val item = iterator.next()
+            if (item.id == product.id) {
+                iterator.remove()
+                break // Sadece bir tane sil
+            }
+        }
+    }
+
+    // Sepeti Getir
+    fun getCartItems(): List<Product> {
+        return cartItems
+    }
+
+    // Toplam Tutarı Hesapla
     fun calculateTotalAmount(): Double {
         var total = 0.0
         for (item in cartItems) {
-            try {
-                // PriceUtils içindeki temizleme mantığının aynısı
-                var cleanPrice = item.price.replace("[^\\d.,]".toRegex(), "").trim()
-                if (cleanPrice.isNotEmpty()) {
-                    if (cleanPrice.contains(",")) {
-                        cleanPrice = cleanPrice.replace(".", "").replace(",", ".")
-                    } else {
-                        cleanPrice = cleanPrice.replace(".", "")
-                    }
-                    total += cleanPrice.toDouble()
-                }
-            } catch (e: Exception) { }
+            total += PriceUtils.parsePrice(item.price)
         }
         return total
     }
 
-    // Eski fonksiyonu uyumluluk için tutabiliriz ama artık PriceUtils kullanıyoruz
-    fun getTotalPrice(): String = PriceUtils.formatPriceStyled(calculateTotalAmount()).toString()
+    // EKSİK OLAN FONKSİYON (HATA BURADAYDI)
+    fun getCartItemCount(): Int {
+        return cartItems.size
+    }
+
+    // Sepeti Temizle
+    fun clearCart() {
+        cartItems.clear()
+    }
 }

@@ -21,7 +21,7 @@ class ProductDetailDialogFragment : DialogFragment() {
         fun newInstance(product: Product): ProductDetailDialogFragment {
             val fragment = ProductDetailDialogFragment()
             val args = Bundle()
-            args.putSerializable(ARG_PRODUCT, product)
+            args.putParcelable(ARG_PRODUCT, product)
             fragment.arguments = args
             return fragment
         }
@@ -34,7 +34,13 @@ class ProductDetailDialogFragment : DialogFragment() {
         // YENİ LAYOUT'U BURADA ÇAĞIRIYORUZ
         val view = inflater.inflate(R.layout.dialog_product_detail, container, false)
 
-        val product = arguments?.getSerializable(ARG_PRODUCT) as Product?
+        // API seviyesine göre en doğru alma yöntemi
+        val product = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            arguments?.getParcelable(ARG_PRODUCT, Product::class.java)
+        } else {
+            @Suppress("DEPRECATION")
+            arguments?.getParcelable(ARG_PRODUCT)
+        }
 
         if (product == null) {
             dismiss()

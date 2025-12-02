@@ -7,101 +7,49 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.EditText
-import android.widget.LinearLayout
-import android.widget.TextView
 import android.widget.Toast
 import androidx.fragment.app.Fragment
-import com.google.android.material.button.MaterialButton
-import com.google.android.material.textfield.TextInputEditText
+import com.example.mobiliyum.databinding.FragmentAccountBinding // ViewBinding
 
 class AccountFragment : Fragment() {
 
-    // --- XML Bileşenleri ---
-    private lateinit var layoutLogin: LinearLayout
-    private lateinit var layoutRegister: LinearLayout
-    private lateinit var layoutProfile: LinearLayout
-
-    // Login
-    private lateinit var etLoginEmail: TextInputEditText
-    private lateinit var etLoginPass: TextInputEditText
-    private lateinit var btnLogin: MaterialButton
-    private lateinit var tvGoToRegister: TextView
-
-    // Register
-    private lateinit var etRegName: TextInputEditText
-    private lateinit var etRegEmail: TextInputEditText
-    private lateinit var etRegPass: TextInputEditText
-    private lateinit var btnRegister: MaterialButton
-    private lateinit var tvGoToLogin: TextView
-
-    // Profil
-    private lateinit var tvName: TextView
-    private lateinit var tvRole: TextView
-    private lateinit var tvEmail: TextView
-    private lateinit var btnAdminPanel: MaterialButton
-    private lateinit var btnMyFavorites: MaterialButton
-    private lateinit var btnNotifications: MaterialButton
-    private lateinit var btnLogout: MaterialButton
-    private lateinit var btnChangeName: MaterialButton
-    private lateinit var btnChangePassword: MaterialButton
+    private var _binding: FragmentAccountBinding? = null
+    private val binding get() = _binding!!
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
-    ): View? {
-        val view = inflater.inflate(R.layout.fragment_account, container, false)
-        initViews(view)
-        setupListeners()
-        updateUIState()
-        return view
+    ): View {
+        _binding = FragmentAccountBinding.inflate(inflater, container, false)
+        return binding.root
     }
 
-    private fun initViews(view: View) {
-        layoutLogin = view.findViewById(R.id.layoutLoginContainer)
-        layoutRegister = view.findViewById(R.id.layoutRegisterContainer)
-        layoutProfile = view.findViewById(R.id.layoutProfileContainer)
-
-        etLoginEmail = view.findViewById(R.id.etLoginEmail)
-        etLoginPass = view.findViewById(R.id.etLoginPassword)
-        btnLogin = view.findViewById(R.id.btnLogin)
-        tvGoToRegister = view.findViewById(R.id.tvGoToRegister)
-
-        etRegName = view.findViewById(R.id.etRegName)
-        etRegEmail = view.findViewById(R.id.etRegEmail)
-        etRegPass = view.findViewById(R.id.etRegPassword)
-        btnRegister = view.findViewById(R.id.btnRegister)
-        tvGoToLogin = view.findViewById(R.id.tvGoToLogin)
-
-        tvName = view.findViewById(R.id.tvProfileName)
-        tvRole = view.findViewById(R.id.tvProfileRole)
-        tvEmail = view.findViewById(R.id.tvProfileEmail)
-        btnAdminPanel = view.findViewById(R.id.btnAdminPanel)
-        btnMyFavorites = view.findViewById(R.id.btnMyFavorites)
-        btnNotifications = view.findViewById(R.id.btnNotifications)
-        btnLogout = view.findViewById(R.id.btnLogout)
-        btnChangeName = view.findViewById(R.id.btnChangeName)
-        btnChangePassword = view.findViewById(R.id.btnChangePassword)
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+        setupListeners()
+        updateUIState()
     }
 
     private fun setupListeners() {
-        tvGoToRegister.setOnClickListener {
-            layoutLogin.visibility = View.GONE
-            layoutRegister.visibility = View.VISIBLE
+        // --- Giriş / Kayıt Geçişleri ---
+        binding.tvGoToRegister.setOnClickListener {
+            binding.layoutLoginContainer.visibility = View.GONE
+            binding.layoutRegisterContainer.visibility = View.VISIBLE
         }
 
-        tvGoToLogin.setOnClickListener {
-            layoutRegister.visibility = View.GONE
-            layoutLogin.visibility = View.VISIBLE
+        binding.tvGoToLogin.setOnClickListener {
+            binding.layoutRegisterContainer.visibility = View.GONE
+            binding.layoutLoginContainer.visibility = View.VISIBLE
         }
 
-        btnLogin.setOnClickListener {
-            val email = etLoginEmail.text.toString().trim()
-            val pass = etLoginPass.text.toString().trim()
+        // --- Giriş İşlemi ---
+        binding.btnLogin.setOnClickListener {
+            val email = binding.etLoginEmail.text.toString().trim()
+            val pass = binding.etLoginPassword.text.toString().trim()
             if (email.isEmpty() || pass.isEmpty()) return@setOnClickListener
 
             UserManager.login(email, pass,
                 onSuccess = {
-                    // --- DÜZELTME: Giriş başarılı olunca favorileri yükle ---
                     FavoritesManager.loadUserFavorites {
                         Toast.makeText(context, "Giriş Başarılı!", Toast.LENGTH_SHORT).show()
                         (activity as? MainActivity)?.showBottomNav()
@@ -116,15 +64,15 @@ class AccountFragment : Fragment() {
             )
         }
 
-        btnRegister.setOnClickListener {
-            val name = etRegName.text.toString().trim()
-            val email = etRegEmail.text.toString().trim()
-            val pass = etRegPass.text.toString().trim()
+        // --- Kayıt İşlemi ---
+        binding.btnRegister.setOnClickListener {
+            val name = binding.etRegName.text.toString().trim()
+            val email = binding.etRegEmail.text.toString().trim()
+            val pass = binding.etRegPassword.text.toString().trim()
             if (name.isEmpty() || email.isEmpty() || pass.isEmpty()) return@setOnClickListener
 
             UserManager.register(email, pass, name,
                 onSuccess = {
-                    // --- DÜZELTME: Kayıt başarılı olunca favorileri (boş da olsa) yükle ---
                     FavoritesManager.loadUserFavorites {
                         Toast.makeText(context, "Kayıt Başarılı! Hoşgeldiniz.", Toast.LENGTH_SHORT).show()
                         (activity as? MainActivity)?.showBottomNav()
@@ -139,36 +87,49 @@ class AccountFragment : Fragment() {
             )
         }
 
-        btnLogout.setOnClickListener {
+        // --- Çıkış ---
+        binding.btnLogout.setOnClickListener {
             UserManager.logout()
             (activity as? MainActivity)?.hideBottomNav()
-            parentFragmentManager.beginTransaction().replace(R.id.fragmentContainer, WelcomeFragment()).commit()
+            parentFragmentManager.beginTransaction()
+                .replace(R.id.fragmentContainer, WelcomeFragment())
+                .commit()
         }
 
-        btnAdminPanel.setOnClickListener {
-            parentFragmentManager.beginTransaction().replace(R.id.fragmentContainer, ManagementFragment()).addToBackStack(null).commit()
+        // --- Profil Butonları ---
+        binding.btnAdminPanel.setOnClickListener {
+            parentFragmentManager.beginTransaction()
+                .replace(R.id.fragmentContainer, ManagementFragment())
+                .addToBackStack(null)
+                .commit()
         }
 
-        btnMyFavorites.setOnClickListener {
+        binding.btnMyFavorites.setOnClickListener {
             parentFragmentManager.beginTransaction()
                 .replace(R.id.fragmentContainer, FavoritesFragment())
                 .addToBackStack(null)
                 .commit()
         }
 
-        btnNotifications.setOnClickListener {
+        binding.btnMyReviews.setOnClickListener {
+            parentFragmentManager.beginTransaction()
+                .replace(R.id.fragmentContainer, MyReviewsFragment())
+                .addToBackStack(null)
+                .commit()
+        }
+
+        binding.btnNotifications.setOnClickListener {
             parentFragmentManager.beginTransaction()
                 .replace(R.id.fragmentContainer, NotificationsFragment())
                 .addToBackStack(null)
                 .commit()
         }
 
-        // --- İSİM GÜNCELLEME ---
-        btnChangeName.setOnClickListener {
+        // --- İsim Güncelleme ---
+        binding.btnChangeName.setOnClickListener {
             val user = UserManager.getCurrentUser() ?: return@setOnClickListener
             val thirtyDaysMs = 2592000000L
 
-            // 1. Süre Kontrolü (Baştan uyaralım)
             if (System.currentTimeMillis() - user.lastProfileUpdate < thirtyDaysMs) {
                 val remainingDays = 30 - ((System.currentTimeMillis() - user.lastProfileUpdate) / 86400000L)
                 Toast.makeText(context, "İsminizi değiştirmek için $remainingDays gün beklemelisiniz.", Toast.LENGTH_LONG).show()
@@ -185,7 +146,6 @@ class AccountFragment : Fragment() {
                 .setPositiveButton("Devam Et") { _, _ ->
                     val newName = input.text.toString()
                     if (newName.length > 3) {
-                        // 2. ONAY DIALOGU (Kural hatırlatması)
                         showConfirmationDialog(
                             title = "İsim Değişikliği Onayı",
                             message = "İsminizi <b>$newName</b> olarak değiştirmek üzeresiniz.",
@@ -207,23 +167,26 @@ class AccountFragment : Fragment() {
                 .show()
         }
 
-        // --- ŞİFRE GÜNCELLEME ---
-        btnChangePassword.setOnClickListener {
+        // --- Şifre Güncelleme ---
+        binding.btnChangePassword.setOnClickListener {
             val user = UserManager.getCurrentUser() ?: return@setOnClickListener
             val oneDayMs = 86400000L
 
-            // 1. Süre Kontrolü
             if (System.currentTimeMillis() - user.lastPasswordUpdate < oneDayMs) {
                 Toast.makeText(context, "Şifrenizi günde sadece 1 kez değiştirebilirsiniz.", Toast.LENGTH_LONG).show()
                 return@setOnClickListener
             }
-
             showChangePasswordDialog()
         }
     }
 
-    // Şifre Dialogu ve Onay Mekanizması
     private fun showChangePasswordDialog() {
+        // Not: Dialog layout'ları için ViewBinding yapmak zorunlu değil ama
+        // fragment içindeki view'ler için binding kullanıyoruz.
+        // Dialog pencereleri basit olduğu için findViewById ile bırakabiliriz
+        // ya da dialog layoutları için ayrı binding oluşturabiliriz.
+        // Hızlı çözüm için dialog içeriğini standart bırakıyorum.
+
         val dialogView = LayoutInflater.from(context).inflate(R.layout.dialog_change_password, null)
         val etOld = dialogView.findViewById<EditText>(R.id.etOldPassword)
         val etNew = dialogView.findViewById<EditText>(R.id.etNewPassword)
@@ -247,7 +210,6 @@ class AccountFragment : Fragment() {
                     return@setPositiveButton
                 }
 
-                // ONAY DIALOGU ÇAĞRISI
                 showConfirmationDialog(
                     title = "Şifre Değişikliği Onayı",
                     message = "Şifrenizi güncellemek üzeresiniz. Bu işlemden sonra tüm cihazlardan çıkış yapılabilir.",
@@ -267,9 +229,7 @@ class AccountFragment : Fragment() {
             .show()
     }
 
-    // --- GENEL ONAY PENCERESİ (YENİ) ---
     private fun showConfirmationDialog(title: String, message: String, warning: String, onConfirm: () -> Unit) {
-        // HTML formatında metin oluştur (Uyarı kısmını küçültmek için)
         val htmlMessage = """
             $message<br><br>
             <small><font color='#D32F2F'>$warning</font></small>
@@ -278,44 +238,44 @@ class AccountFragment : Fragment() {
         AlertDialog.Builder(context)
             .setTitle(title)
             .setMessage(Html.fromHtml(htmlMessage, Html.FROM_HTML_MODE_LEGACY))
-            .setPositiveButton("Evet, Onaylıyorum") { _, _ ->
-                onConfirm()
-            }
+            .setPositiveButton("Evet, Onaylıyorum") { _, _ -> onConfirm() }
             .setNegativeButton("Hayır", null)
             .show()
     }
 
     private fun updateUIState() {
         if (UserManager.isLoggedIn()) {
-            layoutLogin.visibility = View.GONE
-            layoutRegister.visibility = View.GONE
-            layoutProfile.visibility = View.VISIBLE
+            binding.layoutLoginContainer.visibility = View.GONE
+            binding.layoutRegisterContainer.visibility = View.GONE
+            binding.layoutProfileContainer.visibility = View.VISIBLE
 
             val user = UserManager.getCurrentUser()
-            tvName.text = user?.fullName ?: "Kullanıcı"
-            tvEmail.text = user?.email ?: ""
+            binding.tvProfileName.text = user?.fullName ?: "Kullanıcı"
+            binding.tvProfileEmail.text = user?.email ?: ""
 
             val role = user?.role ?: UserRole.CUSTOMER
-            tvRole.text = "Yetki: ${role.name}"
+            binding.tvProfileRole.text = "Yetki: ${role.name}"
 
-            // Yetkili Panel Kontrolü ve İsimlendirme
             if (role != UserRole.CUSTOMER) {
-                btnAdminPanel.visibility = View.VISIBLE
-
-                // Admin veya SRV ise metni değiştir
+                binding.btnAdminPanel.visibility = View.VISIBLE
                 if (role == UserRole.ADMIN || role == UserRole.SRV) {
-                    btnAdminPanel.text = "Admin Yetkileri"
+                    binding.btnAdminPanel.text = "Admin Yetkileri"
                 } else {
-                    btnAdminPanel.text = "Mağaza Yönetim Paneli"
+                    binding.btnAdminPanel.text = "Mağaza Yönetim Paneli"
                 }
             } else {
-                btnAdminPanel.visibility = View.GONE
+                binding.btnAdminPanel.visibility = View.GONE
             }
 
         } else {
-            layoutLogin.visibility = View.VISIBLE
-            layoutRegister.visibility = View.GONE
-            layoutProfile.visibility = View.GONE
+            binding.layoutLoginContainer.visibility = View.VISIBLE
+            binding.layoutRegisterContainer.visibility = View.GONE
+            binding.layoutProfileContainer.visibility = View.GONE
         }
+    }
+
+    override fun onDestroyView() {
+        super.onDestroyView()
+        _binding = null
     }
 }

@@ -7,38 +7,24 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.ImageView
-import android.widget.LinearLayout
-import android.widget.TextView
 import android.widget.Toast
-import androidx.cardview.widget.CardView
-import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
+import com.example.mobiliyum.databinding.FragmentStoreDetailBinding
+import com.example.mobiliyum.databinding.ItemCategoryGroupBinding // Adapter için
 import com.google.firebase.firestore.FirebaseFirestore
-import com.google.firebase.firestore.Query
-import java.util.Date
 
 class StoreDetailFragment : Fragment() {
 
-    private lateinit var rvCategories: RecyclerView
-    private lateinit var rvUserChoice: RecyclerView
-    private lateinit var rvStoreChoice: RecyclerView
+    private var _binding: FragmentStoreDetailBinding? = null
+    private val binding get() = _binding!!
 
     private lateinit var categoryAdapter: CategoryAdapter
     private lateinit var userChoiceAdapter: ProductAdapter
     private lateinit var storeChoiceAdapter: ProductAdapter
-
-    private lateinit var layoutUserChoice: LinearLayout
-    private lateinit var layoutStoreChoice: LinearLayout
-
-    private lateinit var cardAnnouncement: CardView
-    private lateinit var tvAnnouncement: TextView
-    private lateinit var btnSeeAllAnnouncements: TextView
-    private lateinit var btnFollowStore: com.google.android.material.button.MaterialButton
 
     private var currentAnnouncement: NotificationItem? = null
     private var categorySectionList = ArrayList<CategorySection>()
@@ -63,39 +49,28 @@ class StoreDetailFragment : Fragment() {
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
-    ): View? {
-        val view = inflater.inflate(R.layout.fragment_store_detail, container, false)
+    ): View {
+        _binding = FragmentStoreDetailBinding.inflate(inflater, container, false)
+        return binding.root
+    }
 
-        val imgLogo = view.findViewById<ImageView>(R.id.imgDetailLogo)
-        val tvName = view.findViewById<TextView>(R.id.tvDetailName)
-        val tvLocation = view.findViewById<TextView>(R.id.tvDetailLocation)
-        btnFollowStore = view.findViewById(R.id.btnFollowStore)
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
 
-        rvCategories = view.findViewById(R.id.rvProducts)
-        rvUserChoice = view.findViewById(R.id.rvUserChoice)
-        rvStoreChoice = view.findViewById(R.id.rvStoreChoice)
-
-        layoutUserChoice = view.findViewById(R.id.layoutUserChoice)
-        layoutStoreChoice = view.findViewById(R.id.layoutStoreChoice)
-
-        cardAnnouncement = view.findViewById(R.id.cardStoreAnnouncement)
-        tvAnnouncement = view.findViewById(R.id.tvStoreAnnouncement)
-        btnSeeAllAnnouncements = view.findViewById(R.id.btnSeeAllAnnouncements)
-
-        tvName.text = storeName
-        tvLocation.text = storeLocation
+        binding.tvDetailName.text = storeName
+        binding.tvDetailLocation.text = storeLocation
         if (storeImage != null && storeImage!!.isNotEmpty()) {
-            Glide.with(this).load(storeImage).into(imgLogo)
+            Glide.with(this).load(storeImage).into(binding.imgDetailLogo)
         }
 
-        // LayoutManager Ayarları - Grid 2 Sütun
-        rvCategories.layoutManager = LinearLayoutManager(context)
-        rvUserChoice.layoutManager = GridLayoutManager(context, 2)
-        rvStoreChoice.layoutManager = GridLayoutManager(context, 2)
+        // LayoutManager Ayarları
+        binding.rvProducts.layoutManager = LinearLayoutManager(context)
+        binding.rvUserChoice.layoutManager = GridLayoutManager(context, 2)
+        binding.rvStoreChoice.layoutManager = GridLayoutManager(context, 2)
 
-        rvCategories.isNestedScrollingEnabled = false
-        rvUserChoice.isNestedScrollingEnabled = false
-        rvStoreChoice.isNestedScrollingEnabled = false
+        binding.rvProducts.isNestedScrollingEnabled = false
+        binding.rvUserChoice.isNestedScrollingEnabled = false
+        binding.rvStoreChoice.isNestedScrollingEnabled = false
 
         setupFollowButton()
 
@@ -104,7 +79,7 @@ class StoreDetailFragment : Fragment() {
             fetchLatestAnnouncement()
         }
 
-        cardAnnouncement.setOnClickListener {
+        binding.cardStoreAnnouncement.setOnClickListener {
             if (currentAnnouncement != null) {
                 AlertDialog.Builder(context)
                     .setTitle(currentAnnouncement!!.title)
@@ -114,7 +89,7 @@ class StoreDetailFragment : Fragment() {
             }
         }
 
-        btnSeeAllAnnouncements.setOnClickListener {
+        binding.btnSeeAllAnnouncements.setOnClickListener {
             val fragment = StoreAnnouncementsFragment()
             val bundle = Bundle()
             bundle.putString("storeId", storeId.toString())
@@ -125,25 +100,23 @@ class StoreDetailFragment : Fragment() {
                 .addToBackStack(null)
                 .commit()
         }
-
-        return view
     }
 
     private fun setupFollowButton() {
         fun updateFollowButtonState() {
             if (FavoritesManager.isFollowing(storeId)) {
-                btnFollowStore.text = "Takip Ediliyor"
-                btnFollowStore.setIconResource(R.drawable.ic_heart_filled)
-                btnFollowStore.setBackgroundColor(Color.GRAY)
+                binding.btnFollowStore.text = "Takip Ediliyor"
+                binding.btnFollowStore.setIconResource(R.drawable.ic_heart_filled)
+                binding.btnFollowStore.setBackgroundColor(Color.GRAY)
             } else {
-                btnFollowStore.text = "Takip Et"
-                btnFollowStore.setIconResource(android.R.drawable.ic_input_add)
-                btnFollowStore.setBackgroundColor(Color.parseColor("#FF6F00"))
+                binding.btnFollowStore.text = "Takip Et"
+                binding.btnFollowStore.setIconResource(android.R.drawable.ic_input_add)
+                binding.btnFollowStore.setBackgroundColor(Color.parseColor("#FF6F00"))
             }
         }
         updateFollowButtonState()
 
-        btnFollowStore.setOnClickListener {
+        binding.btnFollowStore.setOnClickListener {
             if (!UserManager.isLoggedIn()) {
                 Toast.makeText(context, "Giriş yapmalısınız.", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
@@ -186,17 +159,17 @@ class StoreDetailFragment : Fragment() {
 
                     if (latestDoc != null && latestDoc.message.isNotEmpty()) {
                         currentAnnouncement = latestDoc
-                        tvAnnouncement.text = latestDoc.message
-                        cardAnnouncement.visibility = View.VISIBLE
+                        binding.tvStoreAnnouncement.text = latestDoc.message
+                        binding.cardStoreAnnouncement.visibility = View.VISIBLE
                     } else {
-                        cardAnnouncement.visibility = View.GONE
+                        binding.cardStoreAnnouncement.visibility = View.GONE
                     }
                 } else {
-                    cardAnnouncement.visibility = View.GONE
+                    binding.cardStoreAnnouncement.visibility = View.GONE
                 }
             }
             .addOnFailureListener {
-                cardAnnouncement.visibility = View.GONE
+                binding.cardStoreAnnouncement.visibility = View.GONE
             }
     }
 
@@ -204,31 +177,28 @@ class StoreDetailFragment : Fragment() {
         db.collection("stores").document(storeId.toString()).get().addOnSuccessListener { doc ->
             val store = doc.toObject(Store::class.java)
 
-            // 1. MAĞAZANIN SEÇİMİ (VİTRİN)
             var storeChoiceList: List<Product> = emptyList()
 
             if (store != null && store.featuredProductIds.isNotEmpty()) {
                 storeChoiceList = products.filter { store.featuredProductIds.contains(it.id) }
             }
 
-            // DÜZELTME: Eğer seçim yoksa veya 2'den azsa, otomatik doldur (en az 4 tane veya hepsi)
             if (storeChoiceList.size < 2) {
-                storeChoiceList = products.takeLast(4).take(2) // En az 4 tane göster ki 2 satır dolsun
+                storeChoiceList = products.takeLast(4).take(2)
             }
 
             if (storeChoiceList.isNotEmpty()) {
-                layoutStoreChoice.visibility = View.VISIBLE
+                binding.layoutStoreChoice.visibility = View.VISIBLE
                 storeChoiceAdapter = ProductAdapter(storeChoiceList) { product -> openProductDetail(product) }
-                rvStoreChoice.adapter = storeChoiceAdapter
+                binding.rvStoreChoice.adapter = storeChoiceAdapter
             }
 
-            // 2. KULLANICININ GÖZDESİ (DÜZELTME: Sayıyı 4'e çıkardım)
             val userChoiceList = products.sortedWith(compareByDescending<Product> { it.favoriteCount }.thenByDescending { it.clickCount }).take(2)
 
             if (userChoiceList.isNotEmpty()) {
-                layoutUserChoice.visibility = View.VISIBLE
+                binding.layoutUserChoice.visibility = View.VISIBLE
                 userChoiceAdapter = ProductAdapter(userChoiceList) { product -> openProductDetail(product) }
-                rvUserChoice.adapter = userChoiceAdapter
+                binding.rvUserChoice.adapter = userChoiceAdapter
             }
         }
     }
@@ -236,7 +206,8 @@ class StoreDetailFragment : Fragment() {
     private fun openProductDetail(product: Product) {
         val detailFragment = ProductDetailFragment()
         val bundle = Bundle()
-        bundle.putSerializable("product_data", product)
+        // ADIM 1: Parcelable kullanımı
+        bundle.putParcelable("product_data", product)
         detailFragment.arguments = bundle
         parentFragmentManager.beginTransaction().replace(R.id.fragmentContainer, detailFragment).addToBackStack(null).commit()
     }
@@ -250,32 +221,45 @@ class StoreDetailFragment : Fragment() {
         categoryAdapter = CategoryAdapter(requireContext(), categorySectionList) { clickedProduct ->
             openProductDetail(clickedProduct)
         }
-        rvCategories.adapter = categoryAdapter
+        binding.rvProducts.adapter = categoryAdapter
+    }
+
+    override fun onDestroyView() {
+        super.onDestroyView()
+        _binding = null
     }
 }
 
-// Helper Classes
+// Helper Data Class (Aşağıdaki Adapter tarafından kullanılıyor)
 data class CategorySection(val categoryName: String, val products: List<Product>, var isExpanded: Boolean = false)
 
-class CategoryAdapter(private val context: Context, private val categoryList: List<CategorySection>, private val onProductClick: (Product) -> Unit) : RecyclerView.Adapter<CategoryAdapter.CategoryViewHolder>() {
-    class CategoryViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
-        val tvTitle: TextView = itemView.findViewById(R.id.tvCategoryTitle)
-        val btnExpand: ConstraintLayout = itemView.findViewById(R.id.layoutCategoryHeader)
-        val imgArrow: ImageView = itemView.findViewById(R.id.imgExpandIcon)
-        val rvProducts: RecyclerView = itemView.findViewById(R.id.rvInnerProducts)
+// ADAPTER (ViewBinding'li)
+class CategoryAdapter(
+    private val context: Context,
+    private val categoryList: List<CategorySection>,
+    private val onProductClick: (Product) -> Unit
+) : RecyclerView.Adapter<CategoryAdapter.CategoryViewHolder>() {
+
+    inner class CategoryViewHolder(val binding: ItemCategoryGroupBinding) : RecyclerView.ViewHolder(binding.root)
+
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): CategoryViewHolder {
+        val binding = ItemCategoryGroupBinding.inflate(LayoutInflater.from(parent.context), parent, false)
+        return CategoryViewHolder(binding)
     }
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int) = CategoryViewHolder(LayoutInflater.from(parent.context).inflate(R.layout.item_category_group, parent, false))
+
     override fun onBindViewHolder(holder: CategoryViewHolder, position: Int) {
         val section = categoryList[position]
-        holder.tvTitle.text = "${section.categoryName} (${section.products.size})"
-        holder.rvProducts.visibility = if (section.isExpanded) View.VISIBLE else View.GONE
-        holder.imgArrow.rotation = if (section.isExpanded) 180f else 0f
+        holder.binding.tvCategoryTitle.text = "${section.categoryName} (${section.products.size})"
+        holder.binding.rvInnerProducts.visibility = if (section.isExpanded) View.VISIBLE else View.GONE
+        holder.binding.imgExpandIcon.rotation = if (section.isExpanded) 180f else 0f
 
-        holder.rvProducts.layoutManager = GridLayoutManager(context, 2)
-        holder.rvProducts.adapter = ProductAdapter(section.products, onProductClick)
-        holder.rvProducts.isNestedScrollingEnabled = false
+        holder.binding.rvInnerProducts.layoutManager = GridLayoutManager(context, 2)
+        // Burada kullandığımız ProductAdapter da daha sonra güncellenmeli veya eski haliyle çalışabilir
+        // Şu an parametre olarak ProductAdapter'ı çağırdığı için sorun yok.
+        holder.binding.rvInnerProducts.adapter = ProductAdapter(section.products, onProductClick)
+        holder.binding.rvInnerProducts.isNestedScrollingEnabled = false
 
-        holder.btnExpand.setOnClickListener {
+        holder.binding.layoutCategoryHeader.setOnClickListener {
             section.isExpanded = !section.isExpanded
             notifyItemChanged(position)
         }

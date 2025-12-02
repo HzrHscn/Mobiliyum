@@ -1,7 +1,9 @@
 package com.example.mobiliyum
 
-import java.io.Serializable
+import android.os.Parcelable
+import kotlinx.parcelize.Parcelize
 
+@Parcelize
 data class Product(
     val id: Int = 0,
     val name: String = "",
@@ -19,4 +21,4 @@ data class Product(
     val description: String = "",
 
     val priceHistory: HashMap<String, Double> = hashMapOf()
-) : Serializable
+) : Parcelable

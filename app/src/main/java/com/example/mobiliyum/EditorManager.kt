@@ -24,7 +24,8 @@ object EditorManager {
     }
 
     // 2. EDİTÖR: Vitrin Talebi Gönder
-    fun submitShowcaseRequest(productIds: List<Int>, onSuccess: () -> Unit) {
+    // DÜZELTME: List<Int> -> ArrayList<Int> olarak güncellendi.
+    fun submitShowcaseRequest(productIds: ArrayList<Int>, onSuccess: () -> Unit) {
         val user = UserManager.getCurrentUser() ?: return
         val ref = db.collection("store_requests").document()
 
@@ -33,7 +34,7 @@ object EditorManager {
             storeId = user.storeId ?: 0,
             requesterId = user.id,
             requesterName = user.fullName,
-            type = "SHOWCASE",
+            type = "SHOWCASE_UPDATE", // Tutarlılık için güncellendi
             selectedProductIds = productIds
         )
         ref.set(request).addOnSuccessListener { onSuccess() }
@@ -47,7 +48,6 @@ object EditorManager {
             .get()
             .addOnSuccessListener { docs ->
                 val list = docs.toObjects(StoreRequest::class.java)
-                // En yeniler üstte
                 onSuccess(list.sortedByDescending { it.requestDate })
             }
     }
@@ -62,7 +62,7 @@ object EditorManager {
                 if (isApproved) {
                     if (request.type == "ANNOUNCEMENT") {
                         publishAnnouncement(request)
-                    } else if (request.type == "SHOWCASE") {
+                    } else if (request.type == "SHOWCASE_UPDATE" || request.type == "SHOWCASE") {
                         publishShowcase(request)
                     }
                 }
@@ -71,7 +71,6 @@ object EditorManager {
     }
 
     private fun publishAnnouncement(req: StoreRequest) {
-        // A) Duyuruyu Genel Listeye Ekle
         val data = hashMapOf(
             "title" to req.title,
             "message" to req.message,
@@ -82,7 +81,6 @@ object EditorManager {
         )
         db.collection("announcements").add(data)
 
-        // B) Takipçilere Bildirim Gönder
         sendNotificationToFollowers(req.storeId, req.title, req.message)
     }
 
@@ -91,36 +89,31 @@ object EditorManager {
             .update("featuredProductIds", req.selectedProductIds)
     }
 
-    // --- BİLDİRİM SİSTEMİ ---
     private fun sendNotificationToFollowers(storeId: Int, title: String, message: String) {
-        // Mağazayı takip edenleri bul (stores/{id}/followers koleksiyonundan)
         db.collection("stores").document(storeId.toString())
             .collection("followers")
             .get()
             .addOnSuccessListener { documents ->
                 val batch = db.batch()
-
                 for (doc in documents) {
-                    val userId = doc.id // Takipçinin ID'si
-
+                    val userId = doc.id
                     val notifRef = db.collection("users").document(userId)
                         .collection("notifications").document()
 
-                    val notification = hashMapOf(
-                        "title" to "📢 Mağaza Duyurusu",
-                        "message" to title, // Başlık mesaj olarak görünsün
-                        "detail" to message, // Detay tıklandığında açılsın
-                        "date" to Date(),
-                        "read" to false,
-                        "type" to "announcement",
-                        "relatedId" to storeId.toString()
+                    // DÜZELTME: HashMap yerine NotificationItem nesnesi kullanıldı (Type-Safety)
+                    val item = NotificationItem(
+                        id = notifRef.id,
+                        title = "📢 Mağaza Duyurusu",
+                        message = title, // Başlık mesaj olarak görünsün
+                        date = Date(),
+                        type = "store_update",
+                        relatedId = storeId.toString(),
+                        senderName = "Mağaza",
+                        isRead = false
                     )
-                    batch.set(notifRef, notification)
+                    batch.set(notifRef, item)
                 }
-
-                batch.commit().addOnSuccessListener {
-                    // Bildirimler başarıyla gönderildi
-                }
+                batch.commit()
             }
     }
 }

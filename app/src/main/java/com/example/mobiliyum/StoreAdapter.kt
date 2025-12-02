@@ -2,46 +2,41 @@ package com.example.mobiliyum
 
 import android.annotation.SuppressLint
 import android.view.LayoutInflater
-import android.view.View
 import android.view.ViewGroup
-import android.widget.ImageView
-import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
+import com.example.mobiliyum.databinding.ItemStoreBinding // OTOMATİK OLUŞAN SINIF (item_store.xml'den)
 import java.util.Locale
 
 class StoreAdapter(
-    private var storeList: ArrayList<Store>, // Orijinal liste (Veritabanından gelen)
+    private var storeList: ArrayList<Store>,
     private val onItemClick: (Store) -> Unit
 ) : RecyclerView.Adapter<StoreAdapter.StoreViewHolder>() {
 
-    // Ekranda gösterilecek filtrelenmiş liste
     private var filteredList: ArrayList<Store> = ArrayList(storeList)
 
-    class StoreViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
-        val imgLogo: ImageView = itemView.findViewById(R.id.imgStoreLogo)
-        val txtName: TextView = itemView.findViewById(R.id.txtStoreName)
-        val txtCategory: TextView = itemView.findViewById(R.id.txtStoreCategory)
-        val txtLocation: TextView = itemView.findViewById(R.id.txtStoreLocation)
-    }
+    // ViewHolder artık View değil, Binding alıyor
+    class StoreViewHolder(val binding: ItemStoreBinding) : RecyclerView.ViewHolder(binding.root)
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): StoreViewHolder {
-        val view = LayoutInflater.from(parent.context).inflate(R.layout.item_store, parent, false)
-        return StoreViewHolder(view)
+        // Binding inflate işlemi
+        val binding = ItemStoreBinding.inflate(LayoutInflater.from(parent.context), parent, false)
+        return StoreViewHolder(binding)
     }
 
     override fun onBindViewHolder(holder: StoreViewHolder, position: Int) {
-        val currentStore = filteredList[position] // Filtrelenmiş listeden alıyoruz
+        val currentStore = filteredList[position]
 
-        holder.txtName.text = currentStore.name
-        holder.txtCategory.text = currentStore.category
-        holder.txtLocation.text = currentStore.location
+        // findViewById yok! holder.binding ile doğrudan erişim
+        holder.binding.txtStoreName.text = currentStore.name
+        holder.binding.txtStoreCategory.text = currentStore.category
+        holder.binding.txtStoreLocation.text = currentStore.location
 
         Glide.with(holder.itemView.context)
             .load(currentStore.imageUrl)
             .placeholder(android.R.drawable.ic_menu_gallery)
             .error(android.R.drawable.stat_notify_error)
-            .into(holder.imgLogo)
+            .into(holder.binding.imgStoreLogo)
 
         holder.itemView.setOnClickListener {
             onItemClick(currentStore)
@@ -52,28 +47,21 @@ class StoreAdapter(
         return filteredList.size
     }
 
-    // --- YENİ: Veri Güncelleme Fonksiyonu ---
     @SuppressLint("NotifyDataSetChanged")
     fun updateList(newList: ArrayList<Store>) {
-        storeList = ArrayList(newList) // Orijinal listeyi güncelle
-        filteredList = ArrayList(newList) // Filtreli listeyi de sıfırla
+        storeList = ArrayList(newList)
+        filteredList = ArrayList(newList)
         notifyDataSetChanged()
     }
 
-    // --- YENİ: Arama Filtreleme Fonksiyonu ---
     @SuppressLint("NotifyDataSetChanged")
     fun filter(query: String) {
         val searchText = query.lowercase(Locale.getDefault())
-
         filteredList.clear()
-
         if (searchText.isEmpty()) {
-            // Arama boşsa hepsini göster
             filteredList.addAll(storeList)
         } else {
-            // Arama doluysa filtrele
             for (store in storeList) {
-                // Hem mağaza isminde hem de kategoride arama yapar
                 if (store.name.lowercase(Locale.getDefault()).contains(searchText) ||
                     store.category.lowercase(Locale.getDefault()).contains(searchText)) {
                     filteredList.add(store)

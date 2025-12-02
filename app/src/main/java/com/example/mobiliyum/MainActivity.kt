@@ -1,27 +1,20 @@
 package com.example.mobiliyum
 
+import android.animation.Animator
+import android.animation.AnimatorListenerAdapter
 import android.animation.ObjectAnimator
 import android.content.Context
 import android.os.Bundle
 import android.view.View
-import android.widget.ImageView
-import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
-import androidx.cardview.widget.CardView
 import androidx.fragment.app.Fragment
-import com.google.android.material.bottomnavigation.BottomNavigationView
+import com.example.mobiliyum.databinding.ActivityMainBinding // ViewBinding
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
 
 class MainActivity : AppCompatActivity() {
 
-    private lateinit var bottomNav: BottomNavigationView
-
-    // Bildirim Bileşenleri (Tepeden Düşen Kart)
-    private lateinit var notificationCard: CardView
-    private lateinit var tvNotifTitle: TextView
-    private lateinit var tvNotifBody: TextView
-    private lateinit var btnCloseNotif: ImageView
+    private lateinit var binding: ActivityMainBinding
 
     // Aktif Duyuru ID'si (Kapatınca kaydetmek için)
     private var activeAnnouncementId: String = ""
@@ -32,21 +25,17 @@ class MainActivity : AppCompatActivity() {
     private val accountFragment = AccountFragment()
     private val storesFragment = StoresFragment()
     private val welcomeFragment = WelcomeFragment()
-    private val notificationsFragment = NotificationsFragment() // Ekstra olarak dursun
+    // private val notificationsFragment = NotificationsFragment() // İhtiyaç olursa açılır
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main)
 
-        // View Bağlantıları
-        bottomNav = findViewById(R.id.bottomNavigationView)
-        notificationCard = findViewById(R.id.notificationCard)
-        tvNotifTitle = findViewById(R.id.tvNotifTitle)
-        tvNotifBody = findViewById(R.id.tvNotifBody)
-        btnCloseNotif = findViewById(R.id.btnCloseNotif)
+        // ViewBinding Kurulumu
+        binding = ActivityMainBinding.inflate(layoutInflater)
+        setContentView(binding.root)
 
         // Başlangıçta menüyü gizle
-        bottomNav.visibility = View.GONE
+        binding.bottomNavigationView.visibility = View.GONE
 
         // 1. Navigasyon Ayarlarını Yükle
         setupNavigation()
@@ -64,13 +53,12 @@ class MainActivity : AppCompatActivity() {
         // 4. Duyuruları Dinle (Uygulama açıkken tepeden düşen kart için)
         listenForAnnouncements()
 
-        NotificationHelper.createNotificationChannel(this)
-
+        // Kullanıcı Oturum Kontrolü
         UserManager.checkSession { isLoggedIn ->
             if (isLoggedIn) {
                 FavoritesManager.loadUserFavorites {
                     loadFragment(homeFragment)
-                    bottomNav.visibility = View.VISIBLE
+                    binding.bottomNavigationView.visibility = View.VISIBLE
 
                     // --- CANLI TAKİBİ BAŞLAT ---
                     FavoritesManager.startRealTimePriceAlerts(this)
@@ -81,7 +69,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         // Bildirim Kapatma Butonu
-        btnCloseNotif.setOnClickListener {
+        binding.btnCloseNotif.setOnClickListener {
             hideNotification()
             // Eğer bir duyuru ID'si varsa, bunu "görüldü" olarak kaydet
             if (activeAnnouncementId.isNotEmpty()) {
@@ -93,21 +81,13 @@ class MainActivity : AppCompatActivity() {
     // Uygulama her ön plana geldiğinde fiyatları tekrar kontrol et
     override fun onResume() {
         super.onResume()
-        // Uygulama ön plana gelince takibi tazele
         if (UserManager.isLoggedIn()) {
             FavoritesManager.startRealTimePriceAlerts(this)
         }
     }
 
-    override fun onPause() {
-        super.onPause()
-        // İstersen arka planda pil tüketmesin diye durdurabilirsin
-        // Ama bildirim arka planda da gelsin istiyorsan burayı boş bırak.
-        // FavoritesManager.stopTracking()
-    }
-
     private fun setupNavigation() {
-        bottomNav.setOnItemSelectedListener { item ->
+        binding.bottomNavigationView.setOnItemSelectedListener { item ->
             when (item.itemId) {
                 R.id.nav_home -> { loadFragment(homeFragment); true }
                 R.id.nav_stores -> { loadFragment(storesFragment); true }
@@ -143,7 +123,6 @@ class MainActivity : AppCompatActivity() {
 
                 // KONTROL: Bu ID daha önce kapatıldı mı?
                 if (!isAnnouncementDismissed(id)) {
-                    // Kapatılmamışsa göster
                     activeAnnouncementId = id
                     showNotification(title ?: "Duyuru", message ?: "")
                 }
@@ -168,32 +147,40 @@ class MainActivity : AppCompatActivity() {
 
     private fun showNotification(title: String, message: String) {
         // Eğer zaten görünüyorsa tekrar animasyon yapma
-        if (notificationCard.visibility == View.VISIBLE && tvNotifTitle.text == title) return
+        if (binding.notificationCard.visibility == View.VISIBLE && binding.tvNotifTitle.text == title) return
 
-        tvNotifTitle.text = title
-        tvNotifBody.text = message
+        binding.tvNotifTitle.text = title
+        binding.tvNotifBody.text = message
 
-        notificationCard.visibility = View.VISIBLE
-        notificationCard.translationY = -300f
+        binding.notificationCard.visibility = View.VISIBLE
+        binding.notificationCard.translationY = -300f
 
-        ObjectAnimator.ofFloat(notificationCard, "translationY", 0f).apply {
+        ObjectAnimator.ofFloat(binding.notificationCard, "translationY", 0f).apply {
             duration = 500
             start()
         }
     }
 
     private fun hideNotification() {
-        ObjectAnimator.ofFloat(notificationCard, "translationY", -300f).apply {
+        ObjectAnimator.ofFloat(binding.notificationCard, "translationY", -300f).apply {
             duration = 300
             start()
-        }.addListener(object : android.animation.AnimatorListenerAdapter() {
-            override fun onAnimationEnd(animation: android.animation.Animator) {
-                notificationCard.visibility = View.GONE
+        }.addListener(object : AnimatorListenerAdapter() {
+            override fun onAnimationEnd(animation: Animator) {
+                binding.notificationCard.visibility = View.GONE
             }
         })
     }
 
     // Fragmentlardan çağrılacak yardımcılar
-    fun showBottomNav() { bottomNav.visibility = View.VISIBLE }
-    fun hideBottomNav() { bottomNav.visibility = View.GONE }
+    fun showBottomNav() { binding.bottomNavigationView.visibility = View.VISIBLE }
+    fun hideBottomNav() { binding.bottomNavigationView.visibility = View.GONE }
+
+    // Sepet Badge'ini güncellemek için yardımcı (Opsiyonel ama önerilir)
+    fun updateCartBadge() {
+        val count = CartManager.getCartItemCount()
+        val badge = binding.bottomNavigationView.getOrCreateBadge(R.id.nav_cart)
+        badge.isVisible = count > 0
+        badge.number = count
+    }
 }

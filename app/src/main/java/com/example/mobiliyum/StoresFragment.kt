@@ -8,7 +8,7 @@ import android.widget.Toast
 import androidx.appcompat.widget.SearchView
 import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.LinearLayoutManager
-import androidx.recyclerview.widget.RecyclerView
+import com.example.mobiliyum.databinding.FragmentStoresBinding // OTOMATİK OLUŞAN SINIF
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
@@ -18,8 +18,11 @@ import java.util.Locale
 
 class StoresFragment : Fragment() {
 
-    private lateinit var recyclerView: RecyclerView
-    private lateinit var searchView: SearchView
+    // 1. Binding Tanımlamaları (Standart Kalıp)
+    private var _binding: FragmentStoresBinding? = null
+    // Bu 'binding' değişkeni, view elemanlarına (buton, textview vs.) erişmemizi sağlar.
+    private val binding get() = _binding!!
+
     private lateinit var storeAdapter: StoreAdapter
     private var storeList = ArrayList<Store>()
     private val db = FirebaseFirestore.getInstance()
@@ -27,36 +30,41 @@ class StoresFragment : Fragment() {
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
-    ): View? {
-        val view = inflater.inflate(R.layout.fragment_stores, container, false)
+    ): View {
+        // 2. Layout'u Binding ile şişiriyoruz (inflate)
+        _binding = FragmentStoresBinding.inflate(inflater, container, false)
+        return binding.root
+    }
 
-        recyclerView = view.findViewById(R.id.rvStores)
-        searchView = view.findViewById(R.id.searchViewStore)
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
 
-        recyclerView.layoutManager = LinearLayoutManager(context)
-        recyclerView.setHasFixedSize(true)
+        // 3. ARTIK findViewById YOK! Doğrudan 'binding.idAdi' ile erişiyoruz.
+
+        binding.rvStores.layoutManager = LinearLayoutManager(context)
+        binding.rvStores.setHasFixedSize(true)
 
         storeAdapter = StoreAdapter(storeList) { selectedStore ->
-            // --- DÜZELTME 3: İSTATİSTİK KAYDI ---
+            // İstatistik Kaydı
             val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
-
-            // 1. Toplam tıklanmayı artır
-            // 2. Bugünün tarihine (clickHistory.2023-12-12) tıklama ekle
             val updates = mapOf(
                 "clickCount" to FieldValue.increment(1),
                 "clickHistory.$today" to FieldValue.increment(1)
             )
+            db.collection("stores").document(selectedStore.id.toString()).update(updates)
 
-            db.collection("stores").document(selectedStore.id.toString())
-                .update(updates)
-
-            // Detay sayfasına git
+            // Detay sayfasına geçiş
             val detailFragment = StoreDetailFragment()
             val bundle = Bundle()
+            // ADIM 1'de Parcelable yaptığımız için artık nesneyi doğrudan atabiliriz!
+            // Tek tek id, name, image atmaya gerek yok.
+            // bundle.putParcelable("store_data", selectedStore)
+            // Ancak StoreDetailFragment henüz güncellenmediği için eski usul devam ediyoruz şimdilik:
             bundle.putInt("id", selectedStore.id)
             bundle.putString("name", selectedStore.name)
             bundle.putString("image", selectedStore.imageUrl)
             bundle.putString("location", selectedStore.location)
+
             detailFragment.arguments = bundle
 
             parentFragmentManager.beginTransaction()
@@ -64,17 +72,16 @@ class StoresFragment : Fragment() {
                 .addToBackStack(null)
                 .commit()
         }
-        recyclerView.adapter = storeAdapter
+        binding.rvStores.adapter = storeAdapter
 
         fetchStoresFromFirestore()
         setupSearchView()
-
-        return view
     }
 
     private fun setupSearchView() {
-        searchView.setOnClickListener { searchView.onActionViewExpanded() }
-        searchView.setOnQueryTextListener(object : SearchView.OnQueryTextListener {
+        // binding.searchViewStore diyerek XML'deki ID'ye erişiyoruz
+        binding.searchViewStore.setOnClickListener { binding.searchViewStore.onActionViewExpanded() }
+        binding.searchViewStore.setOnQueryTextListener(object : SearchView.OnQueryTextListener {
             override fun onQueryTextSubmit(query: String?): Boolean = false
             override fun onQueryTextChange(newText: String?): Boolean {
                 storeAdapter.filter(newText ?: "")
@@ -97,7 +104,16 @@ class StoresFragment : Fragment() {
                 storeAdapter.updateList(storeList)
             }
             .addOnFailureListener { exception ->
-                Toast.makeText(context, "Hata: ${exception.localizedMessage}", Toast.LENGTH_SHORT).show()
+                // Context null olabilir, güvenli erişim
+                context?.let {
+                    Toast.makeText(it, "Hata: ${exception.localizedMessage}", Toast.LENGTH_SHORT).show()
+                }
             }
+    }
+
+    // 4. Memory Leak (Hafıza Sızıntısı) Önleme
+    override fun onDestroyView() {
+        super.onDestroyView()
+        _binding = null
     }
 }
