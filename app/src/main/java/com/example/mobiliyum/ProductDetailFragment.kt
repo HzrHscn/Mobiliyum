@@ -91,7 +91,7 @@ class ProductDetailFragment : Fragment() {
         rvReviews.layoutManager = LinearLayoutManager(context)
 
         tvName.text = currentProduct!!.name
-        tvCategory.text = currentProduct!!.category
+        //tvCategory.text = currentProduct!!.category
         tvPrice.text = PriceUtils.formatPriceStyled(currentProduct!!.price)
         Glide.with(this).load(currentProduct!!.imageUrl).into(imgProduct)
 
@@ -225,9 +225,6 @@ class ProductDetailFragment : Fragment() {
         }
     }
 
-    // ... (Geri kalan fonksiyonlar: handleReviewClick, showUpdatePriceDialog vb. AYNEN KORUNMALI) ...
-    // Yer kaplamaması için buraya tekrar yazmıyorum, önceki kodundaki gibi kalacaklar.
-
     private fun handleReviewClick() {
         if (!UserManager.isLoggedIn()) {
             Toast.makeText(context, "Puan vermek için giriş yapmalısınız.", Toast.LENGTH_SHORT).show()
@@ -313,12 +310,41 @@ class ProductDetailFragment : Fragment() {
 
     private fun setupCategoryIcon(catName: String) {
         val lower = catName.lowercase()
-        val res = when {
-            lower.contains("yatak") -> android.R.drawable.ic_menu_mylocation
-            lower.contains("koltuk") -> android.R.drawable.ic_menu_agenda
+
+        // Kategori ismine göre ikon seçimi
+        // R.drawable.yatakodaLogo gibi kendi dosya isimlerini buraya yazmalısın
+        val iconRes = when {
+            // Yatak Odası
+            lower.contains("yatak odası") -> R.drawable.yatakodalogo
+
+            // Yatak
+            lower.contains("yatak") -> R.drawable.yataklogo // Dosya adın neyse onu yaz
+
+            // Koltuk veya Köşe Takımları
+            lower.contains("koltuk") || lower.contains("köşe") || lower.contains("sofa") -> R.drawable.oturmaodalogo
+
+            // Yemek Odası
+            lower.contains("yemek") -> R.drawable.yemekodalogo
+
+            // Genç veya Bebek Odası
+            lower.contains("genç") || lower.contains("bebek") -> R.drawable.cocukodalogo
+
+            // Ofis ve Makam
+            lower.contains("ofis") || lower.contains("makam") -> R.drawable.ofislogo
+
+            // TV Ünitesi
+            lower.contains("tv") || lower.contains("ünite") -> R.drawable.tvlogo
+
+            // Varsayılan (Eşleşme olmazsa)
             else -> android.R.drawable.ic_menu_sort_by_size
         }
-        imgCategoryIcon.setImageResource(res)
+
+        // İkonu ayarla
+        imgCategoryIcon.setImageResource(iconRes)
+
+        // İsteğe bağlı: İkon rengini orijinal kalsın istiyorsan tint'i temizle
+        // Eğer ikonların renkliyse bu satırı ekle, siyah-beyazsa sil.
+        imgCategoryIcon.imageTintList = null
     }
 
     inner class ReviewAdapter(private val items: List<Review>) : RecyclerView.Adapter<ReviewAdapter.VH>() {

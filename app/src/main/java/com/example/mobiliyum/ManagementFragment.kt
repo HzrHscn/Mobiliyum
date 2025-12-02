@@ -5,9 +5,11 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
+import androidx.cardview.widget.CardView
 import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -21,8 +23,17 @@ import java.util.Locale
 class ManagementFragment : Fragment() {
 
     private val db = FirebaseFirestore.getInstance()
-    // Bekleyen sayısını yazdırmak için TextView referansı
     private var tvPendingCount: TextView? = null
+
+    // Personel Yönetimi Bileşenleri
+    private lateinit var cardStaff: CardView
+    private lateinit var etStaffEmail: TextInputEditText
+    private lateinit var btnSearchUser: Button
+    private lateinit var layoutResult: LinearLayout
+    private lateinit var tvResultInfo: TextView
+    private lateinit var btnMakeEditor: Button
+
+    private var foundUser: User? = null
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
@@ -36,35 +47,159 @@ class ManagementFragment : Fragment() {
         view.findViewById<TextView>(R.id.tvAdminWelcome).text = "Hoşgeldiniz, ${user?.fullName ?: "Yönetici"}"
         view.findViewById<TextView>(R.id.tvAdminRole).text = "Yetki: ${role.name}"
 
+        // Ana Butonlar
         val btnAnnouncements = view.findViewById<LinearLayout>(R.id.btnAnnouncements)
         val btnPendingRequests = view.findViewById<LinearLayout>(R.id.btnPendingStores)
         val btnUsers = view.findViewById<LinearLayout>(R.id.btnUsers)
+        val cardUsersBox = view.findViewById<CardView>(R.id.cardUsersBox) // Kullanıcı kutusu
         val btnReports = view.findViewById<LinearLayout>(R.id.btnReports)
 
-        // Buton metinlerini güncelle
-        val tvPendingTitle = btnPendingRequests.getChildAt(1) as? TextView
-        tvPendingTitle?.text = "Satın Alma Onayları"
+        // Personel Yönetimi UI
+        cardStaff = view.findViewById(R.id.cardStaffManagement)
+        etStaffEmail = view.findViewById(R.id.etStaffEmail)
+        btnSearchUser = view.findViewById(R.id.btnSearchUser)
+        layoutResult = view.findViewById(R.id.layoutUserResult)
+        tvResultInfo = view.findViewById(R.id.tvResultUserInfo)
+        btnMakeEditor = view.findViewById(R.id.btnMakeEditor)
 
-        // "Bekleyen: 0" yazan TextView'i bul (LinearLayout içindeki 3. eleman - index 2)
+        val tvPendingTitle = btnPendingRequests.getChildAt(1) as? TextView
         tvPendingCount = btnPendingRequests.getChildAt(2) as? TextView
 
-        // Sayfa açılınca sayıyı güncelle
-        updatePendingCount()
+        // --- ROL BAZLI GÖRÜNÜM AYARLARI ---
+        if (role == UserRole.ADMIN || role == UserRole.SRV) {
+            // ADMIN: Her şeyi görür
+            tvPendingTitle?.text = "Satın Alma Onayları"
+            updatePendingCount()
+            cardUsersBox.visibility = View.VISIBLE
+            cardStaff.visibility = View.GONE // Admin personel eklemez, Müdür ekler
+        }
+        else if (role == UserRole.MANAGER) {
+            // MÜDÜR: Kendi mağazasını yönetir
+            tvPendingTitle?.text = "Onay Bekleyenler"
+            updatePendingCount()
+
+            cardUsersBox.visibility = View.GONE // Genel kullanıcıları göremez
+            cardStaff.visibility = View.VISIBLE // Kendi personelini ekler
+        }
+        else {
+            // EDİTÖR: Kısıtlı erişim
+            cardUsersBox.visibility = View.GONE
+            cardStaff.visibility = View.GONE
+        }
+
+        // --- TIKLAMA OLAYLARI ---
 
         btnAnnouncements.setOnClickListener { showAnnouncementDialog() }
         btnPendingRequests.setOnClickListener { showPendingRequestsDialog() }
+        btnReports.setOnClickListener { showReportsDialog() }
 
         btnUsers.setOnClickListener {
-            Toast.makeText(context, "Bu alan düzenleniyor...", Toast.LENGTH_SHORT).show()
+            // Kullanıcı Yönetimi için ReportsFragment'taki Kullanıcı sekmesine yönlendir
+            val fragment = ReportsFragment()
+            // İsteğe bağlı: Sekme indexi gönderilebilir
+            parentFragmentManager.beginTransaction()
+                .replace(R.id.fragmentContainer, fragment)
+                .addToBackStack(null)
+                .commit()
         }
 
-        btnReports.setOnClickListener { showReportsDialog() }
+        // --- PERSONEL ARAMA VE ATAMA ---
+        btnSearchUser.setOnClickListener {
+            val email = etStaffEmail.text.toString().trim()
+            if (email.isNotEmpty()) {
+                searchUserByEmail(email)
+            }
+        }
+
+        btnMakeEditor.setOnClickListener {
+            if (foundUser != null) {
+                assignEditorRole(foundUser!!)
+            }
+        }
 
         return view
     }
 
+    // --- MÜDÜR FONKSİYONLARI ---
+
+    private fun searchUserByEmail(email: String) {
+        layoutResult.visibility = View.GONE // Önce gizle
+
+        db.collection("users")
+            .whereEqualTo("email", email)
+            .get()
+            .addOnSuccessListener { docs ->
+                if (!docs.isEmpty) {
+                    val doc = docs.documents[0]
+                    foundUser = doc.toObject(User::class.java)
+
+                    if (foundUser != null) {
+                        // Kendi kendini ekleyemez
+                        if (foundUser!!.id == UserManager.getCurrentUser()?.id) {
+                            Toast.makeText(context, "Kendinizi atayamazsınız.", Toast.LENGTH_SHORT).show()
+                            return@addOnSuccessListener
+                        }
+
+                        // Zaten yetkili mi?
+                        if (foundUser!!.role == UserRole.MANAGER || foundUser!!.role == UserRole.ADMIN) {
+                            Toast.makeText(context, "Bu kullanıcı zaten yönetici.", Toast.LENGTH_SHORT).show()
+                            return@addOnSuccessListener
+                        }
+
+                        layoutResult.visibility = View.VISIBLE
+                        tvResultInfo.text = "Bulunan Kişi:\n${foundUser!!.fullName}\n(${foundUser!!.role.name})"
+
+                        if (foundUser!!.role == UserRole.EDITOR && foundUser!!.storeId == UserManager.getCurrentUser()?.storeId) {
+                            btnMakeEditor.isEnabled = false
+                            btnMakeEditor.text = "Zaten Sizin Editörünüz"
+                        } else {
+                            btnMakeEditor.isEnabled = true
+                            btnMakeEditor.text = "Editör Olarak Ata"
+                        }
+                    }
+                } else {
+                    Toast.makeText(context, "Bu e-posta ile kayıtlı kullanıcı bulunamadı.", Toast.LENGTH_LONG).show()
+                }
+            }
+            .addOnFailureListener {
+                Toast.makeText(context, "Arama hatası: ${it.message}", Toast.LENGTH_SHORT).show()
+            }
+    }
+
+    private fun assignEditorRole(targetUser: User) {
+        val manager = UserManager.getCurrentUser() ?: return
+
+        if (manager.storeId == null || manager.storeId == 0) {
+            Toast.makeText(context, "Hata: Sizin mağaza kaydınız yok.", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        AlertDialog.Builder(context)
+            .setTitle("Yetki Onayı")
+            .setMessage("${targetUser.fullName} adlı kullanıcıyı Mağaza ID: ${manager.storeId} için EDİTÖR yapmak istiyor musunuz?")
+            .setPositiveButton("Evet, Ata") { _, _ ->
+
+                // Kullanıcıyı güncelle
+                db.collection("users").document(targetUser.id)
+                    .update(mapOf(
+                        "role" to "EDITOR",
+                        "storeId" to manager.storeId,
+                        "canSendNotifications" to true // Varsayılan olarak bildirim atabilsin
+                    ))
+                    .addOnSuccessListener {
+                        Toast.makeText(context, "Kullanıcı Editör yapıldı!", Toast.LENGTH_LONG).show()
+                        layoutResult.visibility = View.GONE
+                        etStaffEmail.text?.clear()
+                    }
+                    .addOnFailureListener {
+                        Toast.makeText(context, "Hata: ${it.message}", Toast.LENGTH_SHORT).show()
+                    }
+            }
+            .setNegativeButton("İptal", null)
+            .show()
+    }
+
     private fun updatePendingCount() {
-        // Sadece sayıyı almak için sorgu
         db.collection("purchase_requests")
             .whereEqualTo("status", "PENDING")
             .get()
@@ -73,7 +208,16 @@ class ManagementFragment : Fragment() {
             }
     }
 
-    // --- SATIN ALMA ONAY EKRANI ---
+    // --- RAPORLAR (DÜZELTİLDİ: FİLTRELEME ve TAM EKRAN GEÇİŞ) ---
+    private fun showReportsDialog() {
+        // Popup yerine Tam Ekran ReportsFragment'a geçiş
+        parentFragmentManager.beginTransaction()
+            .replace(R.id.fragmentContainer, ReportsFragment())
+            .addToBackStack(null)
+            .commit()
+    }
+
+    // --- DİĞER FONKSİYONLAR ---
     private fun showPendingRequestsDialog() {
         val context = requireContext()
         val layout = LinearLayout(context)
@@ -81,7 +225,7 @@ class ManagementFragment : Fragment() {
         layout.setPadding(32, 32, 32, 32)
 
         val title = TextView(context)
-        title.text = "Yükleniyor..." // Önce yükleniyor yazsın
+        title.text = "Yükleniyor..."
         title.textSize = 18f
         title.setTypeface(null, android.graphics.Typeface.BOLD)
         title.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
@@ -92,48 +236,36 @@ class ManagementFragment : Fragment() {
         recyclerView.layoutManager = LinearLayoutManager(context)
         layout.addView(recyclerView)
 
-        val dialog = AlertDialog.Builder(context)
-            .setView(layout)
-            .setPositiveButton("Kapat", null)
-            .create()
+        val dialog = AlertDialog.Builder(context).setView(layout).setPositiveButton("Kapat", null).create()
 
-        // Verileri Çek (Yeni Hata Yakalamalı Fonksiyon)
         ReviewManager.getPendingRequests(
             onSuccess = { requests ->
                 if (requests.isEmpty()) {
                     title.text = "Bekleyen talep yok"
-                    Toast.makeText(context, "Şu an onay bekleyen talep yok.", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, "Talep yok.", Toast.LENGTH_SHORT).show()
                 } else {
-                    title.text = "Bekleyen Doğrulamalar (${requests.size})"
+                    title.text = "Bekleyen Doğrulamalar"
                     recyclerView.adapter = RequestAdapter(requests) { request, approved ->
-                        // Onayla/Reddet işlemi
                         ReviewManager.processRequest(request, approved) { success ->
                             if (success) {
-                                Toast.makeText(context, if(approved) "Onaylandı" else "Reddedildi", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, "İşlem başarılı", Toast.LENGTH_SHORT).show()
                                 dialog.dismiss()
-                                updatePendingCount() // Ana ekrandaki sayıyı da güncelle
-                            } else {
-                                Toast.makeText(context, "Hata oluştu.", Toast.LENGTH_SHORT).show()
+                                updatePendingCount()
                             }
                         }
                     }
                 }
             },
-            onFailure = { error ->
-                title.text = "Hata Oluştu"
-                Toast.makeText(context, "Veri alınamadı: $error", Toast.LENGTH_LONG).show()
-            }
+            onFailure = { title.text = "Hata" }
         )
-
         dialog.show()
     }
 
-    // --- ADAPTER ---
+    // --- ADAPTER (REQUEST) ---
     inner class RequestAdapter(
         private val items: List<PurchaseRequest>,
         private val onAction: (PurchaseRequest, Boolean) -> Unit
     ) : RecyclerView.Adapter<RequestAdapter.VH>() {
-
         inner class VH(v: View) : RecyclerView.ViewHolder(v) {
             val tvUser: TextView = v.findViewById(R.id.tvReqUserName)
             val tvProduct: TextView = v.findViewById(R.id.tvReqProductName)
@@ -142,24 +274,19 @@ class ManagementFragment : Fragment() {
             val btnApprove: View = v.findViewById(R.id.btnApprove)
             val btnReject: View = v.findViewById(R.id.btnReject)
         }
-
-        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int) =
-            VH(LayoutInflater.from(parent.context).inflate(R.layout.item_purchase_request, parent, false))
-
+        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int) = VH(LayoutInflater.from(parent.context).inflate(R.layout.item_purchase_request, parent, false))
         override fun onBindViewHolder(holder: VH, position: Int) {
             val item = items[position]
             holder.tvUser.text = item.userName
             holder.tvProduct.text = item.productName
             holder.tvOrder.text = item.orderNumber
             holder.tvDate.text = SimpleDateFormat("dd MMM HH:mm", Locale("tr")).format(item.requestDate)
-
             holder.btnApprove.setOnClickListener { onAction(item, true) }
             holder.btnReject.setOnClickListener { onAction(item, false) }
         }
         override fun getItemCount() = items.size
     }
 
-    // --- DİĞER FONKSİYONLAR (Değişmedi) ---
     private fun showAnnouncementDialog() {
         val dialogView = LayoutInflater.from(context).inflate(R.layout.dialog_send_announcement, null)
         val etTitle = dialogView.findViewById<TextInputEditText>(R.id.etAnnounceTitle)
@@ -186,7 +313,6 @@ class ManagementFragment : Fragment() {
             Toast.makeText(context, "Mesaj çok uzun! (Max 200)", Toast.LENGTH_LONG).show()
             return
         }
-
         val user = UserManager.getCurrentUser() ?: return
         val role = UserManager.getUserRole()
 
@@ -196,7 +322,7 @@ class ManagementFragment : Fragment() {
 
         if (role == UserRole.ADMIN || role == UserRole.SRV) {
             type = "store_update"
-            relatedId = "6"
+            relatedId = "6" // Test için Allinset
             senderName = "Allinset (Yönetici)"
         } else if (role == UserRole.MANAGER || role == UserRole.EDITOR) {
             type = "store_update"
@@ -219,62 +345,5 @@ class ManagementFragment : Fragment() {
 
         db.collection("announcements").add(announcement)
             .addOnSuccessListener { Toast.makeText(context, "Duyuru Yayınlandı!", Toast.LENGTH_LONG).show() }
-            .addOnFailureListener { Toast.makeText(context, "Hata: ${it.message}", Toast.LENGTH_LONG).show() }
-    }
-
-    private fun showReportsDialog() {
-        val dialogView = LayoutInflater.from(context).inflate(R.layout.dialog_reports, null)
-        val tvStores = dialogView.findViewById<TextView>(R.id.tvTotalStores)
-        val tvClicks = dialogView.findViewById<TextView>(R.id.tvTotalClicks)
-        val tvTopStore = dialogView.findViewById<TextView>(R.id.tvTopStore)
-        val tvTopProduct = dialogView.findViewById<TextView>(R.id.tvTopProduct)
-        val tvTopFav = dialogView.findViewById<TextView>(R.id.tvTopFavorite)
-
-        val dialog = AlertDialog.Builder(context).setView(dialogView).setPositiveButton("Kapat", null).create()
-        dialog.show()
-
-        db.collection("stores").orderBy("clickCount", Query.Direction.DESCENDING).get().addOnSuccessListener { storeDocs ->
-            val totalStores = storeDocs.size()
-            var totalClick = 0
-            if (!storeDocs.isEmpty) {
-                val bestStore = storeDocs.documents[0]
-                val clicks = bestStore.getLong("clickCount") ?: 0
-                tvTopStore.text = "${bestStore.getString("name")} ($clicks Görüntülenme)"
-            } else {
-                tvTopStore.text = "Veri Yok"
-            }
-            for (doc in storeDocs) totalClick += doc.getLong("clickCount")?.toInt() ?: 0
-            tvStores.text = totalStores.toString()
-            tvClicks.text = totalClick.toString()
-        }
-
-        db.collection("products").orderBy("clickCount", Query.Direction.DESCENDING).limit(1).get().addOnSuccessListener { productDocs ->
-            if (!productDocs.isEmpty) {
-                val p = productDocs.documents[0]
-                val clicks = p.getLong("clickCount") ?: 0
-                tvTopProduct.text = "${p.getString("name")} ($clicks Tık)"
-            } else {
-                tvTopProduct.text = "Henüz veri yok"
-            }
-        }
-
-        db.collection("products").orderBy("favoriteCount", Query.Direction.DESCENDING).limit(1).get().addOnSuccessListener { productDocs ->
-            if (!productDocs.isEmpty) {
-                val p = productDocs.documents[0]
-                val count = p.getLong("favoriteCount") ?: 0
-                tvTopFav.text = "${p.getString("name")} ($count Favori)"
-            } else {
-                tvTopFav.text = "Henüz favori yok"
-            }
-        }
-    }
-
-    private fun showSimpleInfoDialog(title: String, message: String) {
-        AlertDialog.Builder(context).setTitle(title).setMessage(message).setPositiveButton("Tamam", null).show()
-    }
-
-    private fun countUsersAndShow() {
-        db.collection("users").get()
-            .addOnSuccessListener { showSimpleInfoDialog("Kullanıcı İstatistikleri", "Toplam Kayıtlı Kullanıcı: ${it.size()}") }
     }
 }

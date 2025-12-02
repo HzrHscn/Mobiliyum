@@ -44,13 +44,13 @@
                         android:backgroundTint="#F0F0F0"
                         android:orientation="horizontal"
                         android:gravity="center_vertical"
-                        android:paddingHorizontal="12dp"
+                        android:paddingHorizontal="2dp"
                         android:paddingVertical="2dp">
 
                         <ImageView
                             android:id="@+id/imgCategoryIcon"
-                            android:layout_width="18dp"
-                            android:layout_height="18dp"
+                            android:layout_width="100dp"
+                            android:layout_height="100dp"
                             android:src="@android:drawable/ic_menu_sort_by_size"
                             app:tint="#616161"
                             android:layout_marginEnd="2dp"/>
@@ -59,9 +59,9 @@
                             android:id="@+id/tvProductCategory"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Kategori"
+                            android:text=" K \n A \n T \n E \n G \n O \n R \n İ"
                             android:textColor="#616161"
-                            android:textSize="13sp"
+                            android:textSize="11sp"
                             android:textStyle="bold" />
                     </LinearLayout>
 
