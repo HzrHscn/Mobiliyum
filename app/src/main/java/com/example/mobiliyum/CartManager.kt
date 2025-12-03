@@ -9,8 +9,6 @@ object CartManager {
 
     // Sepete Ekle
     fun addToCart(product: Product) {
-        // Aynı ürün tekrar eklenirse adet artırmak yerine şimdilik listeye ekliyoruz.
-        // İsterseniz burada "contains" kontrolü yapabilirsiniz.
         if (!cartItems.any { it.id == product.id }) {
             cartItems.add(product)
         }
@@ -23,7 +21,7 @@ object CartManager {
             val item = iterator.next()
             if (item.id == product.id) {
                 iterator.remove()
-                break // Sadece bir tane sil
+                break
             }
         }
     }
@@ -42,12 +40,10 @@ object CartManager {
         return total
     }
 
-    // EKSİK OLAN FONKSİYON (HATA BURADAYDI)
     fun getCartItemCount(): Int {
         return cartItems.size
     }
 
-    // Sepeti Temizle
     fun clearCart() {
         cartItems.clear()
     }

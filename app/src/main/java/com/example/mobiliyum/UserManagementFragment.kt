@@ -11,10 +11,12 @@ import android.widget.EditText
 import android.widget.Toast
 import androidx.core.widget.addTextChangedListener
 import androidx.fragment.app.Fragment
+import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
-import com.example.mobiliyum.databinding.FragmentUserManagementBinding // ViewBinding
-import com.example.mobiliyum.databinding.ItemReportUserBinding // Adapter için
+import com.example.mobiliyum.databinding.FragmentUserManagementBinding
+import com.example.mobiliyum.databinding.ItemReportUserBinding
 import com.google.firebase.firestore.FirebaseFirestore
 import java.util.Locale
 
@@ -25,10 +27,11 @@ class UserManagementFragment : Fragment() {
 
     private val db = FirebaseFirestore.getInstance()
     private val allUsers = ArrayList<User>()
-    private var adapter: UserManagementAdapter? = null
 
-    // Filtre Durumları
-    private var currentRoleFilter: UserRole? = null // Null = Hepsi
+    // Adapter Tanımlaması
+    private lateinit var adapter: UserManagementAdapter
+
+    private var currentRoleFilter: UserRole? = null
     private var currentSearchText: String = ""
 
     override fun onCreateView(
@@ -44,13 +47,18 @@ class UserManagementFragment : Fragment() {
 
         binding.rvUserList.layoutManager = LinearLayoutManager(context)
 
-        // Arama Dinleyicisi
+        // Adapter Başlatma
+        adapter = UserManagementAdapter(
+            onBanClick = { user -> toggleBan(user) },
+            onRoleClick = { user -> showRoleDialog(user) }
+        )
+        binding.rvUserList.adapter = adapter
+
         binding.etUserSearch.addTextChangedListener {
             currentSearchText = it.toString()
             applyFilters()
         }
 
-        // Rol Filtre Dinleyicisi
         binding.toggleUserRoles.addOnButtonCheckedListener { _, checkedId, isChecked ->
             if (isChecked) {
                 currentRoleFilter = when(checkedId) {
@@ -58,7 +66,7 @@ class UserManagementFragment : Fragment() {
                     R.id.btnRoleManager -> UserRole.MANAGER
                     R.id.btnRoleEditor -> UserRole.EDITOR
                     R.id.btnRoleCustomer -> UserRole.CUSTOMER
-                    else -> null // Tümü
+                    else -> null
                 }
                 applyFilters()
             }
@@ -80,31 +88,22 @@ class UserManagementFragment : Fragment() {
 
     private fun applyFilters() {
         val filtered = allUsers.filter { user ->
-            // 1. Rol Filtresi
             val roleMatch = currentRoleFilter == null || user.role == currentRoleFilter
-
-            // 2. Arama Filtresi (İsim, Mail, Mağaza ID)
             val searchLower = currentSearchText.lowercase(Locale.getDefault())
             val searchMatch = if (currentSearchText.isEmpty()) true else {
                 user.fullName.lowercase().contains(searchLower) ||
                         user.email.lowercase().contains(searchLower) ||
                         (user.storeId?.toString() ?: "").contains(searchLower)
             }
-
             roleMatch && searchMatch
         }
 
         binding.tvUserCount.text = "Listelenen: ${filtered.size} Kullanıcı"
 
-        if (adapter == null) {
-            adapter = UserManagementAdapter(filtered)
-            binding.rvUserList.adapter = adapter
-        } else {
-            adapter!!.updateList(filtered)
-        }
+        // DÜZELTME: Veriyi submitList ile gönder
+        adapter.submitList(ArrayList(filtered))
     }
 
-    // --- ROL ATAMA ---
     private fun showRoleDialog(user: User) {
         val roles = arrayOf("MÜŞTERİ", "EDİTÖR", "MÜDÜR", "SERVİS", "ADMİN")
         val roleEnum = arrayOf(UserRole.CUSTOMER, UserRole.EDITOR, UserRole.MANAGER, UserRole.SRV, UserRole.ADMIN)
@@ -113,8 +112,6 @@ class UserManagementFragment : Fragment() {
             .setTitle("${user.fullName} - Rol Seç")
             .setItems(roles) { _, which ->
                 val newRole = roleEnum[which]
-
-                // Eğer Müdür veya Editör ise Mağaza ID sor
                 if (newRole == UserRole.MANAGER || newRole == UserRole.EDITOR) {
                     showStoreIdDialog(user, newRole)
                 } else {
@@ -149,7 +146,6 @@ class UserManagementFragment : Fragment() {
             "role" to role,
             "storeId" to (storeId ?: 0)
         )
-        // Eğer müşteri/admin oluyorsa storeId'yi sıfırla/sil
         if (role == UserRole.CUSTOMER || role == UserRole.ADMIN) {
             updates["storeId"] = 0
         }
@@ -161,7 +157,6 @@ class UserManagementFragment : Fragment() {
             }
     }
 
-    // --- BANLAMA ---
     private fun toggleBan(user: User) {
         val newState = !user.isBanned
         db.collection("users").document(user.id).update("isBanned", newState)
@@ -177,12 +172,16 @@ class UserManagementFragment : Fragment() {
         _binding = null
     }
 
-    // --- ADAPTER ---
-    inner class UserManagementAdapter(private var items: List<User>) : RecyclerView.Adapter<UserManagementAdapter.VH>() {
+    // --- MODERN ADAPTER (ListAdapter + DiffUtil) ---
+    class UserManagementAdapter(
+        private val onBanClick: (User) -> Unit,
+        private val onRoleClick: (User) -> Unit
+    ) : ListAdapter<User, UserManagementAdapter.VH>(UserDiffCallback()) {
 
-        fun updateList(newList: List<User>) {
-            items = newList
-            notifyDataSetChanged()
+        class UserDiffCallback : DiffUtil.ItemCallback<User>() {
+            override fun areItemsTheSame(oldItem: User, newItem: User) = oldItem.id == newItem.id
+            // İçerik değişmiş mi? (Örn: Rolü veya Ban durumu değişti mi)
+            override fun areContentsTheSame(oldItem: User, newItem: User) = oldItem == newItem
         }
 
         inner class VH(val binding: ItemReportUserBinding) : RecyclerView.ViewHolder(binding.root)
@@ -193,7 +192,8 @@ class UserManagementFragment : Fragment() {
         }
 
         override fun onBindViewHolder(holder: VH, position: Int) {
-            val user = items[position]
+            val user = getItem(position)
+
             holder.binding.tvUserName.text = user.fullName
             holder.binding.tvUserEmail.text = "${user.email} ${if(user.storeId != 0 && user.storeId != null) "(Mağaza: ${user.storeId})" else ""}"
             holder.binding.tvUserRole.text = user.role.name
@@ -205,11 +205,9 @@ class UserManagementFragment : Fragment() {
                 holder.binding.btnBanUser.text = "Banla"
                 holder.binding.btnBanUser.backgroundTintList = ColorStateList.valueOf(Color.RED)
             }
-            holder.binding.btnBanUser.setOnClickListener { toggleBan(user) }
 
-            holder.binding.btnChangeRole.setOnClickListener { showRoleDialog(user) }
+            holder.binding.btnBanUser.setOnClickListener { onBanClick(user) }
+            holder.binding.btnChangeRole.setOnClickListener { onRoleClick(user) }
         }
-
-        override fun getItemCount() = items.size
     }
 }

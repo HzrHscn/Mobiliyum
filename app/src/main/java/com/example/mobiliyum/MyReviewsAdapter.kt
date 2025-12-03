@@ -2,13 +2,25 @@ package com.example.mobiliyum
 
 import android.view.LayoutInflater
 import android.view.ViewGroup
+import androidx.recyclerview.widget.DiffUtil
+import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
-import com.example.mobiliyum.databinding.ItemMyReviewBinding // ViewBinding
+import com.example.mobiliyum.databinding.ItemMyReviewBinding
 import java.text.SimpleDateFormat
 import java.util.Locale
 
-class MyReviewsAdapter(private val reviews: List<Review>) : RecyclerView.Adapter<MyReviewsAdapter.VH>() {
+class MyReviewsAdapter : ListAdapter<Review, MyReviewsAdapter.VH>(ReviewDiffCallback()) {
+
+    class ReviewDiffCallback : DiffUtil.ItemCallback<Review>() {
+        override fun areItemsTheSame(oldItem: Review, newItem: Review): Boolean {
+            return oldItem.id == newItem.id
+        }
+
+        override fun areContentsTheSame(oldItem: Review, newItem: Review): Boolean {
+            return oldItem == newItem
+        }
+    }
 
     inner class VH(val binding: ItemMyReviewBinding) : RecyclerView.ViewHolder(binding.root)
 
@@ -18,9 +30,9 @@ class MyReviewsAdapter(private val reviews: List<Review>) : RecyclerView.Adapter
     }
 
     override fun onBindViewHolder(holder: VH, position: Int) {
-        val review = reviews[position]
+        val review = getItem(position)
 
-        // Ürün adı yoksa (eski veri) "Ürün" yaz
+        // Ürün adı yoksa (eski veri) "Ürün #ID" yaz
         holder.binding.tvReviewProductName.text = if (review.productName.isNotEmpty()) review.productName else "Ürün #${review.productId}"
         holder.binding.tvMyReviewComment.text = review.comment
         holder.binding.rbMyReview.rating = review.rating
@@ -37,6 +49,4 @@ class MyReviewsAdapter(private val reviews: List<Review>) : RecyclerView.Adapter
             holder.binding.imgReviewProduct.setImageResource(android.R.drawable.ic_menu_gallery)
         }
     }
-
-    override fun getItemCount() = reviews.size
 }

@@ -4,13 +4,16 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.fragment.app.Fragment
+import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
-import com.example.mobiliyum.databinding.ItemCartProductBinding // Adapter Binding
+import com.example.mobiliyum.databinding.ItemCartProductBinding // ViewBinding
 import com.google.android.material.button.MaterialButton
 import com.google.firebase.firestore.FirebaseFirestore
 
@@ -19,17 +22,20 @@ class StoreShowcaseFragment : Fragment() {
     private lateinit var recyclerView: RecyclerView
     private lateinit var btnSubmit: MaterialButton
     private val db = FirebaseFirestore.getInstance()
+
+    // Seçili ID'leri tutuyoruz
     private val selectedIds = ArrayList<Int>()
-    private var adapter: ShowcaseSelectionAdapter? = null
+
+    // Modern Adapter
+    private lateinit var adapter: ShowcaseSelectionAdapter
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View? {
-        // Programatik Layout (XML kullanmıyor, bu yüzden Binding yok)
         val context = requireContext()
-        val layout = android.widget.LinearLayout(context).apply {
-            orientation = android.widget.LinearLayout.VERTICAL
+        val layout = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
             background = android.graphics.drawable.ColorDrawable(android.graphics.Color.WHITE)
             layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
         }
@@ -52,7 +58,7 @@ class StoreShowcaseFragment : Fragment() {
         layout.addView(subHeader)
 
         recyclerView = RecyclerView(context).apply {
-            layoutParams = android.widget.LinearLayout.LayoutParams(
+            layoutParams = LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 0,
                 1f
@@ -63,7 +69,7 @@ class StoreShowcaseFragment : Fragment() {
         btnSubmit = MaterialButton(context).apply {
             text = "İşlemi Tamamla"
             setBackgroundColor(android.graphics.Color.parseColor("#FF6F00"))
-            layoutParams = android.widget.LinearLayout.LayoutParams(
+            layoutParams = LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
             ).apply { setMargins(32, 16, 32, 32) }
@@ -78,6 +84,13 @@ class StoreShowcaseFragment : Fragment() {
         }
 
         recyclerView.layoutManager = LinearLayoutManager(context)
+
+        // Adapter Kurulumu
+        adapter = ShowcaseSelectionAdapter { product, isChecked ->
+            toggleSelection(product.id, isChecked)
+        }
+        recyclerView.adapter = adapter
+
         loadMyProducts()
 
         btnSubmit.setOnClickListener {
@@ -98,6 +111,20 @@ class StoreShowcaseFragment : Fragment() {
         return layout
     }
 
+    private fun toggleSelection(id: Int, isChecked: Boolean) {
+        if (isChecked) {
+            if (selectedIds.size >= 2) {
+                Toast.makeText(context, "En fazla 2 ürün seçebilirsiniz.", Toast.LENGTH_SHORT).show()
+                // Adapter'ı yenile ki checkbox geri dönsün (Görsel düzeltme)
+                adapter.notifyDataSetChanged()
+            } else {
+                if (!selectedIds.contains(id)) selectedIds.add(id)
+            }
+        } else {
+            selectedIds.remove(id)
+        }
+    }
+
     private fun loadMyProducts() {
         val user = UserManager.getCurrentUser() ?: return
         val storeId = user.storeId ?: return
@@ -106,11 +133,13 @@ class StoreShowcaseFragment : Fragment() {
                 val currentFeatured = storeDoc.toObject(Store::class.java)?.featuredProductIds ?: emptyList()
                 selectedIds.clear()
                 selectedIds.addAll(currentFeatured)
+
                 db.collection("products").whereEqualTo("storeId", storeId).get()
                     .addOnSuccessListener { docs ->
                         val list = docs.toObjects(Product::class.java)
-                        adapter = ShowcaseSelectionAdapter(list)
-                        recyclerView.adapter = adapter
+                        // Veriyi adapter'a gönder
+                        adapter.setSelections(selectedIds)
+                        adapter.submitList(list)
                     }
             }
     }
@@ -129,8 +158,22 @@ class StoreShowcaseFragment : Fragment() {
             }
     }
 
-    // ADAPTER (ViewBinding ile güncellendi)
-    inner class ShowcaseSelectionAdapter(private val items: List<Product>) : RecyclerView.Adapter<ShowcaseSelectionAdapter.VH>() {
+    // --- MODERN ADAPTER (ListAdapter + DiffUtil) ---
+    class ShowcaseSelectionAdapter(
+        private val onCheckChanged: (Product, Boolean) -> Unit
+    ) : ListAdapter<Product, ShowcaseSelectionAdapter.VH>(DiffCallback()) {
+
+        // Seçili ID'leri adapter içinde de tutuyoruz ki bind ederken işaretleyebilelim
+        private var selectedIds: List<Int> = emptyList()
+
+        fun setSelections(ids: List<Int>) {
+            this.selectedIds = ids
+        }
+
+        class DiffCallback : DiffUtil.ItemCallback<Product>() {
+            override fun areItemsTheSame(oldItem: Product, newItem: Product) = oldItem.id == newItem.id
+            override fun areContentsTheSame(oldItem: Product, newItem: Product) = oldItem == newItem
+        }
 
         inner class VH(val binding: ItemCartProductBinding) : RecyclerView.ViewHolder(binding.root)
 
@@ -140,24 +183,26 @@ class StoreShowcaseFragment : Fragment() {
         }
 
         override fun onBindViewHolder(holder: VH, position: Int) {
-            val item = items[position]
+            val item = getItem(position)
+
             holder.binding.tvProductName.text = item.name
             holder.binding.tvProductPrice.text = PriceUtils.formatPriceStyled(item.price)
-            Glide.with(holder.itemView).load(item.imageUrl).into(holder.binding.imgProduct)
 
-            holder.binding.cbSelectProduct.setOnCheckedChangeListener(null)
+            Glide.with(holder.itemView)
+                .load(item.imageUrl)
+                .into(holder.binding.imgProduct)
+
+            // Checkbox durumunu ayarla
+            holder.binding.cbSelectProduct.setOnCheckedChangeListener(null) // Listener çakışmasını önle
             holder.binding.cbSelectProduct.isChecked = selectedIds.contains(item.id)
 
             holder.binding.cbSelectProduct.setOnCheckedChangeListener { _, isChecked ->
-                if (isChecked) {
-                    if (selectedIds.size >= 2) {
-                        holder.binding.cbSelectProduct.isChecked = false
-                        Toast.makeText(context, "En fazla 2 ürün seçebilirsiniz.", Toast.LENGTH_SHORT).show()
-                    } else { selectedIds.add(item.id) }
-                } else { selectedIds.remove(item.id) }
+                onCheckChanged(item, isChecked)
             }
-            holder.itemView.setOnClickListener { holder.binding.cbSelectProduct.toggle() }
+
+            holder.itemView.setOnClickListener {
+                holder.binding.cbSelectProduct.toggle()
+            }
         }
-        override fun getItemCount() = items.size
     }
 }

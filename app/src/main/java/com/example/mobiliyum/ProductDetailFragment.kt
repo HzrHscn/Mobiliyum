@@ -16,11 +16,13 @@ import android.view.ViewGroup
 import android.view.Window
 import android.widget.*
 import androidx.fragment.app.Fragment
+import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
 import com.example.mobiliyum.databinding.FragmentProductDetailBinding
-import com.example.mobiliyum.databinding.ItemReviewBinding // Adapter için
+import com.example.mobiliyum.databinding.ItemReviewBinding
 import com.google.android.material.textfield.TextInputEditText
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
@@ -35,10 +37,12 @@ class ProductDetailFragment : Fragment() {
     private var isDescriptionExpanded = false
     private var allReviewsList = listOf<Review>()
 
+    // Modern Adapter Tanımlaması
+    private lateinit var reviewAdapter: ReviewAdapter
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         arguments?.let {
-            // ADIM 1: Parcelable Güvenli Alımı (API seviyesine göre)
             currentProduct = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
                 it.getParcelable("product_data", Product::class.java)
             } else {
@@ -64,6 +68,10 @@ class ProductDetailFragment : Fragment() {
         incrementClickCount()
 
         binding.rvReviews.layoutManager = LinearLayoutManager(context)
+
+        // Adapter Başlatma (Boş constructor)
+        reviewAdapter = ReviewAdapter()
+        binding.rvReviews.adapter = reviewAdapter
 
         // Verileri Yerleştir
         binding.tvProductName.text = currentProduct!!.name
@@ -104,14 +112,15 @@ class ProductDetailFragment : Fragment() {
         binding.btnAddReview.setOnClickListener { handleReviewClick() }
 
         binding.btnSeeAllReviews.setOnClickListener {
-            binding.rvReviews.adapter = ReviewAdapter(allReviewsList)
+            // TÜMÜNÜ GÖSTER
+            reviewAdapter.submitList(allReviewsList)
             binding.btnSeeAllReviews.visibility = View.GONE
             binding.btnHideReviews.visibility = View.VISIBLE
             binding.tvBestReviewTitle.visibility = View.GONE
         }
 
         binding.btnHideReviews.setOnClickListener {
-            setupReviews()
+            setupReviews() // ÖZET GÖSTER
             binding.btnHideReviews.visibility = View.GONE
         }
     }
@@ -189,11 +198,14 @@ class ProductDetailFragment : Fragment() {
             } else {
                 binding.tvNoReviews.visibility = View.GONE
                 binding.rvReviews.visibility = View.VISIBLE
+
                 val fiveStarReviews = reviews.filter { it.rating == 5f }
+
                 if (reviews.size > 1) {
                     binding.btnSeeAllReviews.visibility = View.VISIBLE
                     binding.btnSeeAllReviews.text = "Tüm Yorumları Gör (${reviews.size})"
                     binding.btnHideReviews.visibility = View.GONE
+
                     val featuredList = ArrayList<Review>()
                     if (fiveStarReviews.isNotEmpty()) {
                         featuredList.add(fiveStarReviews.random())
@@ -202,12 +214,14 @@ class ProductDetailFragment : Fragment() {
                         featuredList.add(reviews[0])
                         binding.tvBestReviewTitle.visibility = View.GONE
                     }
-                    binding.rvReviews.adapter = ReviewAdapter(featuredList)
+                    // ÖZET GÖSTER
+                    reviewAdapter.submitList(featuredList)
                 } else {
                     binding.btnSeeAllReviews.visibility = View.GONE
                     binding.btnHideReviews.visibility = View.GONE
                     binding.tvBestReviewTitle.visibility = View.GONE
-                    binding.rvReviews.adapter = ReviewAdapter(reviews)
+                    // HEPSİNİ GÖSTER
+                    reviewAdapter.submitList(reviews)
                 }
             }
         }
@@ -250,14 +264,12 @@ class ProductDetailFragment : Fragment() {
                 val comment = etComment.text.toString()
 
                 if (rating > 0) {
-                    // Yükleniyor göstergesi eklenebilir burada (Opsiyonel)
                     ReviewManager.addReview(currentProduct!!, rating, comment) { success ->
                         if (success) {
                             Toast.makeText(context, "Yorumunuz başarıyla yayınlandı!", Toast.LENGTH_SHORT).show()
-                            refreshProductData() // Ekranı yenile
+                            refreshProductData()
                         } else {
-                            // İŞTE EKSİK OLAN KISIM BURASIYDI:
-                            Toast.makeText(context, "Yorum gönderilemedi. Lütfen internetinizi kontrol edin.", Toast.LENGTH_LONG).show()
+                            Toast.makeText(context, "Hata oluştu.", Toast.LENGTH_SHORT).show()
                         }
                     }
                 } else {
@@ -383,7 +395,14 @@ class ProductDetailFragment : Fragment() {
         _binding = null
     }
 
-    inner class ReviewAdapter(private val items: List<Review>) : RecyclerView.Adapter<ReviewAdapter.VH>() {
+    // --- MODERN ADAPTER (ListAdapter + DiffUtil + ViewBinding) ---
+    class ReviewAdapter : ListAdapter<Review, ReviewAdapter.VH>(ReviewDiffCallback()) {
+
+        class ReviewDiffCallback : DiffUtil.ItemCallback<Review>() {
+            override fun areItemsTheSame(oldItem: Review, newItem: Review) = oldItem.id == newItem.id
+            override fun areContentsTheSame(oldItem: Review, newItem: Review) = oldItem == newItem
+        }
+
         inner class VH(val binding: ItemReviewBinding) : RecyclerView.ViewHolder(binding.root)
 
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
@@ -392,12 +411,11 @@ class ProductDetailFragment : Fragment() {
         }
 
         override fun onBindViewHolder(holder: VH, position: Int) {
-            val item = items[position]
+            val item = getItem(position)
             holder.binding.tvReviewerName.text = item.userName
             holder.binding.tvReviewComment.text = item.comment
             holder.binding.rbReview.rating = item.rating
             holder.binding.imgVerified.visibility = if(item.isVerified) View.VISIBLE else View.GONE
         }
-        override fun getItemCount() = items.size
     }
 }

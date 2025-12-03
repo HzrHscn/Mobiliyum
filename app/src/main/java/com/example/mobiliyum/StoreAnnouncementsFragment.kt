@@ -1,15 +1,18 @@
 package com.example.mobiliyum
 
 import android.app.AlertDialog
+import android.graphics.Color
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.fragment.app.Fragment
+import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
-import com.example.mobiliyum.databinding.FragmentStoreAnnouncementsBinding // ViewBinding
-import com.example.mobiliyum.databinding.ItemNotificationBinding // Adapter Binding
+import com.example.mobiliyum.databinding.FragmentStoreAnnouncementsBinding
+import com.example.mobiliyum.databinding.ItemNotificationBinding
 import com.google.firebase.firestore.FirebaseFirestore
 import java.text.SimpleDateFormat
 import java.util.Locale
@@ -21,6 +24,7 @@ class StoreAnnouncementsFragment : Fragment() {
 
     private val db = FirebaseFirestore.getInstance()
     private val allList = ArrayList<NotificationItem>()
+    private lateinit var adapter: AnnouncementAdapter // Adapter referansı
 
     private var storeId: String = ""
     private var storeName: String = ""
@@ -46,6 +50,10 @@ class StoreAnnouncementsFragment : Fragment() {
 
         binding.tvPageTitle.text = "$storeName - Duyurular"
         binding.rvStoreAnnouncements.layoutManager = LinearLayoutManager(context)
+
+        // Adapter Başlatma
+        adapter = AnnouncementAdapter()
+        binding.rvStoreAnnouncements.adapter = adapter
 
         binding.toggleFilter.addOnButtonCheckedListener { _, checkedId, isChecked ->
             if (isChecked) {
@@ -95,7 +103,9 @@ class StoreAnnouncementsFragment : Fragment() {
         }
 
         filteredList.sortByDescending { it.date }
-        binding.rvStoreAnnouncements.adapter = AnnouncementAdapter(filteredList)
+
+        // DÜZELTME: Veriyi submitList ile gönder
+        adapter.submitList(ArrayList(filteredList))
     }
 
     override fun onDestroyView() {
@@ -103,8 +113,13 @@ class StoreAnnouncementsFragment : Fragment() {
         _binding = null
     }
 
-    // ADAPTER
-    inner class AnnouncementAdapter(private val items: List<NotificationItem>) : RecyclerView.Adapter<AnnouncementAdapter.VH>() {
+    // --- MODERN ADAPTER (ListAdapter + DiffUtil) ---
+    class AnnouncementAdapter : ListAdapter<NotificationItem, AnnouncementAdapter.VH>(DiffCallback()) {
+
+        class DiffCallback : DiffUtil.ItemCallback<NotificationItem>() {
+            override fun areItemsTheSame(oldItem: NotificationItem, newItem: NotificationItem) = oldItem.id == newItem.id
+            override fun areContentsTheSame(oldItem: NotificationItem, newItem: NotificationItem) = oldItem == newItem
+        }
 
         inner class VH(val binding: ItemNotificationBinding) : RecyclerView.ViewHolder(binding.root)
 
@@ -114,22 +129,22 @@ class StoreAnnouncementsFragment : Fragment() {
         }
 
         override fun onBindViewHolder(holder: VH, position: Int) {
-            val item = items[position]
+            val item = getItem(position)
+
             holder.binding.tvNotifTitle.text = item.title
             holder.binding.tvNotifMessage.text = item.message
             holder.binding.tvNotifDate.text = SimpleDateFormat("dd MMM yyyy", Locale("tr")).format(item.date)
 
             holder.binding.imgNotifIcon.setImageResource(android.R.drawable.ic_menu_myplaces)
-            holder.binding.imgNotifIcon.setColorFilter(android.graphics.Color.parseColor("#1976D2"))
+            holder.binding.imgNotifIcon.setColorFilter(Color.parseColor("#1976D2"))
 
             holder.itemView.setOnClickListener {
-                AlertDialog.Builder(context)
+                AlertDialog.Builder(holder.itemView.context)
                     .setTitle(item.title)
                     .setMessage(item.message)
                     .setPositiveButton("Kapat", null)
                     .show()
             }
         }
-        override fun getItemCount() = items.size
     }
 }

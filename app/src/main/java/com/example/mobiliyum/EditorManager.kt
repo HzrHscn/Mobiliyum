@@ -24,7 +24,6 @@ object EditorManager {
     }
 
     // 2. EDİTÖR: Vitrin Talebi Gönder
-    // DÜZELTME: List<Int> -> ArrayList<Int> olarak güncellendi.
     fun submitShowcaseRequest(productIds: ArrayList<Int>, onSuccess: () -> Unit) {
         val user = UserManager.getCurrentUser() ?: return
         val ref = db.collection("store_requests").document()
@@ -34,7 +33,7 @@ object EditorManager {
             storeId = user.storeId ?: 0,
             requesterId = user.id,
             requesterName = user.fullName,
-            type = "SHOWCASE_UPDATE", // Tutarlılık için güncellendi
+            type = "SHOWCASE_UPDATE",
             selectedProductIds = productIds
         )
         ref.set(request).addOnSuccessListener { onSuccess() }
@@ -100,11 +99,10 @@ object EditorManager {
                     val notifRef = db.collection("users").document(userId)
                         .collection("notifications").document()
 
-                    // DÜZELTME: HashMap yerine NotificationItem nesnesi kullanıldı (Type-Safety)
                     val item = NotificationItem(
                         id = notifRef.id,
                         title = "📢 Mağaza Duyurusu",
-                        message = title, // Başlık mesaj olarak görünsün
+                        message = title,
                         date = Date(),
                         type = "store_update",
                         relatedId = storeId.toString(),

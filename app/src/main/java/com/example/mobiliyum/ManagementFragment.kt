@@ -7,15 +7,16 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ArrayAdapter
-import android.widget.Button
 import android.widget.ListView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.fragment.app.Fragment
+import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
-import com.example.mobiliyum.databinding.FragmentManagementBinding // ViewBinding
-import com.example.mobiliyum.databinding.ItemPurchaseRequestBinding // Inner Adapter Binding
+import com.example.mobiliyum.databinding.FragmentManagementBinding
+import com.example.mobiliyum.databinding.ItemPurchaseRequestBinding
 import com.google.android.material.textfield.TextInputEditText
 import com.google.firebase.firestore.FirebaseFirestore
 
@@ -286,7 +287,8 @@ class ManagementFragment : Fragment() {
             onSuccess = { requests ->
                 if (requests.isEmpty()) title.text = "Bekleyen müşteri onayı yok"
                 else {
-                    recyclerView.adapter = RequestAdapter(requests) { request, approved ->
+                    // DÜZELTME: ListAdapter kurulumu
+                    val adapter = RequestAdapter { request, approved ->
                         ReviewManager.processRequest(request, approved) { success ->
                             if (success) {
                                 Toast.makeText(context, "İşlem başarılı", Toast.LENGTH_SHORT).show()
@@ -295,6 +297,8 @@ class ManagementFragment : Fragment() {
                             }
                         }
                     }
+                    recyclerView.adapter = adapter
+                    adapter.submitList(requests) // Veriyi gönder
                 }
             },
             onFailure = { title.text = "Hata oluştu" }
@@ -339,7 +343,15 @@ class ManagementFragment : Fragment() {
         _binding = null
     }
 
-    inner class RequestAdapter(private val items: List<PurchaseRequest>, private val onAction: (PurchaseRequest, Boolean) -> Unit) : RecyclerView.Adapter<RequestAdapter.VH>() {
+    // --- MODERN ADAPTER (ListAdapter + DiffUtil) ---
+    class RequestAdapter(
+        private val onAction: (PurchaseRequest, Boolean) -> Unit
+    ) : ListAdapter<PurchaseRequest, RequestAdapter.VH>(RequestDiffCallback()) {
+
+        class RequestDiffCallback : DiffUtil.ItemCallback<PurchaseRequest>() {
+            override fun areItemsTheSame(oldItem: PurchaseRequest, newItem: PurchaseRequest) = oldItem.id == newItem.id
+            override fun areContentsTheSame(oldItem: PurchaseRequest, newItem: PurchaseRequest) = oldItem == newItem
+        }
 
         inner class VH(val binding: ItemPurchaseRequestBinding) : RecyclerView.ViewHolder(binding.root)
 
@@ -349,13 +361,12 @@ class ManagementFragment : Fragment() {
         }
 
         override fun onBindViewHolder(holder: VH, position: Int) {
-            val item = items[position]
+            val item = getItem(position)
             holder.binding.tvReqUserName.text = item.userName
             holder.binding.tvReqProductName.text = item.productName
             holder.binding.tvReqOrderInfo.text = item.orderNumber
             holder.binding.btnApprove.setOnClickListener { onAction(item, true) }
             holder.binding.btnReject.setOnClickListener { onAction(item, false) }
         }
-        override fun getItemCount() = items.size
     }
 }

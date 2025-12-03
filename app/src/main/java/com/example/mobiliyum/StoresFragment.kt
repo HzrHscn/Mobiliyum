@@ -8,7 +8,7 @@ import android.widget.Toast
 import androidx.appcompat.widget.SearchView
 import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.LinearLayoutManager
-import com.example.mobiliyum.databinding.FragmentStoresBinding // OTOMATİK OLUŞAN SINIF
+import com.example.mobiliyum.databinding.FragmentStoresBinding
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
@@ -18,20 +18,19 @@ import java.util.Locale
 
 class StoresFragment : Fragment() {
 
-    // 1. Binding Tanımlamaları (Standart Kalıp)
     private var _binding: FragmentStoresBinding? = null
-    // Bu 'binding' değişkeni, view elemanlarına (buton, textview vs.) erişmemizi sağlar.
     private val binding get() = _binding!!
 
     private lateinit var storeAdapter: StoreAdapter
-    private var storeList = ArrayList<Store>()
+
+    // Tüm listeyi burada tutuyoruz, adapter'a filtreli kopyasını göndereceğiz
+    private var allStores = ArrayList<Store>()
     private val db = FirebaseFirestore.getInstance()
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View {
-        // 2. Layout'u Binding ile şişiriyoruz (inflate)
         _binding = FragmentStoresBinding.inflate(inflater, container, false)
         return binding.root
     }
@@ -39,12 +38,11 @@ class StoresFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        // 3. ARTIK findViewById YOK! Doğrudan 'binding.idAdi' ile erişiyoruz.
-
         binding.rvStores.layoutManager = LinearLayoutManager(context)
         binding.rvStores.setHasFixedSize(true)
 
-        storeAdapter = StoreAdapter(storeList) { selectedStore ->
+        // Adapter Kurulumu (ListAdapter olduğu için liste vermiyoruz)
+        storeAdapter = StoreAdapter { selectedStore ->
             // İstatistik Kaydı
             val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
             val updates = mapOf(
@@ -56,10 +54,6 @@ class StoresFragment : Fragment() {
             // Detay sayfasına geçiş
             val detailFragment = StoreDetailFragment()
             val bundle = Bundle()
-            // ADIM 1'de Parcelable yaptığımız için artık nesneyi doğrudan atabiliriz!
-            // Tek tek id, name, image atmaya gerek yok.
-            // bundle.putParcelable("store_data", selectedStore)
-            // Ancak StoreDetailFragment henüz güncellenmediği için eski usul devam ediyoruz şimdilik:
             bundle.putInt("id", selectedStore.id)
             bundle.putString("name", selectedStore.name)
             bundle.putString("image", selectedStore.imageUrl)
@@ -74,20 +68,34 @@ class StoresFragment : Fragment() {
         }
         binding.rvStores.adapter = storeAdapter
 
-        fetchStoresFromFirestore()
         setupSearchView()
+        fetchStoresFromFirestore()
     }
 
     private fun setupSearchView() {
-        // binding.searchViewStore diyerek XML'deki ID'ye erişiyoruz
         binding.searchViewStore.setOnClickListener { binding.searchViewStore.onActionViewExpanded() }
         binding.searchViewStore.setOnQueryTextListener(object : SearchView.OnQueryTextListener {
             override fun onQueryTextSubmit(query: String?): Boolean = false
             override fun onQueryTextChange(newText: String?): Boolean {
-                storeAdapter.filter(newText ?: "")
+                filterList(newText)
                 return true
             }
         })
+    }
+
+    private fun filterList(query: String?) {
+        val listToSend = if (query.isNullOrEmpty()) {
+            ArrayList(allStores)
+        } else {
+            val searchText = query.lowercase(Locale.getDefault())
+            val filtered = allStores.filter { store ->
+                store.name.lowercase(Locale.getDefault()).contains(searchText) ||
+                        store.category.lowercase(Locale.getDefault()).contains(searchText)
+            }
+            ArrayList(filtered)
+        }
+        // DiffUtil değişimi algılayıp animasyonla güncelleyecek
+        storeAdapter.submitList(listToSend)
     }
 
     private fun fetchStoresFromFirestore() {
@@ -95,23 +103,21 @@ class StoresFragment : Fragment() {
             .orderBy("id", Query.Direction.ASCENDING)
             .get()
             .addOnSuccessListener { documents ->
-                val tempList = ArrayList<Store>()
+                allStores.clear()
                 for (document in documents) {
                     val store = document.toObject(Store::class.java)
-                    tempList.add(store)
+                    allStores.add(store)
                 }
-                storeList = tempList
-                storeAdapter.updateList(storeList)
+                // İlk yüklemede hepsini göster
+                storeAdapter.submitList(ArrayList(allStores))
             }
             .addOnFailureListener { exception ->
-                // Context null olabilir, güvenli erişim
                 context?.let {
                     Toast.makeText(it, "Hata: ${exception.localizedMessage}", Toast.LENGTH_SHORT).show()
                 }
             }
     }
 
-    // 4. Memory Leak (Hafıza Sızıntısı) Önleme
     override fun onDestroyView() {
         super.onDestroyView()
         _binding = null

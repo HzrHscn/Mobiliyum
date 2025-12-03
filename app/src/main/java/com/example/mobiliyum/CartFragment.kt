@@ -10,7 +10,7 @@ import android.view.ViewGroup
 import android.widget.Toast
 import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.LinearLayoutManager
-import com.example.mobiliyum.databinding.FragmentCartBinding // ViewBinding
+import com.example.mobiliyum.databinding.FragmentCartBinding
 
 class CartFragment : Fragment() {
 
@@ -30,7 +30,6 @@ class CartFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        // Buton Dinleyicileri (findViewById yerine binding)
         binding.btnRemoveSelected.setOnClickListener {
             handleRemoveSelected()
         }
@@ -58,13 +57,17 @@ class CartFragment : Fragment() {
             binding.layoutCartContent.visibility = View.VISIBLE
 
             binding.rvCartItems.layoutManager = LinearLayoutManager(context)
-            cartAdapter = CartAdapter(items) { product ->
-                // Tıklama ile detay dialogu açma
+
+            // DÜZELTME: ListAdapter artık listeyi constructor'da (kurucuda) almıyor.
+            cartAdapter = CartAdapter { product ->
                 handleProductClick(product)
             }
             binding.rvCartItems.adapter = cartAdapter
 
-            // Toplam tutarı hesapla ve göster
+            // DÜZELTME: Veriyi submitList ile gönderiyoruz.
+            // DiffUtil'in değişimi algılayabilmesi için yeni bir ArrayList oluşturup veriyoruz.
+            cartAdapter?.submitList(ArrayList(items))
+
             val totalAmount = CartManager.calculateTotalAmount()
             binding.tvCartTotal.text = PriceUtils.formatPriceStyled(totalAmount)
         }
@@ -76,6 +79,7 @@ class CartFragment : Fragment() {
     }
 
     private fun handleRemoveSelected() {
+        // CartAdapter içinde getSelectedProducts fonksiyonunun açık olduğundan emin olun (önceki adımlarda yapmıştık)
         val selectedProducts = cartAdapter?.getSelectedProducts()
 
         if (selectedProducts.isNullOrEmpty()) {

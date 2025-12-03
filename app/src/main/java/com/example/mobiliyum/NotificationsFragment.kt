@@ -9,10 +9,12 @@ import android.view.ViewGroup
 import android.widget.Button
 import android.widget.TextView
 import androidx.fragment.app.Fragment
+import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.example.mobiliyum.databinding.FragmentNotificationsBinding
-import com.example.mobiliyum.databinding.ItemNotificationBinding // Adapter için
+import com.example.mobiliyum.databinding.ItemNotificationBinding
 import com.google.android.material.tabs.TabLayout
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
@@ -26,6 +28,7 @@ class NotificationsFragment : Fragment() {
 
     private val db = FirebaseFirestore.getInstance()
     private val allNotifications = ArrayList<NotificationItem>()
+    private lateinit var adapter: NotifAdapter
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
@@ -39,6 +42,10 @@ class NotificationsFragment : Fragment() {
         super.onViewCreated(view, savedInstanceState)
 
         binding.rvNotifications.layoutManager = LinearLayoutManager(context)
+
+        // Adapter Başlatma
+        adapter = NotifAdapter { item -> handleNotificationClick(item) }
+        binding.rvNotifications.adapter = adapter
 
         binding.tabLayoutNotif.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
             override fun onTabSelected(tab: TabLayout.Tab?) {
@@ -55,14 +62,12 @@ class NotificationsFragment : Fragment() {
         val user = UserManager.getCurrentUser() ?: return
         allNotifications.clear()
 
-        // 1. Kişisel Bildirimler
         db.collection("users").document(user.id).collection("notifications").get()
             .addOnSuccessListener { userDocs ->
                 for (doc in userDocs) {
                     allNotifications.add(doc.toObject(NotificationItem::class.java))
                 }
 
-                // 2. Genel Duyurular
                 db.collection("announcements").orderBy("date", Query.Direction.DESCENDING).get()
                     .addOnSuccessListener { globalDocs ->
                         for (doc in globalDocs) {
@@ -88,7 +93,8 @@ class NotificationsFragment : Fragment() {
             else -> allNotifications.filter { it.type == "general" }
         }.sortedByDescending { it.date }
 
-        binding.rvNotifications.adapter = NotifAdapter(filtered)
+        // DÜZELTME: Veriyi submitList ile gönderiyoruz
+        adapter.submitList(ArrayList(filtered))
     }
 
     private fun handleNotificationClick(item: NotificationItem) {
@@ -99,7 +105,6 @@ class NotificationsFragment : Fragment() {
                     if (product != null) {
                         val fragment = ProductDetailFragment()
                         val bundle = Bundle()
-                        // ADIM 1: Parcelable kullanımı
                         bundle.putParcelable("product_data", product)
                         fragment.arguments = bundle
 
@@ -136,7 +141,6 @@ class NotificationsFragment : Fragment() {
     }
 
     private fun showDetailPopup(item: NotificationItem) {
-        // Dialog layoutları için ViewBinding zorunlu değil ama temizlik için layout inflater kullanıyoruz
         val dialogView = LayoutInflater.from(context).inflate(R.layout.dialog_notification_detail, null)
 
         dialogView.findViewById<TextView>(R.id.tvDialogTitle).text = item.title
@@ -160,8 +164,15 @@ class NotificationsFragment : Fragment() {
         _binding = null
     }
 
-    // ADAPTER (ViewBinding'li)
-    inner class NotifAdapter(private val items: List<NotificationItem>) : RecyclerView.Adapter<NotifAdapter.VH>() {
+    // --- MODERN ADAPTER (ListAdapter + DiffUtil) ---
+    class NotifAdapter(private val onItemClick: (NotificationItem) -> Unit) :
+        ListAdapter<NotificationItem, NotifAdapter.VH>(NotifDiffCallback()) {
+
+        class NotifDiffCallback : DiffUtil.ItemCallback<NotificationItem>() {
+            // ID ve İçerik kontrolü (Tarih değişirse içerik de değişmiş sayılır)
+            override fun areItemsTheSame(oldItem: NotificationItem, newItem: NotificationItem) = oldItem.id == newItem.id
+            override fun areContentsTheSame(oldItem: NotificationItem, newItem: NotificationItem) = oldItem == newItem
+        }
 
         inner class VH(val binding: ItemNotificationBinding) : RecyclerView.ViewHolder(binding.root)
 
@@ -171,7 +182,8 @@ class NotificationsFragment : Fragment() {
         }
 
         override fun onBindViewHolder(holder: VH, position: Int) {
-            val item = items[position]
+            val item = getItem(position)
+
             holder.binding.tvNotifTitle.text = item.title
             holder.binding.tvNotifMessage.text = item.message
             holder.binding.tvNotifDate.text = SimpleDateFormat("dd MMM HH:mm", Locale("tr")).format(item.date)
@@ -191,10 +203,7 @@ class NotificationsFragment : Fragment() {
                 }
             }
 
-            holder.itemView.setOnClickListener {
-                handleNotificationClick(item)
-            }
+            holder.itemView.setOnClickListener { onItemClick(item) }
         }
-        override fun getItemCount() = items.size
     }
 }

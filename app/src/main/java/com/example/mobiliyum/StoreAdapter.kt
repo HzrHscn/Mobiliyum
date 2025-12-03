@@ -1,33 +1,38 @@
 package com.example.mobiliyum
 
-import android.annotation.SuppressLint
 import android.view.LayoutInflater
 import android.view.ViewGroup
+import androidx.recyclerview.widget.DiffUtil
+import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
-import com.example.mobiliyum.databinding.ItemStoreBinding // OTOMATİK OLUŞAN SINIF (item_store.xml'den)
-import java.util.Locale
+import com.example.mobiliyum.databinding.ItemStoreBinding
 
 class StoreAdapter(
-    private var storeList: ArrayList<Store>,
     private val onItemClick: (Store) -> Unit
-) : RecyclerView.Adapter<StoreAdapter.StoreViewHolder>() {
+) : ListAdapter<Store, StoreAdapter.StoreViewHolder>(StoreDiffCallback()) {
 
-    private var filteredList: ArrayList<Store> = ArrayList(storeList)
+    // DiffUtil: Listenin sadece değişen kısımlarını hesaplar
+    class StoreDiffCallback : DiffUtil.ItemCallback<Store>() {
+        override fun areItemsTheSame(oldItem: Store, newItem: Store): Boolean {
+            return oldItem.id == newItem.id // ID Kontrolü
+        }
 
-    // ViewHolder artık View değil, Binding alıyor
+        override fun areContentsTheSame(oldItem: Store, newItem: Store): Boolean {
+            return oldItem == newItem // İçerik Kontrolü (Data Class olduğu için equals çalışır)
+        }
+    }
+
     class StoreViewHolder(val binding: ItemStoreBinding) : RecyclerView.ViewHolder(binding.root)
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): StoreViewHolder {
-        // Binding inflate işlemi
         val binding = ItemStoreBinding.inflate(LayoutInflater.from(parent.context), parent, false)
         return StoreViewHolder(binding)
     }
 
     override fun onBindViewHolder(holder: StoreViewHolder, position: Int) {
-        val currentStore = filteredList[position]
+        val currentStore = getItem(position) // ListAdapter metodu
 
-        // findViewById yok! holder.binding ile doğrudan erişim
         holder.binding.txtStoreName.text = currentStore.name
         holder.binding.txtStoreCategory.text = currentStore.category
         holder.binding.txtStoreLocation.text = currentStore.location
@@ -41,33 +46,5 @@ class StoreAdapter(
         holder.itemView.setOnClickListener {
             onItemClick(currentStore)
         }
-    }
-
-    override fun getItemCount(): Int {
-        return filteredList.size
-    }
-
-    @SuppressLint("NotifyDataSetChanged")
-    fun updateList(newList: ArrayList<Store>) {
-        storeList = ArrayList(newList)
-        filteredList = ArrayList(newList)
-        notifyDataSetChanged()
-    }
-
-    @SuppressLint("NotifyDataSetChanged")
-    fun filter(query: String) {
-        val searchText = query.lowercase(Locale.getDefault())
-        filteredList.clear()
-        if (searchText.isEmpty()) {
-            filteredList.addAll(storeList)
-        } else {
-            for (store in storeList) {
-                if (store.name.lowercase(Locale.getDefault()).contains(searchText) ||
-                    store.category.lowercase(Locale.getDefault()).contains(searchText)) {
-                    filteredList.add(store)
-                }
-            }
-        }
-        notifyDataSetChanged()
     }
 }

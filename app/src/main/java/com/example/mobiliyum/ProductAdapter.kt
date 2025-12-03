@@ -2,16 +2,26 @@ package com.example.mobiliyum
 
 import android.view.LayoutInflater
 import android.view.ViewGroup
+import androidx.recyclerview.widget.DiffUtil
+import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
-import com.example.mobiliyum.databinding.ItemProductBinding // ViewBinding
+import com.example.mobiliyum.databinding.ItemProductBinding
 
 class ProductAdapter(
-    private val productList: List<Product>,
     private val onProductClick: (Product) -> Unit
-) : RecyclerView.Adapter<ProductAdapter.ProductViewHolder>() {
+) : ListAdapter<Product, ProductAdapter.ProductViewHolder>(ProductDiffCallback()) {
 
-    // ViewHolder artık View değil Binding tutuyor
+    class ProductDiffCallback : DiffUtil.ItemCallback<Product>() {
+        override fun areItemsTheSame(oldItem: Product, newItem: Product): Boolean {
+            return oldItem.id == newItem.id
+        }
+
+        override fun areContentsTheSame(oldItem: Product, newItem: Product): Boolean {
+            return oldItem == newItem
+        }
+    }
+
     class ProductViewHolder(val binding: ItemProductBinding) : RecyclerView.ViewHolder(binding.root)
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ProductViewHolder {
@@ -20,12 +30,9 @@ class ProductAdapter(
     }
 
     override fun onBindViewHolder(holder: ProductViewHolder, position: Int) {
-        val product = productList[position]
+        val product = getItem(position)
 
-        // findViewById yok, doğrudan erişim var
         holder.binding.tvProductName.text = product.name
-
-        // Optimizasyon: Merkezi fiyat formatlayıcıyı kullandık
         holder.binding.tvProductPrice.text = PriceUtils.formatPriceStyled(product.price)
 
         Glide.with(holder.itemView.context)
@@ -38,6 +45,4 @@ class ProductAdapter(
             onProductClick(product)
         }
     }
-
-    override fun getItemCount(): Int = productList.size
 }

@@ -13,38 +13,60 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
-import android.widget.ImageView
-import android.widget.TextView
 import android.widget.Toast
 import androidx.fragment.app.Fragment
+import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
-import com.google.android.material.button.MaterialButton
-import com.google.android.material.button.MaterialButtonToggleGroup
-import com.google.android.material.switchmaterial.SwitchMaterial
+import com.example.mobiliyum.databinding.DialogPriceAnalysisBinding // Dialog Binding
+import com.example.mobiliyum.databinding.FragmentStoresBinding // Layout Binding (fragment_stores kullanıldığı için)
+import com.example.mobiliyum.databinding.ItemFavoriteBinding // Adapter Binding
 import com.google.firebase.firestore.FirebaseFirestore
 import java.text.SimpleDateFormat
-import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 import kotlin.math.max
 
 class FavoritesFragment : Fragment() {
 
-    private lateinit var recyclerView: RecyclerView
+    private var _binding: FragmentStoresBinding? = null
+    private val binding get() = _binding!!
+
     private lateinit var adapter: FavoritesAdapter
     private val db = FirebaseFirestore.getInstance()
+    // Listeyi adapter içinde yöneteceğiz, burada sadece geçici tutuyoruz
     private val favoriteUiList = ArrayList<FavoriteUiItem>()
 
-    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
-        val view = inflater.inflate(R.layout.fragment_stores, container, false)
-        view.findViewById<TextView>(R.id.tvTitle)?.text = "Favorilerim & Fiyat Takibi"
-        view.findViewById<View>(R.id.cardSearch)?.visibility = View.GONE
-        recyclerView = view.findViewById(R.id.rvStores)
-        recyclerView.layoutManager = LinearLayoutManager(context)
+    override fun onCreateView(
+        inflater: LayoutInflater, container: ViewGroup?,
+        savedInstanceState: Bundle?
+    ): View {
+        // fragment_stores.xml kullanıldığı için FragmentStoresBinding ile inflate ediyoruz
+        _binding = FragmentStoresBinding.inflate(inflater, container, false)
+        return binding.root
+    }
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+
+        // Başlık ve Arayüz Ayarları
+        binding.tvTitle.text = "Favorilerim & Fiyat Takibi"
+        binding.cardSearch.visibility = View.GONE // Arama çubuğunu gizle
+
+        binding.rvStores.layoutManager = LinearLayoutManager(context)
+
+        // Adapter Kurulumu (DiffUtil)
+        adapter = FavoritesAdapter(
+            onDetailClick = { product -> openDetail(product) },
+            onRemoveClick = { item, _ -> confirmRemoveFavorite(item) },
+            onGraphClick = { product -> showAnalysisDialog(product) },
+            onAlertChange = { id, check -> FavoritesManager.updatePriceAlert(id, check) }
+        )
+        binding.rvStores.adapter = adapter
+
         loadFavorites()
-        return view
     }
 
     private fun loadFavorites() {
@@ -53,14 +75,18 @@ class FavoritesFragment : Fragment() {
             .addOnSuccessListener { favDocs ->
                 if (favDocs.isEmpty) {
                     Toast.makeText(context, "Henüz favoriniz yok.", Toast.LENGTH_SHORT).show()
+                    // Listeyi temizle
+                    adapter.submitList(emptyList())
                     return@addOnSuccessListener
                 }
+
                 val alertMap = HashMap<String, Boolean>()
                 for (doc in favDocs) {
                     val pid = doc.getString("productId")
                     val alert = doc.getBoolean("priceAlert") ?: true
                     if (pid != null) alertMap[pid] = alert
                 }
+
                 val productIds = alertMap.keys.mapNotNull { it.toIntOrNull() }
                 if (productIds.isNotEmpty()) {
                     db.collection("products").whereIn("id", productIds).get()
@@ -71,13 +97,8 @@ class FavoritesFragment : Fragment() {
                                 val isAlertOn = alertMap[product.id.toString()] ?: false
                                 favoriteUiList.add(FavoriteUiItem(product, isAlertOn))
                             }
-                            adapter = FavoritesAdapter(favoriteUiList,
-                                onDetailClick = { openDetail(it) },
-                                onRemoveClick = { item, pos -> confirmRemoveFavorite(item, pos) },
-                                onGraphClick = { showAnalysisDialog(it) },
-                                onAlertChange = { id, check -> FavoritesManager.updatePriceAlert(id, check) }
-                            )
-                            recyclerView.adapter = adapter
+                            // Listeyi Adapter'a gönder (Kopya gönderiyoruz ki DiffUtil çalışsın)
+                            adapter.submitList(ArrayList(favoriteUiList))
                         }
                 }
             }
@@ -86,35 +107,41 @@ class FavoritesFragment : Fragment() {
     private fun openDetail(product: Product) {
         val detailFragment = ProductDetailFragment()
         val bundle = Bundle()
+        // Parcelable olarak gönderiyoruz
         bundle.putParcelable("product_data", product)
         detailFragment.arguments = bundle
-        parentFragmentManager.beginTransaction().replace(R.id.fragmentContainer, detailFragment).addToBackStack(null).commit()
+
+        parentFragmentManager.beginTransaction()
+            .replace(R.id.fragmentContainer, detailFragment)
+            .addToBackStack(null)
+            .commit()
     }
 
-    private fun confirmRemoveFavorite(item: FavoriteUiItem, position: Int) {
+    private fun confirmRemoveFavorite(item: FavoriteUiItem) {
         AlertDialog.Builder(context).setTitle("Favorilerden Çıkar")
             .setMessage("${item.product.name} silinecek.")
             .setPositiveButton("Çıkar") { _, _ ->
                 FavoritesManager.toggleFavorite(item.product) {
-                    favoriteUiList.removeAt(position)
-                    adapter.notifyItemRemoved(position)
-                    adapter.notifyItemRangeChanged(position, favoriteUiList.size)
+                    // Listeden sil ve güncelle
+                    favoriteUiList.remove(item)
+                    adapter.submitList(ArrayList(favoriteUiList))
                 }
             }.setNegativeButton("İptal", null).show()
     }
 
     private fun showAnalysisDialog(product: Product) {
-        val dialogView = LayoutInflater.from(context).inflate(R.layout.dialog_price_analysis, null)
-        val container = dialogView.findViewById<FrameLayout>(R.id.graphContainer)
-        val btnClose = dialogView.findViewById<MaterialButton>(R.id.btnCloseGraph)
-        val toggleGroup = dialogView.findViewById<MaterialButtonToggleGroup>(R.id.toggleGroupPeriod)
+        // Dialog Binding kullanımı
+        val dialogBinding = DialogPriceAnalysisBinding.inflate(LayoutInflater.from(context))
 
-        dialogView.findViewById<TextView>(R.id.tvGraphTitle).text = "${product.name}"
+        dialogBinding.tvGraphTitle.text = "${product.name}"
 
         // YENİ GRAFİK MOTORU
         val graphView = InternalGraphView(requireContext())
-        graphView.layoutParams = FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
-        container.addView(graphView)
+        graphView.layoutParams = FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.MATCH_PARENT
+        )
+        dialogBinding.graphContainer.addView(graphView)
 
         // Veriyi Hazırla
         val historyMap = HashMap<Long, Double>()
@@ -136,31 +163,21 @@ class FavoritesFragment : Fragment() {
 
         fun updateGraph(days: Int) {
             val startTime = now - (days * 24 * 60 * 60 * 1000L)
-
-            // Seçilen aralıktaki verileri al
             val filteredData = historyMap.filterKeys { it >= startTime }.toMutableMap()
 
-            // Eğer aralığın başında veri yoksa, grafiğin düzgün başlaması için
-            // o tarihe en yakın önceki fiyatı veya şimdiki fiyatı başlangıç noktası yap
             if (!filteredData.containsKey(startTime)) {
-                // Bu tarihten önceki en son fiyatı bulmaya çalış, yoksa currentPrice
-                // Basitlik için currentPrice veya listedeki en eski fiyatı alıyoruz
                 val oldestAvailable = historyMap.keys.minOrNull() ?: now
                 val startPrice = historyMap[oldestAvailable] ?: currentPrice
                 filteredData[startTime] = startPrice
             }
-
-            // Bitiş noktası (Bugün) kesin olsun
             filteredData[now] = currentPrice
-
-            // Grafiğe Min/Max zaman aralığını ve veriyi gönder
             graphView.setData(filteredData, startTime, now)
         }
 
         updateGraph(30) // Varsayılan: Aylık
-        toggleGroup.check(R.id.btnMonth)
+        dialogBinding.toggleGroupPeriod.check(R.id.btnMonth)
 
-        toggleGroup.addOnButtonCheckedListener { _, id, isChecked ->
+        dialogBinding.toggleGroupPeriod.addOnButtonCheckedListener { _, id, isChecked ->
             if (isChecked) {
                 when(id) {
                     R.id.btnWeek -> updateGraph(7)
@@ -170,58 +187,80 @@ class FavoritesFragment : Fragment() {
             }
         }
 
-        val alert = AlertDialog.Builder(context).setView(dialogView).create()
-        btnClose.setOnClickListener { alert.dismiss() }
+        val alert = AlertDialog.Builder(context).setView(dialogBinding.root).create()
+        dialogBinding.btnCloseGraph.setOnClickListener { alert.dismiss() }
         alert.show()
+    }
+
+    override fun onDestroyView() {
+        super.onDestroyView()
+        _binding = null
     }
 }
 
 // --- VERİ MODELİ ---
+// Data Class olduğu için DiffUtil içerik kontrolünü otomatik yapar
 data class FavoriteUiItem(val product: Product, var isAlertOn: Boolean)
 
-// --- ADAPTER ---
+// --- ADAPTER (LISTADAPTER & VIEW BINDING) ---
 class FavoritesAdapter(
-    private val items: List<FavoriteUiItem>,
     private val onDetailClick: (Product) -> Unit,
     private val onRemoveClick: (FavoriteUiItem, Int) -> Unit,
     private val onGraphClick: (Product) -> Unit,
     private val onAlertChange: (Int, Boolean) -> Unit
-) : RecyclerView.Adapter<FavoritesAdapter.VH>() {
+) : ListAdapter<FavoriteUiItem, FavoritesAdapter.VH>(FavoriteDiffCallback()) {
 
-    class VH(v: View) : RecyclerView.ViewHolder(v) {
-        val name: TextView = v.findViewById(R.id.tvFavName)
-        val price: TextView = v.findViewById(R.id.tvFavPrice)
-        val img: ImageView = v.findViewById(R.id.imgFavProduct)
-        val btnGraph: View = v.findViewById(R.id.btnShowGraph)
-        val btnRemove: View = v.findViewById(R.id.btnRemoveFav)
-        val switchAlert: SwitchMaterial = v.findViewById(R.id.switchPriceAlert)
-        val infoArea: View = v.findViewById(R.id.infoLayout)
-    }
+    // DiffUtil Callback
+    class FavoriteDiffCallback : DiffUtil.ItemCallback<FavoriteUiItem>() {
+        override fun areItemsTheSame(oldItem: FavoriteUiItem, newItem: FavoriteUiItem): Boolean {
+            return oldItem.product.id == newItem.product.id
+        }
 
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int) =
-        VH(LayoutInflater.from(parent.context).inflate(R.layout.item_favorite, parent, false))
-
-    override fun onBindViewHolder(holder: VH, position: Int) {
-        val item = items[position]
-        holder.name.text = item.product.name
-        holder.price.text = PriceUtils.formatPriceStyled(item.product.price)
-        Glide.with(holder.itemView).load(item.product.imageUrl).into(holder.img)
-        holder.switchAlert.setOnCheckedChangeListener(null)
-        holder.switchAlert.isChecked = item.isAlertOn
-
-        holder.infoArea.setOnClickListener { onDetailClick(item.product) }
-        holder.img.setOnClickListener { onDetailClick(item.product) }
-        holder.btnRemove.setOnClickListener { onRemoveClick(item, position) }
-        holder.btnGraph.setOnClickListener { onGraphClick(item.product) }
-        holder.switchAlert.setOnCheckedChangeListener { _, c ->
-            item.isAlertOn = c
-            onAlertChange(item.product.id, c)
+        override fun areContentsTheSame(oldItem: FavoriteUiItem, newItem: FavoriteUiItem): Boolean {
+            return oldItem == newItem
         }
     }
-    override fun getItemCount() = items.size
+
+    inner class VH(val binding: ItemFavoriteBinding) : RecyclerView.ViewHolder(binding.root)
+
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
+        val binding = ItemFavoriteBinding.inflate(LayoutInflater.from(parent.context), parent, false)
+        return VH(binding)
+    }
+
+    override fun onBindViewHolder(holder: VH, position: Int) {
+        val item = getItem(position)
+
+        holder.binding.tvFavName.text = item.product.name
+        holder.binding.tvFavPrice.text = PriceUtils.formatPriceStyled(item.product.price)
+
+        Glide.with(holder.itemView.context)
+            .load(item.product.imageUrl)
+            .into(holder.binding.imgFavProduct)
+
+        // Switch dinleyicisini geçici kapat
+        holder.binding.switchPriceAlert.setOnCheckedChangeListener(null)
+        holder.binding.switchPriceAlert.isChecked = item.isAlertOn
+
+        // Tıklama Olayları
+        holder.binding.infoLayout.setOnClickListener { onDetailClick(item.product) }
+        holder.binding.imgFavProduct.setOnClickListener { onDetailClick(item.product) }
+
+        holder.binding.btnRemoveFav.setOnClickListener {
+            onRemoveClick(item, holder.adapterPosition)
+        }
+
+        holder.binding.btnShowGraph.setOnClickListener { onGraphClick(item.product) }
+
+        holder.binding.switchPriceAlert.setOnCheckedChangeListener { _, isChecked ->
+            item.isAlertOn = isChecked
+            onAlertChange(item.product.id, isChecked)
+        }
+    }
 }
 
-// --- ZAMAN EKSENLİ GRAFİK MOTORU (HATASIZ) ---
+// --- ZAMAN EKSENLİ GRAFİK MOTORU (CUSTOM VIEW) ---
+// Bu kısım değişmedi, olduğu gibi kalabilir.
 class InternalGraphView @JvmOverloads constructor(c: Context, a: AttributeSet? = null) : View(c, a) {
     private val pLine = Paint().apply { color = Color.parseColor("#4CAF50"); strokeWidth = 5f; style = Paint.Style.STROKE; isAntiAlias = true }
     private val pDot = Paint().apply { color = Color.parseColor("#FF6F00"); style = Paint.Style.FILL; isAntiAlias = true }
@@ -251,17 +290,13 @@ class InternalGraphView @JvmOverloads constructor(c: Context, a: AttributeSet? =
         val w = width - padLeft - padRight
         val h = height - padBottom - padTop
 
-        // Y EKSENİ (FİYAT) HESABI
         val maxP = dataMap.values.maxOrNull() ?: 100.0
         val minP = dataMap.values.minOrNull() ?: 0.0
-        // Grafik üstte ve altta yapışmasın diye %10 pay
         val rangeP = max((maxP - minP) * 1.2, 1.0)
         val baseP = minP - (rangeP * 0.1)
 
-        // X EKSENİ (ZAMAN) HESABI
         val rangeT = max(maxTime - minTime, 1L)
 
-        // 1. Grid Çizgileri ve Tarih Etiketleri (Sabit 5 nokta)
         val sdf = SimpleDateFormat("dd MMM", Locale("tr"))
         val labelCount = 5
         for (i in 0 until labelCount) {
@@ -269,27 +304,21 @@ class InternalGraphView @JvmOverloads constructor(c: Context, a: AttributeSet? =
             val x = padLeft + (fraction * w)
             val time = minTime + (fraction * rangeT).toLong()
 
-            // Dikey Grid
             canvas.drawLine(x, padTop, x, height - padBottom, pGrid)
-            // Tarih
             canvas.drawText(sdf.format(Date(time)), x, height - 10f, pText)
         }
 
-        // 2. Grafiği Çiz (Veri Noktaları)
         val path = Path()
         val sortedPoints = dataMap.toList().sortedBy { it.first }
         var firstPoint = true
 
         for ((t, p) in sortedPoints) {
-            // Zamanın grafikteki X konumu
             val fractionX = (t - minTime).toFloat() / rangeT.toFloat()
             val x = padLeft + (fractionX * w)
 
-            // Fiyatın grafikteki Y konumu
             val fractionY = ((p - baseP) / rangeP).toFloat()
             val y = (height - padBottom) - (fractionY * h)
 
-            // Çizgi
             if (firstPoint) {
                 path.moveTo(x, y)
                 firstPoint = false
@@ -297,10 +326,7 @@ class InternalGraphView @JvmOverloads constructor(c: Context, a: AttributeSet? =
                 path.lineTo(x, y)
             }
 
-            // Nokta
             canvas.drawCircle(x, y, 8f, pDot)
-
-            // Fiyat Etiketi (Sadece değişim noktalarında veya hepsinde)
             canvas.drawText("${p.toInt()}", x, y - 15f, pText)
         }
         canvas.drawPath(path, pLine)

@@ -13,7 +13,9 @@ import android.widget.*
 import androidx.core.view.setPadding
 import androidx.core.widget.addTextChangedListener
 import androidx.fragment.app.Fragment
+import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
 import com.example.mobiliyum.databinding.FragmentReportsMainBinding
@@ -34,7 +36,7 @@ class ReportsFragment : Fragment() {
     private var _binding: FragmentReportsMainBinding? = null
     private val binding get() = _binding!!
 
-    // Dinamik oluşturulan View referansları (Genel Bakış ekranı için)
+    // Dinamik oluşturulan View referansları
     private var layoutGeneralStats: LinearLayout? = null
     private var toggleTimeFilter: MaterialButtonToggleGroup? = null
     private var rvTopProducts: RecyclerView? = null
@@ -42,6 +44,15 @@ class ReportsFragment : Fragment() {
     private var layoutCategoryStats: LinearLayout? = null
     private var tvCategoryStatsTitle: TextView? = null
     private var tvStatSummary: TextView? = null
+
+    // Adapterları burada tanımlayıp tekrar tekrar oluşturmaktan kaçınıyoruz
+    private val storeAdapter = ReportStoreAdapter()
+    private val userAdapter = ReportUserAdapter()
+    // Ürün adapter'ı iki modda çalıştığı için (Normal/Favori), dinamik yönetim gerektiriyor
+    // Ancak filtreleme performansı için instance'ları tutmak iyidir.
+    private val productAdapterNormal = ReportProductAdapter(false)
+    private val productAdapterFav = ReportProductAdapter(true)
+    private val topProductsAdapter = ReportProductAdapter(false) // Vitrin için
 
     private val db = FirebaseFirestore.getInstance()
     private var currentTab = 0
@@ -75,10 +86,11 @@ class ReportsFragment : Fragment() {
         super.onViewCreated(view, savedInstanceState)
 
         // 1. Programatik Arayüzü (Genel İstatistikler) Kur
-        // XML içinde olmayan, kodla eklenen alanı binding.root (LinearLayout) içine ekliyoruz.
         setupGeneralStatsUI(binding.root as LinearLayout)
 
         binding.rvReports.layoutManager = LinearLayoutManager(context)
+        // Varsayılan adapter ataması (Boş)
+        binding.rvReports.adapter = storeAdapter
 
         setupTabs()
 
@@ -86,7 +98,6 @@ class ReportsFragment : Fragment() {
             override fun onTabSelected(tab: TabLayout.Tab?) {
                 currentTab = tab?.position ?: 0
                 updateVisibility()
-                // Arama kutusundaki metne göre veriyi yenile
                 loadData(binding.etSearchReport.text.toString())
             }
             override fun onTabUnselected(tab: TabLayout.Tab?) {}
@@ -100,9 +111,7 @@ class ReportsFragment : Fragment() {
             loadData(it.toString())
         }
 
-        // Filtre verilerini doldur (Kategoriler ve Mağazalar)
         preloadFilterData()
-
         updateVisibility()
         loadData()
     }
@@ -122,11 +131,10 @@ class ReportsFragment : Fragment() {
         }
     }
 
-    // --- PROGRAMATİK UI OLUŞTURMA (ViewBinding ile Entegre) ---
+    // --- PROGRAMATİK UI OLUŞTURMA ---
     private fun setupGeneralStatsUI(rootLayout: LinearLayout) {
         val context = requireContext()
 
-        // Ana Container
         layoutGeneralStats = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
             visibility = View.GONE
@@ -138,7 +146,6 @@ class ReportsFragment : Fragment() {
             )
         }
 
-        // 1. Zaman Filtresi (Toggle Group)
         toggleTimeFilter = MaterialButtonToggleGroup(context, null, com.google.android.material.R.attr.materialButtonToggleGroupStyle).apply {
             isSingleSelection = true
             isSelectionRequired = true
@@ -154,7 +161,7 @@ class ReportsFragment : Fragment() {
                     id = View.generateViewId()
                 }
                 addView(btn)
-                if (index == 3) check(btn.id) // Varsayılan "Tümü"
+                if (index == 3) check(btn.id)
             }
 
             addOnButtonCheckedListener { _, checkedId, isChecked ->
@@ -163,7 +170,6 @@ class ReportsFragment : Fragment() {
         }
         layoutGeneralStats?.addView(toggleTimeFilter)
 
-        // 2. İstatistik Özeti (Metin)
         tvStatSummary = TextView(context).apply {
             id = View.generateViewId()
             text = "Veri Yükleniyor..."
@@ -175,7 +181,6 @@ class ReportsFragment : Fragment() {
         }
         layoutGeneralStats?.addView(tvStatSummary)
 
-        // --- EN ÇOK İLGİ GÖRENLER ---
         addDivider(layoutGeneralStats!!)
         tvTopProductsTitle = TextView(context).apply {
             text = "🏆 En Çok İlgi Gören Ürünler"
@@ -190,10 +195,11 @@ class ReportsFragment : Fragment() {
             layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
             layoutManager = LinearLayoutManager(context)
             isNestedScrollingEnabled = false
+            // ADAPTER ATAMASI (Burada yapıyoruz)
+            adapter = topProductsAdapter
         }
         layoutGeneralStats?.addView(rvTopProducts)
 
-        // --- KATEGORİ BAZLI İLGİ GRAFİĞİ ---
         addDivider(layoutGeneralStats!!)
         tvCategoryStatsTitle = TextView(context).apply {
             text = "📊 Kategori İlgi Dağılımı"
@@ -210,13 +216,6 @@ class ReportsFragment : Fragment() {
         }
         layoutGeneralStats?.addView(layoutCategoryStats)
 
-        // Fragment'ın ana layoutuna (SearchView'ın altına) ekle.
-        // XML'de index 0: SearchBar, index 1: TabLayout, index 2: RecyclerView.
-        // Biz bunu TabLayout ile RecyclerView arasına ekleyebiliriz veya en alta.
-        // Orijinal kodda "rootLayout.addView(..., 2)" denmiş.
-        // Ancak ViewBinding inflate edilen root LinearLayout olduğu için index kontrolü önemli.
-        // SearchBar(0), TabLayout(1), TotalCount(2), RecyclerView(3)
-        // Güvenli olması için TabLayout'un hemen altına ekleyelim.
         val tabIndex = rootLayout.indexOfChild(binding.tabLayoutReports)
         rootLayout.addView(layoutGeneralStats, tabIndex + 1)
     }
@@ -231,16 +230,13 @@ class ReportsFragment : Fragment() {
         layout.addView(divider)
     }
 
-    // --- FİLTRE VE VERİ HAZIRLIĞI ---
     private fun preloadFilterData() {
-        // Kategorileri Çek
         db.collection("products").get().addOnSuccessListener { docs ->
             val cats = docs.toObjects(Product::class.java).map { it.category }.distinct().sorted()
             allCategories.clear()
             allCategories.add("Tümü")
             allCategories.addAll(cats)
         }
-        // Mağazaları Çek
         db.collection("stores").get().addOnSuccessListener { docs ->
             val stores = docs.toObjects(Store::class.java).map { it.name }.sorted()
             allStoreNames.clear()
@@ -250,9 +246,7 @@ class ReportsFragment : Fragment() {
     }
 
     private fun showFilterDialog() {
-        // Dialog layout için ViewBinding kullanmıyoruz, basit inflater yeterli.
         val dialogView = LayoutInflater.from(context).inflate(R.layout.dialog_report_filter, null)
-
         val etMin = dialogView.findViewById<EditText>(R.id.etMinPrice)
         val etMax = dialogView.findViewById<EditText>(R.id.etMaxPrice)
         val spinCat = dialogView.findViewById<Spinner>(R.id.spinnerCategory)
@@ -260,17 +254,13 @@ class ReportsFragment : Fragment() {
 
         val catAdapter = ArrayAdapter(requireContext(), android.R.layout.simple_spinner_dropdown_item, allCategories)
         spinCat.adapter = catAdapter
-
         val storeAdapter = ArrayAdapter(requireContext(), android.R.layout.simple_spinner_dropdown_item, allStoreNames)
         spinStore.adapter = storeAdapter
 
-        // Mevcut değerleri geri yükle
         if(filterMinPrice != null) etMin.setText(filterMinPrice.toString())
         if(filterMaxPrice != null) etMax.setText(filterMaxPrice.toString())
-
         val catIndex = allCategories.indexOf(filterCategory)
         if (catIndex >= 0) spinCat.setSelection(catIndex)
-
         val storeIndex = allStoreNames.indexOf(filterStoreName)
         if (storeIndex >= 0) spinStore.setSelection(storeIndex)
 
@@ -282,7 +272,6 @@ class ReportsFragment : Fragment() {
                 filterMaxPrice = etMax.text.toString().toDoubleOrNull()
                 filterCategory = spinCat.selectedItem?.toString() ?: "Tümü"
                 filterStoreName = spinStore.selectedItem?.toString() ?: "Tümü"
-
                 loadData(binding.etSearchReport.text.toString())
             }
             .setNeutralButton("Temizle") { _, _ ->
@@ -297,12 +286,7 @@ class ReportsFragment : Fragment() {
     }
 
     private fun showSortDialog() {
-        val options = arrayOf(
-            "Etkileşim (Çoktan Aza)",
-            "Etkileşim (Azdan Çoğa)",
-            "Fiyat (Pahalıdan Ucuza)",
-            "Fiyat (Ucuzdan Pahalıya)"
-        )
+        val options = arrayOf("Etkileşim (Çoktan Aza)", "Etkileşim (Azdan Çoğa)", "Fiyat (Pahalıdan Ucuza)", "Fiyat (Ucuzdan Pahalıya)")
         AlertDialog.Builder(requireContext())
             .setTitle("Sıralama")
             .setItems(options) { _, which ->
@@ -313,7 +297,6 @@ class ReportsFragment : Fragment() {
     }
 
     private fun updateVisibility() {
-        // Eğer Manager giriş yaptıysa ve 1. Sekme (Genel Bakış) seçiliyse
         if (targetStoreId != -1 && currentTab == 0) {
             layoutGeneralStats?.visibility = View.VISIBLE
             binding.rvReports.visibility = View.GONE
@@ -321,8 +304,6 @@ class ReportsFragment : Fragment() {
             binding.btnSortReport.visibility = View.GONE
             binding.btnFilterReport.visibility = View.GONE
             binding.tvReportCount.visibility = View.GONE
-
-            // Genel istatistikleri yükle
             toggleTimeFilter?.checkedButtonId?.let { loadGeneralStats(it) }
         } else {
             layoutGeneralStats?.visibility = View.GONE
@@ -334,26 +315,15 @@ class ReportsFragment : Fragment() {
         }
     }
 
-    // --- VERİ YÜKLEME VE ANALİZ ---
-
     private fun loadGeneralStats(checkedId: Int) {
         if (toggleTimeFilter == null) return
-
         val button = toggleTimeFilter!!.findViewById<View>(checkedId)
         val index = toggleTimeFilter!!.indexOfChild(button)
+        val days = when (index) { 0 -> 1; 1 -> 30; 2 -> 180; else -> -1 }
 
-        val days = when (index) {
-            0 -> 1    // 1 Gün
-            1 -> 30   // 1 Ay
-            2 -> 180  // 6 Ay
-            else -> -1 // Tümü
-        }
-
-        // 1. Mağaza Tıklanma Verisi
         db.collection("stores").document(targetStoreId.toString()).get()
             .addOnSuccessListener { doc ->
                 val store = doc.toObject(Store::class.java)
-
                 if (store != null) {
                     var totalClicks = 0
                     if (days == -1) {
@@ -361,13 +331,10 @@ class ReportsFragment : Fragment() {
                     } else {
                         val cutoffTime = System.currentTimeMillis() - (days * 24 * 60 * 60 * 1000L)
                         val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
-
                         store.clickHistory.forEach { (dateStr, count) ->
                             try {
                                 val date = sdf.parse(dateStr)
-                                if (date != null && date.time >= cutoffTime) {
-                                    totalClicks += count
-                                }
+                                if (date != null && date.time >= cutoffTime) totalClicks += count
                             } catch (e: Exception) {}
                         }
                     }
@@ -376,38 +343,31 @@ class ReportsFragment : Fragment() {
                 }
             }
 
-        // 2. Ürünleri Çek ve Analiz Et
         db.collection("products")
             .whereEqualTo("storeId", targetStoreId)
             .get()
             .addOnSuccessListener { docs ->
                 val allProducts = docs.toObjects(Product::class.java)
-
-                // A) En Çok Tıklananları Bul (Top 5)
                 val sortedProducts = allProducts.sortedByDescending { it.clickCount }
                 val topProducts = sortedProducts.take(5).filter { it.clickCount > 0 }
 
                 if (topProducts.isNotEmpty()) {
-                    rvTopProducts?.adapter = ReportProductAdapter(topProducts, false)
+                    // DÜZELTME: submitList ile güncelleme
+                    topProductsAdapter.submitList(topProducts)
                     rvTopProducts?.visibility = View.VISIBLE
                     tvTopProductsTitle?.visibility = View.VISIBLE
                 } else {
                     rvTopProducts?.visibility = View.GONE
                     tvTopProductsTitle?.text = "Bu periyotta ürün etkileşimi yok."
                 }
-
-                // B) Kategori Grafiğini Çiz
                 drawCategoryGraph(allProducts)
             }
     }
 
     private fun drawCategoryGraph(products: List<Product>) {
         layoutCategoryStats?.removeAllViews()
-
-        // Kategorilere göre tıklamaları topla
         val categoryMap = HashMap<String, Int>()
         var grandTotalClicks = 0
-
         for (p in products) {
             val cat = p.category
             val clicks = p.clickCount
@@ -416,7 +376,6 @@ class ReportsFragment : Fragment() {
                 grandTotalClicks += clicks
             }
         }
-
         if (categoryMap.isEmpty()) {
             val emptyTv = TextView(requireContext()).apply {
                 text = "Grafik verisi bulunamadı."
@@ -426,26 +385,14 @@ class ReportsFragment : Fragment() {
             layoutCategoryStats?.addView(emptyTv)
             return
         }
-
-        // Grafiği Çiz (Çoktan aza sırala)
         val sortedCategories = categoryMap.toList().sortedByDescending { (_, value) -> value }
-
         for ((category, count) in sortedCategories) {
             val percentage = if (grandTotalClicks > 0) (count * 100) / grandTotalClicks else 0
-
-            // Kapsayıcı Layout
             val itemLayout = LinearLayout(requireContext()).apply {
                 orientation = LinearLayout.VERTICAL
-                layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
-                    setMargins(0, 0, 0, 24)
-                }
+                layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { setMargins(0, 0, 0, 24) }
             }
-
-            // Metin Satırı (Kategori Adı ve Sayı)
-            val infoLayout = LinearLayout(requireContext()).apply {
-                orientation = LinearLayout.HORIZONTAL
-                weightSum = 1f
-            }
+            val infoLayout = LinearLayout(requireContext()).apply { orientation = LinearLayout.HORIZONTAL; weightSum = 1f }
             val tvName = TextView(requireContext()).apply {
                 text = category
                 layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 0.7f)
@@ -462,18 +409,13 @@ class ReportsFragment : Fragment() {
             infoLayout.addView(tvName)
             infoLayout.addView(tvCount)
             itemLayout.addView(infoLayout)
-
-            // Progress Bar (Grafik Çubuğu)
             val progressBar = ProgressBar(requireContext(), null, android.R.attr.progressBarStyleHorizontal).apply {
-                layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 24).apply {
-                    setMargins(0, 8, 0, 0)
-                }
+                layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 24).apply { setMargins(0, 8, 0, 0) }
                 max = 100
                 progress = percentage
                 progressTintList = ColorStateList.valueOf(getColorForCategory(category))
             }
             itemLayout.addView(progressBar)
-
             layoutCategoryStats?.addView(itemLayout)
         }
     }
@@ -481,30 +423,26 @@ class ReportsFragment : Fragment() {
     private fun getColorForCategory(category: String): Int {
         val lower = category.lowercase(Locale.getDefault())
         return when {
-            lower.contains("yatak") -> Color.parseColor("#7E57C2") // Mor
-            lower.contains("oturma") || lower.contains("koltuk") -> Color.parseColor("#FF7043") // Turuncu
-            lower.contains("yemek") -> Color.parseColor("#66BB6A") // Yeşil
-            lower.contains("ofis") -> Color.parseColor("#42A5F5") // Mavi
-            lower.contains("çocuk") || lower.contains("genç") -> Color.parseColor("#EC407A") // Pembe
+            lower.contains("yatak") -> Color.parseColor("#7E57C2")
+            lower.contains("oturma") || lower.contains("koltuk") -> Color.parseColor("#FF7043")
+            lower.contains("yemek") -> Color.parseColor("#66BB6A")
+            lower.contains("ofis") -> Color.parseColor("#42A5F5")
+            lower.contains("çocuk") || lower.contains("genç") -> Color.parseColor("#EC407A")
             else -> Color.GRAY
         }
     }
 
     private fun loadData(searchQuery: String = "") {
-        // Manager ve Genel Bakış sekmesindeysek listeyi yükleme
         if (targetStoreId != -1 && currentTab == 0) return
-
         binding.tvReportCount.text = "Yükleniyor..."
 
-        if (targetStoreId == -1) {
-            // ADMIN MODU
+        if (targetStoreId == -1) { // ADMIN
             when (currentTab) {
                 0 -> loadStores(searchQuery)
                 1 -> loadProducts(searchQuery, false)
-                2 -> loadUsers(searchQuery) // Admin için Kullanıcılar sekmesi
+                2 -> loadUsers(searchQuery)
             }
-        } else {
-            // MANAGER MODU (0. sekme Genel Bakış, 1. Ürünler, 2. Favorilenme)
+        } else { // MANAGER
             when (currentTab) {
                 1 -> loadProducts(searchQuery, false)
                 2 -> loadProducts(searchQuery, true)
@@ -517,24 +455,21 @@ class ReportsFragment : Fragment() {
             val list = ArrayList<Store>()
             for (doc in docs) {
                 val item = doc.toObject(Store::class.java)
-
-                // Filtreleme
                 val matchSearch = query.isEmpty() || item.name.contains(query, true)
-                // Mağaza için fiyat/kategori filtresi uygulanamaz, o yüzden geçiyoruz
-
                 if (matchSearch) list.add(item)
             }
-
-            // Sıralama (Mağazalar için genelde Tıklanma sayısı kullanılır)
             if (sortMode == 1) list.sortBy { it.clickCount } else list.sortByDescending { it.clickCount }
-
             binding.tvReportCount.text = "Toplam: ${list.size} Mağaza"
-            binding.rvReports.adapter = ReportStoreAdapter(list)
+
+            // Adapter Değişimi ve Veri Yükleme
+            if (binding.rvReports.adapter != storeAdapter) {
+                binding.rvReports.adapter = storeAdapter
+            }
+            storeAdapter.submitList(list)
         }
     }
 
     private fun loadUsers(query: String) {
-        // Admin için kullanıcı listesi (Son aktifliğe göre)
         db.collection("users").get().addOnSuccessListener { docs ->
             val list = ArrayList<User>()
             for (doc in docs) {
@@ -543,7 +478,11 @@ class ReportsFragment : Fragment() {
                 if (matchSearch) list.add(user)
             }
             binding.tvReportCount.text = "Toplam: ${list.size} Kullanıcı"
-            binding.rvReports.adapter = ReportUserAdapter(list)
+
+            if (binding.rvReports.adapter != userAdapter) {
+                binding.rvReports.adapter = userAdapter
+            }
+            userAdapter.submitList(list)
         }
     }
 
@@ -555,48 +494,37 @@ class ReportsFragment : Fragment() {
             val list = ArrayList<Product>()
             for (doc in docs) {
                 val item = doc.toObject(Product::class.java)
-
-                // 1. Arama Filtresi
                 val matchSearch = query.isEmpty() || item.name.contains(query, true)
-
-                // 2. Fiyat Filtresi
-                val price = PriceUtils.parsePrice(item.price) // PriceUtils kullanıyoruz
+                val price = PriceUtils.parsePrice(item.price)
                 val matchMin = filterMinPrice == null || price >= filterMinPrice!!
                 val matchMax = filterMaxPrice == null || price <= filterMaxPrice!!
-
-                // 3. Kategori Filtresi
                 val matchCat = filterCategory == "Tümü" || item.category == filterCategory
 
-                // 4. Mağaza İsmi Filtresi (Admin için)
-                // Not: Ürün objesinde storeName tutulmuyorsa, bu filtreyi yapmak için storeId lookup gerekir.
-                // Basitlik adına client-side bu versiyonda storeName filtresini atlıyoruz veya storeId ile eşleştiriyoruz.
-                // Eğer ürün objesinde mağaza adı yoksa, bu filtre verimsiz olabilir.
-
                 if (matchSearch && matchMin && matchMax && matchCat) {
-                    // Favori modundaysa, sadece favori sayısı > 0 olanları göster
                     if (!isFavoriteMode || item.favoriteCount > 0) {
                         list.add(item)
                     }
                 }
             }
-
-            // Sıralama
             when (sortMode) {
                 0 -> if (isFavoriteMode) list.sortByDescending { it.favoriteCount } else list.sortByDescending { it.clickCount }
                 1 -> if (isFavoriteMode) list.sortBy { it.favoriteCount } else list.sortBy { it.clickCount }
                 2 -> list.sortByDescending { PriceUtils.parsePrice(it.price) }
                 3 -> list.sortBy { PriceUtils.parsePrice(it.price) }
             }
-
             binding.tvReportCount.text = "Listelenen Ürün: ${list.size}"
-            binding.rvReports.adapter = ReportProductAdapter(list, isFavoriteMode)
+
+            val targetAdapter = if (isFavoriteMode) productAdapterFav else productAdapterNormal
+            if (binding.rvReports.adapter != targetAdapter) {
+                binding.rvReports.adapter = targetAdapter
+            }
+            targetAdapter.submitList(list)
         }
     }
 
     override fun onDestroyView() {
         super.onDestroyView()
         _binding = null
-        // Referansları temizle
         layoutGeneralStats = null
         toggleTimeFilter = null
         rvTopProducts = null
@@ -606,9 +534,14 @@ class ReportsFragment : Fragment() {
         tvStatSummary = null
     }
 
-    // --- ADAPTERLAR (ViewBinding ile) ---
+    // --- ADAPTERLAR (ListAdapter + DiffUtil) ---
 
-    inner class ReportStoreAdapter(private val items: List<Store>) : RecyclerView.Adapter<ReportStoreAdapter.VH>() {
+    // 1. ReportStoreAdapter
+    class ReportStoreAdapter : ListAdapter<Store, ReportStoreAdapter.VH>(DiffCallback()) {
+        class DiffCallback : DiffUtil.ItemCallback<Store>() {
+            override fun areItemsTheSame(oldItem: Store, newItem: Store) = oldItem.id == newItem.id
+            override fun areContentsTheSame(oldItem: Store, newItem: Store) = oldItem == newItem
+        }
         inner class VH(val binding: ItemReportStoreBinding) : RecyclerView.ViewHolder(binding.root)
 
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
@@ -616,16 +549,20 @@ class ReportsFragment : Fragment() {
             return VH(binding)
         }
         override fun onBindViewHolder(holder: VH, position: Int) {
-            val item = items[position]
+            val item = getItem(position)
             holder.binding.tvRank.text = "${position + 1}"
             holder.binding.tvStoreName.text = item.name
             holder.binding.tvCategory.text = item.category
             holder.binding.tvClickCount.text = "${item.clickCount} Tık"
         }
-        override fun getItemCount() = items.size
     }
 
-    inner class ReportProductAdapter(private val items: List<Product>, private val isFavMode: Boolean) : RecyclerView.Adapter<ReportProductAdapter.VH>() {
+    // 2. ReportProductAdapter
+    class ReportProductAdapter(private val isFavMode: Boolean) : ListAdapter<Product, ReportProductAdapter.VH>(DiffCallback()) {
+        class DiffCallback : DiffUtil.ItemCallback<Product>() {
+            override fun areItemsTheSame(oldItem: Product, newItem: Product) = oldItem.id == newItem.id
+            override fun areContentsTheSame(oldItem: Product, newItem: Product) = oldItem == newItem
+        }
         inner class VH(val binding: ItemReportProductBinding) : RecyclerView.ViewHolder(binding.root)
 
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
@@ -633,10 +570,9 @@ class ReportsFragment : Fragment() {
             return VH(binding)
         }
         override fun onBindViewHolder(holder: VH, position: Int) {
-            val item = items[position]
+            val item = getItem(position)
             holder.binding.tvProductName.text = item.name
             holder.binding.tvPrice.text = PriceUtils.formatPriceStyled(item.price)
-
             if (isFavMode) {
                 holder.binding.tvStatCount.text = "${item.favoriteCount} ❤️"
                 holder.binding.tvStatLabel.text = "Favorilenme"
@@ -644,16 +580,19 @@ class ReportsFragment : Fragment() {
                 holder.binding.tvStatCount.text = "${item.clickCount} 👆"
                 holder.binding.tvStatLabel.text = "Görüntülenme"
             }
-
             Glide.with(holder.itemView.context)
                 .load(item.imageUrl)
                 .placeholder(android.R.drawable.ic_menu_gallery)
                 .into(holder.binding.imgProduct)
         }
-        override fun getItemCount() = items.size
     }
 
-    inner class ReportUserAdapter(private val items: List<User>) : RecyclerView.Adapter<ReportUserAdapter.VH>() {
+    // 3. ReportUserAdapter
+    class ReportUserAdapter : ListAdapter<User, ReportUserAdapter.VH>(DiffCallback()) {
+        class DiffCallback : DiffUtil.ItemCallback<User>() {
+            override fun areItemsTheSame(oldItem: User, newItem: User) = oldItem.id == newItem.id
+            override fun areContentsTheSame(oldItem: User, newItem: User) = oldItem == newItem
+        }
         inner class VH(val binding: ItemReportUserBinding) : RecyclerView.ViewHolder(binding.root)
 
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
@@ -661,18 +600,12 @@ class ReportsFragment : Fragment() {
             return VH(binding)
         }
         override fun onBindViewHolder(holder: VH, position: Int) {
-            val user = items[position]
+            val user = getItem(position)
             holder.binding.tvUserName.text = user.fullName
             holder.binding.tvUserEmail.text = user.email
             holder.binding.tvUserRole.text = user.role.name
-
-            // Eğer butonlarınız varsa (Banla, Rol Değiştir), click listenerları buraya ekleyin.
-            // Örnek: holder.binding.btnBanUser.setOnClickListener { ... }
-            // Ancak bu bir rapor ekranı olduğu için sadece listeleme yapıyoruz.
-            // Yönetim işlemleri UserManagementFragment'da.
             holder.binding.btnChangeRole.visibility = View.GONE
             holder.binding.btnBanUser.visibility = View.GONE
         }
-        override fun getItemCount() = items.size
     }
 }

@@ -14,7 +14,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
 import com.example.mobiliyum.databinding.FragmentStoreDetailBinding
-import com.example.mobiliyum.databinding.ItemCategoryGroupBinding // Adapter için
+import com.example.mobiliyum.databinding.ItemCategoryGroupBinding
 import com.google.firebase.firestore.FirebaseFirestore
 
 class StoreDetailFragment : Fragment() {
@@ -189,16 +189,22 @@ class StoreDetailFragment : Fragment() {
 
             if (storeChoiceList.isNotEmpty()) {
                 binding.layoutStoreChoice.visibility = View.VISIBLE
-                storeChoiceAdapter = ProductAdapter(storeChoiceList) { product -> openProductDetail(product) }
+
+                // DÜZELTME: ProductAdapter kurulumu
+                storeChoiceAdapter = ProductAdapter { product -> openProductDetail(product) }
                 binding.rvStoreChoice.adapter = storeChoiceAdapter
+                storeChoiceAdapter.submitList(storeChoiceList)
             }
 
             val userChoiceList = products.sortedWith(compareByDescending<Product> { it.favoriteCount }.thenByDescending { it.clickCount }).take(2)
 
             if (userChoiceList.isNotEmpty()) {
                 binding.layoutUserChoice.visibility = View.VISIBLE
-                userChoiceAdapter = ProductAdapter(userChoiceList) { product -> openProductDetail(product) }
+
+                // DÜZELTME: ProductAdapter kurulumu
+                userChoiceAdapter = ProductAdapter { product -> openProductDetail(product) }
                 binding.rvUserChoice.adapter = userChoiceAdapter
+                userChoiceAdapter.submitList(userChoiceList)
             }
         }
     }
@@ -206,7 +212,6 @@ class StoreDetailFragment : Fragment() {
     private fun openProductDetail(product: Product) {
         val detailFragment = ProductDetailFragment()
         val bundle = Bundle()
-        // ADIM 1: Parcelable kullanımı
         bundle.putParcelable("product_data", product)
         detailFragment.arguments = bundle
         parentFragmentManager.beginTransaction().replace(R.id.fragmentContainer, detailFragment).addToBackStack(null).commit()
@@ -230,7 +235,7 @@ class StoreDetailFragment : Fragment() {
     }
 }
 
-// Helper Data Class (Aşağıdaki Adapter tarafından kullanılıyor)
+// Helper Data Class
 data class CategorySection(val categoryName: String, val products: List<Product>, var isExpanded: Boolean = false)
 
 // ADAPTER (ViewBinding'li)
@@ -254,9 +259,12 @@ class CategoryAdapter(
         holder.binding.imgExpandIcon.rotation = if (section.isExpanded) 180f else 0f
 
         holder.binding.rvInnerProducts.layoutManager = GridLayoutManager(context, 2)
-        // Burada kullandığımız ProductAdapter da daha sonra güncellenmeli veya eski haliyle çalışabilir
-        // Şu an parametre olarak ProductAdapter'ı çağırdığı için sorun yok.
-        holder.binding.rvInnerProducts.adapter = ProductAdapter(section.products, onProductClick)
+
+        // DÜZELTME: İçerideki ProductAdapter kurulumu
+        val innerAdapter = ProductAdapter(onProductClick)
+        holder.binding.rvInnerProducts.adapter = innerAdapter
+        innerAdapter.submitList(section.products)
+
         holder.binding.rvInnerProducts.isNestedScrollingEnabled = false
 
         holder.binding.layoutCategoryHeader.setOnClickListener {

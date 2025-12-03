@@ -2,16 +2,27 @@ package com.example.mobiliyum
 
 import android.view.LayoutInflater
 import android.view.ViewGroup
+import androidx.recyclerview.widget.DiffUtil
+import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
-import com.example.mobiliyum.databinding.ItemCartProductBinding // ViewBinding
+import com.example.mobiliyum.databinding.ItemCartProductBinding
 
 class CartAdapter(
-    private val cartItems: List<Product>,
     private val onItemClick: (Product) -> Unit
-) : RecyclerView.Adapter<CartAdapter.CartViewHolder>() {
+) : ListAdapter<Product, CartAdapter.CartViewHolder>(CartDiffCallback()) {
 
     private val selectedItems = mutableSetOf<Product>()
+
+    class CartDiffCallback : DiffUtil.ItemCallback<Product>() {
+        override fun areItemsTheSame(oldItem: Product, newItem: Product): Boolean {
+            return oldItem.id == newItem.id
+        }
+
+        override fun areContentsTheSame(oldItem: Product, newItem: Product): Boolean {
+            return oldItem == newItem
+        }
+    }
 
     class CartViewHolder(val binding: ItemCartProductBinding) : RecyclerView.ViewHolder(binding.root)
 
@@ -21,7 +32,7 @@ class CartAdapter(
     }
 
     override fun onBindViewHolder(holder: CartViewHolder, position: Int) {
-        val product = cartItems[position]
+        val product = getItem(position)
 
         holder.binding.tvProductName.text = product.name
         holder.binding.tvProductPrice.text = PriceUtils.formatPriceStyled(product.price)
@@ -35,10 +46,12 @@ class CartAdapter(
             .load(product.imageUrl)
             .into(holder.binding.imgProduct)
 
-        // Checkbox dinleyicisini geçici olarak durdur (Recycler hatası önlemek için)
+        // Dinleyiciyi geçici olarak kaldır
         holder.binding.cbSelectProduct.setOnCheckedChangeListener(null)
+        // Durumu set et
         holder.binding.cbSelectProduct.isChecked = selectedItems.contains(product)
 
+        // Dinleyiciyi tekrar ekle
         holder.binding.cbSelectProduct.setOnCheckedChangeListener { _, isChecked ->
             if (isChecked) selectedItems.add(product) else selectedItems.remove(product)
         }
@@ -47,8 +60,6 @@ class CartAdapter(
             onItemClick(product)
         }
     }
-
-    override fun getItemCount(): Int = cartItems.size
 
     fun getSelectedProducts(): Set<Product> {
         return selectedItems
