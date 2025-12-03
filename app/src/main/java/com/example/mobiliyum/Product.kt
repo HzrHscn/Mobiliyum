@@ -20,5 +20,7 @@ data class Product(
     // YENİ EKLENEN ALAN:
     val description: String = "",
 
-    val priceHistory: HashMap<String, Double> = hashMapOf()
+    val priceHistory: HashMap<String, Double> = hashMapOf(),
+
+    var quantity: Int = 1
 ) : Parcelable

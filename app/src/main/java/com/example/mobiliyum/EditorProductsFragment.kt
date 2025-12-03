@@ -12,7 +12,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
-import com.example.mobiliyum.databinding.ItemCartProductBinding // Adapter Binding
+import com.example.mobiliyum.databinding.ItemProductSelectionBinding // YENİ BINDING
 import com.google.firebase.firestore.FirebaseFirestore
 
 class EditorProductsFragment : Fragment() {
@@ -55,8 +55,6 @@ class EditorProductsFragment : Fragment() {
         layout.addView(recyclerView)
 
         recyclerView.layoutManager = LinearLayoutManager(context)
-
-        // Adapter Başlatma
         adapter = EditorProductAdapter { product -> openEdit(product) }
         recyclerView.adapter = adapter
 
@@ -74,7 +72,7 @@ class EditorProductsFragment : Fragment() {
             .get()
             .addOnSuccessListener { docs ->
                 val products = docs.toObjects(Product::class.java)
-                adapter.submitList(products) // ListAdapter submitList
+                adapter.submitList(products)
             }
     }
 
@@ -90,7 +88,7 @@ class EditorProductsFragment : Fragment() {
             .commit()
     }
 
-    // --- MODERN ADAPTER (ListAdapter + ViewBinding) ---
+    // Adapter - Güncellendi
     class EditorProductAdapter(private val onItemClick: (Product) -> Unit) :
         ListAdapter<Product, EditorProductAdapter.VH>(DiffCallback()) {
 
@@ -99,29 +97,24 @@ class EditorProductsFragment : Fragment() {
             override fun areContentsTheSame(oldItem: Product, newItem: Product) = oldItem == newItem
         }
 
-        inner class VH(val binding: ItemCartProductBinding) : RecyclerView.ViewHolder(binding.root)
+        // BINDING DEĞİŞTİ: ItemProductSelectionBinding
+        inner class VH(val binding: ItemProductSelectionBinding) : RecyclerView.ViewHolder(binding.root)
 
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
-            val binding = ItemCartProductBinding.inflate(LayoutInflater.from(parent.context), parent, false)
+            val binding = ItemProductSelectionBinding.inflate(LayoutInflater.from(parent.context), parent, false)
             return VH(binding)
         }
 
         override fun onBindViewHolder(holder: VH, position: Int) {
             val item = getItem(position)
-
             holder.binding.tvProductName.text = item.name
             holder.binding.tvProductPrice.text = PriceUtils.formatPriceStyled(item.price)
+            Glide.with(holder.itemView).load(item.imageUrl).into(holder.binding.imgProduct)
 
-            Glide.with(holder.itemView)
-                .load(item.imageUrl)
-                .placeholder(android.R.drawable.ic_menu_gallery)
-                .into(holder.binding.imgProduct)
+            // Checkbox'ı Edit butonuna çevirme
+            holder.binding.cbSelectProduct.buttonDrawable = null // Kutuyu gizle
+            holder.binding.cbSelectProduct.setBackgroundResource(android.R.drawable.ic_menu_edit) // İkon ekle
 
-            // İkonu "Edit" kalemi yap
-            holder.binding.cbSelectProduct.buttonDrawable = null // Checkbox kutusunu gizle
-            holder.binding.cbSelectProduct.setBackgroundResource(android.R.drawable.ic_menu_edit)
-
-            // Checkbox işlevini devre dışı bırakıp sadece tıklama olarak kullanıyoruz
             holder.binding.cbSelectProduct.setOnClickListener { onItemClick(item) }
             holder.itemView.setOnClickListener { onItemClick(item) }
         }

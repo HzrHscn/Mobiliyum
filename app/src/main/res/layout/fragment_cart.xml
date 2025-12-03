@@ -1,86 +1,195 @@
 <?xml version="1.0" encoding="utf-8"?>
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.constraintlayout.widget.ConstraintLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#F5F5F5">
+    android:background="#F9F9F9">
 
-    <LinearLayout
-        android:id="@+id/layoutEmptyCart"
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:id="@+id/headerLayout"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:gravity="center"
-        android:orientation="vertical"
-        android:visibility="gone">
+        android:layout_height="wrap_content"
+        android:background="@android:color/white"
+        android:elevation="4dp"
+        android:padding="2dp"
+        app:layout_constraintTop_toTopOf="parent">
+
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Sepetiniz Boş"
-            android:textSize="20sp"/>
-    </LinearLayout>
+            android:text="Sepetim"
+            android:textColor="#212121"
+            android:textSize="20sp"
+            android:textStyle="bold"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintBottom_toBottomOf="parent"/>
 
-    <RelativeLayout
+        <TextView
+            android:id="@+id/btnClearCart"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Sepeti Temizle"
+            android:textColor="#D32F2F"
+            android:textSize="14sp"
+            android:padding="8dp"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintBottom_toBottomOf="parent"/>
+    </androidx.constraintlayout.widget.ConstraintLayout>
+
+    <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/layoutCartContent"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:visibility="visible">
+        android:layout_height="0dp"
+        android:visibility="gone"
+        app:layout_constraintBottom_toTopOf="@id/footerLayout"
+        app:layout_constraintTop_toBottomOf="@id/headerLayout">
+
+        <TextView
+            android:id="@+id/tvLegalWarning"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="#FFF3E0"
+            android:padding="12dp"
+            android:text="ⓘ Bu uygulama fiyat karşılaştırma amaçlıdır. Satın alma işlemleri ilgili firmanın kendi sitesinden güvenli bir şekilde yapılmalıdır."
+            android:textColor="#E65100"
+            android:textSize="12sp"
+            app:layout_constraintTop_toTopOf="parent"/>
 
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/rvCartItems"
             android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:layout_above="@+id/footerCart"
-            android:padding="8dp"/>
+            android:layout_height="0dp"
+            android:padding="8dp"
+            android:clipToPadding="false"
+            app:layout_constraintTop_toBottomOf="@id/tvLegalWarning"
+            app:layout_constraintBottom_toBottomOf="parent"
+            tools:listitem="@layout/item_cart_product" />
+    </androidx.constraintlayout.widget.ConstraintLayout>
+
+    <androidx.core.widget.NestedScrollView
+        android:id="@+id/layoutEmptyCart"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:visibility="visible"
+        android:fillViewport="true"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/headerLayout">
 
         <LinearLayout
-            android:id="@+id/footerCart"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_alignParentBottom="true"
-            android:background="#FFFFFF"
-            android:elevation="10dp"
-            android:padding="16dp"
-            android:orientation="vertical">
+            android:orientation="vertical"
+            android:gravity="center_horizontal"
+            android:paddingBottom="32dp">
+
+            <ImageView
+                android:id="@+id/imgEmptyCart"
+                android:layout_width="100dp"
+                android:layout_height="100dp"
+                android:src="@drawable/sepetboslogo"
+                android:visibility="visible"
+                android:layout_gravity="center"
+                android:layout_marginTop="0dp"/>
 
             <TextView
-                android:id="@+id/tvCartTotal"
-                android:layout_width="match_parent"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Tahmini Toplam: 0 ₺"
+                android:text="Sepetiniz Henüz Boş"
+                android:textSize="20sp"
+                android:textStyle="bold"
+                android:textColor="#333333"
+                android:layout_marginTop="4dp"/>
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Aradığınız mobilyaları bulmak için\nmağazaları keşfetmeye başlayın."
+                android:gravity="center"
+                android:textSize="14sp"
+                android:textColor="#757575"
+                android:layout_marginTop="4dp"/>
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnExploreStores"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Mağazaları Keşfet"
+                android:layout_marginTop="4dp"
+                android:backgroundTint="#FF6F00"
+                app:cornerRadius="20dp"
+                android:paddingHorizontal="24dp"/>
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="#E0E0E0"
+                android:layout_marginHorizontal="32dp"
+                android:layout_marginTop="2dp"/>
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Sizin İçin Seçtiklerimiz ✨"
                 android:textSize="18sp"
                 android:textStyle="bold"
-                android:textColor="#333"
-                android:gravity="end"
-                android:layout_marginBottom="12dp"/>
+                android:textColor="#333333"
+                android:layout_marginTop="2dp"/>
 
-            <LinearLayout
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/rvSuggestions"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:weightSum="2">
-
-                <Button
-                    android:id="@+id/btnRemoveSelected"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="Seçilileri Sil"
-                    android:layout_marginEnd="8dp"
-                    android:backgroundTint="#D32F2F"
-                    app:icon="@android:drawable/ic_menu_delete"
-                    app:iconGravity="textStart"/>
-
-                <Button
-                    android:id="@+id/btnOpenSelected"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="Seçili Ürünleri Aç"
-                    android:backgroundTint="#FF6F00"
-                    app:icon="@android:drawable/ic_menu_send"
-                    app:iconGravity="textStart"/>
-            </LinearLayout>
+                android:nestedScrollingEnabled="false"
+                android:padding="8dp"
+                android:layout_marginTop="2dp"/>
 
         </LinearLayout>
-    </RelativeLayout>
-</FrameLayout>
+    </androidx.core.widget.NestedScrollView>
+
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:id="@+id/footerLayout"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@android:color/white"
+        android:elevation="16dp"
+        android:padding="16dp"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="parent">
+
+        <TextView
+            android:id="@+id/tvTotalLabel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Toplam Tutar:"
+            android:textColor="#757575"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent" />
+
+        <TextView
+            android:id="@+id/tvCartTotal"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="0.00 ₺"
+            android:textColor="#212121"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/tvTotalLabel" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnStartPurchase"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Listeyi Görüntüle / Satın Al"
+            android:backgroundTint="#4CAF50"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintTop_toTopOf="parent"/>
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
+
+</androidx.constraintlayout.widget.ConstraintLayout>

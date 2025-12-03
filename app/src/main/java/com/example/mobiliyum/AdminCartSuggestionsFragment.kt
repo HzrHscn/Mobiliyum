@@ -17,13 +17,13 @@ import com.example.mobiliyum.databinding.ItemProductSelectionBinding // YENİ BI
 import com.google.android.material.button.MaterialButton
 import com.google.firebase.firestore.FirebaseFirestore
 
-class StoreShowcaseFragment : Fragment() {
+class AdminCartSuggestionsFragment : Fragment() {
 
     private lateinit var recyclerView: RecyclerView
-    private lateinit var btnSubmit: MaterialButton
+    private lateinit var btnSave: MaterialButton
     private val db = FirebaseFirestore.getInstance()
     private val selectedIds = ArrayList<Int>()
-    private lateinit var adapter: ShowcaseSelectionAdapter
+    private lateinit var adapter: SuggestionSelectionAdapter
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
@@ -36,71 +36,69 @@ class StoreShowcaseFragment : Fragment() {
             layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
         }
 
-        val header = TextView(context).apply {
-            text = "Vitrin Yönetimi (Mağazanın Seçimi)"
+        val title = TextView(context).apply {
+            text = "Sepet Önerileri (Admin)"
             textSize = 20f
             typeface = android.graphics.Typeface.DEFAULT_BOLD
             setTextColor(android.graphics.Color.parseColor("#333333"))
-            setPadding(32, 32, 32, 16)
+            setPadding(32, 32, 32, 8)
         }
-        layout.addView(header)
+        layout.addView(title)
 
-        val subHeader = TextView(context).apply {
-            text = "Mağaza sayfanızda 'Mağazanın Seçimi' alanında görünecek 2 ürünü seçiniz."
+        val subTitle = TextView(context).apply {
+            text = "Sepeti boş olan kullanıcılara gösterilecek 4 ürünü seçiniz."
             textSize = 14f
-            setTextColor(android.graphics.Color.parseColor("#757575"))
-            setPadding(32, 0, 32, 32)
+            setTextColor(android.graphics.Color.GRAY)
+            setPadding(32, 0, 32, 24)
         }
-        layout.addView(subHeader)
+        layout.addView(subTitle)
 
         recyclerView = RecyclerView(context).apply {
             layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f)
         }
         layout.addView(recyclerView)
 
-        btnSubmit = MaterialButton(context).apply {
-            text = "İşlemi Tamamla"
+        btnSave = MaterialButton(context).apply {
+            text = "Seçimi Kaydet"
             setBackgroundColor(android.graphics.Color.parseColor("#FF6F00"))
-            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { setMargins(32, 16, 32, 32) }
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                setMargins(32, 16, 32, 32)
+            }
         }
-        layout.addView(btnSubmit)
-
-        val user = UserManager.getCurrentUser()
-        if (user?.role == UserRole.EDITOR) {
-            btnSubmit.text = "Seçimi Onaya Gönder"
-        } else {
-            btnSubmit.text = "Vitrini Güncelle"
-        }
+        layout.addView(btnSave)
 
         recyclerView.layoutManager = LinearLayoutManager(context)
-        adapter = ShowcaseSelectionAdapter { product, isChecked ->
+        adapter = SuggestionSelectionAdapter { product, isChecked ->
             toggleSelection(product.id, isChecked)
         }
         recyclerView.adapter = adapter
 
-        loadMyProducts()
+        loadCurrentSelectionAndProducts()
 
-        btnSubmit.setOnClickListener {
-            if (selectedIds.size != 2) {
-                Toast.makeText(context, "Lütfen tam olarak 2 ürün seçiniz.", Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
-            }
-            if (user?.role == UserRole.EDITOR) {
-                EditorManager.submitShowcaseRequest(selectedIds) {
-                    Toast.makeText(context, "Talep Müdüre iletildi.", Toast.LENGTH_LONG).show()
-                    parentFragmentManager.popBackStack()
-                }
-            } else {
-                updateShowcaseDirectly()
-            }
-        }
+        btnSave.setOnClickListener { saveSelection() }
+
         return layout
+    }
+
+    private fun loadCurrentSelectionAndProducts() {
+        db.collection("app_settings").document("cart_suggestions").get()
+            .addOnSuccessListener { doc ->
+                val savedIds = doc.get("productIds") as? List<Long>
+                selectedIds.clear()
+                savedIds?.forEach { selectedIds.add(it.toInt()) }
+                adapter.setSelectedIds(selectedIds)
+
+                db.collection("products").get().addOnSuccessListener { querySnapshot ->
+                    val products = querySnapshot.toObjects(Product::class.java)
+                    adapter.submitList(products)
+                }
+            }
     }
 
     private fun toggleSelection(id: Int, isChecked: Boolean) {
         if (isChecked) {
-            if (selectedIds.size >= 2) {
-                Toast.makeText(context, "En fazla 2 ürün seçebilirsiniz.", Toast.LENGTH_SHORT).show()
+            if (selectedIds.size >= 4) {
+                Toast.makeText(context, "En fazla 4 ürün seçebilirsiniz.", Toast.LENGTH_SHORT).show()
                 adapter.notifyDataSetChanged()
             } else {
                 if (!selectedIds.contains(id)) selectedIds.add(id)
@@ -110,45 +108,28 @@ class StoreShowcaseFragment : Fragment() {
         }
     }
 
-    private fun loadMyProducts() {
-        val user = UserManager.getCurrentUser() ?: return
-        val storeId = user.storeId ?: return
-        db.collection("stores").document(storeId.toString()).get()
-            .addOnSuccessListener { storeDoc ->
-                val currentFeatured = storeDoc.toObject(Store::class.java)?.featuredProductIds ?: emptyList()
-                selectedIds.clear()
-                selectedIds.addAll(currentFeatured)
-                db.collection("products").whereEqualTo("storeId", storeId).get()
-                    .addOnSuccessListener { docs ->
-                        val list = docs.toObjects(Product::class.java)
-                        adapter.setSelections(selectedIds)
-                        adapter.submitList(list)
-                    }
-            }
-    }
+    private fun saveSelection() {
+        if (selectedIds.size != 4) {
+            Toast.makeText(context, "Lütfen tam olarak 4 ürün seçiniz.", Toast.LENGTH_SHORT).show()
+            return
+        }
 
-    private fun updateShowcaseDirectly() {
-        val user = UserManager.getCurrentUser() ?: return
-        val storeId = user.storeId ?: return
-        db.collection("stores").document(storeId.toString())
-            .update("featuredProductIds", selectedIds)
+        val data = mapOf("productIds" to selectedIds)
+        db.collection("app_settings").document("cart_suggestions")
+            .set(data)
             .addOnSuccessListener {
-                Toast.makeText(context, "Vitrin başarıyla güncellendi!", Toast.LENGTH_LONG).show()
+                Toast.makeText(context, "Sepet önerileri güncellendi!", Toast.LENGTH_LONG).show()
                 parentFragmentManager.popBackStack()
-            }
-            .addOnFailureListener {
-                Toast.makeText(context, "Hata: ${it.message}", Toast.LENGTH_SHORT).show()
             }
     }
 
     // Adapter - Güncellendi
-    class ShowcaseSelectionAdapter(
-        private val onCheckChanged: (Product, Boolean) -> Unit
-    ) : ListAdapter<Product, ShowcaseSelectionAdapter.VH>(DiffCallback()) {
+    class SuggestionSelectionAdapter(private val onCheckChanged: (Product, Boolean) -> Unit) :
+        ListAdapter<Product, SuggestionSelectionAdapter.VH>(DiffCallback()) {
 
         private var selectedIds: List<Int> = emptyList()
 
-        fun setSelections(ids: List<Int>) { this.selectedIds = ids }
+        fun setSelectedIds(ids: List<Int>) { this.selectedIds = ids }
 
         class DiffCallback : DiffUtil.ItemCallback<Product>() {
             override fun areItemsTheSame(oldItem: Product, newItem: Product) = oldItem.id == newItem.id

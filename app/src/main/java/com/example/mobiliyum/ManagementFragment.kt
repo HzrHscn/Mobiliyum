@@ -24,7 +24,6 @@ class ManagementFragment : Fragment() {
 
     private var _binding: FragmentManagementBinding? = null
     private val binding get() = _binding!!
-
     private val db = FirebaseFirestore.getInstance()
     private var foundUser: User? = null
 
@@ -53,7 +52,6 @@ class ManagementFragment : Fragment() {
             updatePendingCount(null)
 
             binding.tvUsersTitle.text = "Kullanıcı Yönetimi"
-
             binding.cardStaffManagement.visibility = View.GONE
             binding.cardEditorRequests.visibility = View.GONE
 
@@ -62,6 +60,16 @@ class ManagementFragment : Fragment() {
             binding.btnUsers.setOnClickListener {
                 parentFragmentManager.beginTransaction()
                     .replace(R.id.fragmentContainer, UserManagementFragment())
+                    .addToBackStack(null)
+                    .commit()
+            }
+
+            binding.cardEditorRequests.visibility = View.VISIBLE
+            binding.tvEditorReqCount.text = "Sepet Önerilerini Düzenle"
+            binding.tvEditorReqCount.setTextColor(Color.parseColor("#FF6F00"))
+            binding.btnEditorRequests.setOnClickListener {
+                parentFragmentManager.beginTransaction()
+                    .replace(R.id.fragmentContainer, AdminCartSuggestionsFragment())
                     .addToBackStack(null)
                     .commit()
             }
