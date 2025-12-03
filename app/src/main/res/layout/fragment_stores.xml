@@ -1,50 +1,77 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#F8F8F8">
+    android:orientation="vertical"
+    android:background="#F5F5F5">
 
-    <TextView
-        android:id="@+id/tvTitle"
+    <!-- Üst Arama ve Filtre Alanı -->
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Mobiliyum Mağazaları"
-        android:textSize="22sp"
-        android:textStyle="bold"
-        android:textColor="#333"
-        android:padding="16dp"
-        android:background="#FFFFFF"
-        app:layout_constraintTop_toTopOf="parent"/>
-
-    <androidx.cardview.widget.CardView
-        android:id="@+id/cardSearch"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginHorizontal="16dp"
-        android:layout_marginTop="8dp"
-        app:cardCornerRadius="8dp"
-        app:cardElevation="2dp"
-        app:cardBackgroundColor="#FFFFFF"
-        app:layout_constraintTop_toBottomOf="@+id/tvTitle">
+        android:background="@android:color/white"
+        android:elevation="4dp"
+        android:orientation="vertical"
+        android:paddingBottom="12dp">
 
         <androidx.appcompat.widget.SearchView
             android:id="@+id/searchViewStore"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            app:queryHint="Mağaza veya kategori ara..."
+            android:layout_margin="12dp"
             app:iconifiedByDefault="false"
-            android:background="@android:color/transparent"/>
-    </androidx.cardview.widget.CardView>
+            app:queryHint="Mağaza veya kategori ara..."
+            android:background="@drawable/bg_quantity_control"/>
+
+        <!-- 3'lü Filtre Grubu -->
+        <com.google.android.material.button.MaterialButtonToggleGroup
+            android:id="@+id/toggleStoreFilter"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginHorizontal="12dp"
+            app:singleSelection="true"
+            app:selectionRequired="true"
+            app:checkedButton="@id/btnFilterPopular">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnFilterPopular"
+                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Popüler"
+                android:textSize="12sp"
+                app:cornerRadius="8dp"/>
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnFilterEtapA"
+                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="A Etap"
+                android:textSize="12sp"
+                app:cornerRadius="8dp"/>
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnFilterEtapB"
+                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="B Etap"
+                android:textSize="12sp"
+                app:cornerRadius="8dp"/>
+
+        </com.google.android.material.button.MaterialButtonToggleGroup>
+    </LinearLayout>
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/rvStores"
         android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:padding="4dp"
-        android:clipToPadding="false"
-        android:layout_marginTop="8dp"
-        app:layout_constraintTop_toBottomOf="@+id/cardSearch"
-        app:layout_constraintBottom_toBottomOf="parent"/>
+        android:layout_height="match_parent"
+        android:padding="8dp"
+        android:clipToPadding="false"/>
 
-</androidx.constraintlayout.widget.ConstraintLayout>
+</LinearLayout>

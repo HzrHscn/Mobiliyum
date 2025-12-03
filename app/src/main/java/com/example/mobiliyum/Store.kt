@@ -13,6 +13,8 @@ data class Store(
     val clickCount: Int = 0,
     // YENİ: Tarih bazlı tıklanma geçmişi (Format: "yyyy-MM-dd" -> Tık Sayısı)
     val clickHistory: HashMap<String, Int> = hashMapOf(),
+    // YENİ ALAN: Etap Bilgisi ("A" veya "B")
+    val etap: String = "",
     // YENİ: Mağazanın Seçimi (Vitrin) için seçilen ürün ID'leri
     val featuredProductIds: List<Int> = listOf()
 ) : Parcelable

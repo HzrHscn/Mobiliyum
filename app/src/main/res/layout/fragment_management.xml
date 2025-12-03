@@ -1,324 +1,531 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    android:id="@+id/mainAdminLayout"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="#F5F5F5"
-    android:orientation="vertical">
+    android:fillViewport="true">
 
-    <!-- Üst Başlık -->
-    <TextView
-        android:id="@+id/tvAdminTitle"
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:background="#1976D2"
-        android:padding="20dp"
-        android:text="Sistem Admin Paneli"
-        android:textColor="@android:color/white"
-        android:textSize="22sp"
-        android:textStyle="bold" />
+        android:orientation="vertical"
+        android:padding="16dp">
 
-    <ScrollView
-        android:layout_width="match_parent"
-        android:layout_height="match_parent">
-
-        <LinearLayout
+        <!-- Başlık Kartı -->
+        <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:padding="16dp">
+            app:cardCornerRadius="12dp"
+            app:cardElevation="2dp"
+            app:cardBackgroundColor="@android:color/white"
+            android:layout_marginBottom="16dp">
 
-            <!-- Hoşgeldiniz -->
-            <TextView
-                android:id="@+id/tvAdminWelcome"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Hoşgeldiniz, Yönetici"
-                android:textColor="#333"
-                android:textSize="18sp"
-                android:textStyle="bold" />
-
-            <TextView
-                android:id="@+id/tvAdminRole"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginBottom="16dp"
-                android:text="Yetki: ADMIN"
-                android:textColor="#757575" />
-
-            <!-- GRID MENÜ -->
-            <GridLayout
-                android:id="@+id/gridLayoutAdmin"
+            <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:columnCount="2"
-                android:rowCount="3">
+                android:orientation="vertical"
+                android:padding="16dp">
 
-                <!-- 1. Duyurular -->
-                <androidx.cardview.widget.CardView
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_rowWeight="1"
-                    android:layout_columnWeight="1"
-                    android:layout_margin="8dp"
-                    app:cardCornerRadius="12dp"
-                    app:cardElevation="4dp">
-
-                    <LinearLayout
-                        android:id="@+id/btnAnnouncements"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:gravity="center"
-                        android:orientation="vertical"
-                        android:padding="24dp">
-
-                        <ImageView
-                            android:layout_width="48dp"
-                            android:layout_height="48dp"
-                            android:src="@android:drawable/ic_dialog_info"
-                            app:tint="#1976D2" />
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="8dp"
-                            android:text="Duyurular"
-                            android:textStyle="bold" />
-                    </LinearLayout>
-                </androidx.cardview.widget.CardView>
-
-                <!-- 2. Onay Bekleyenler / Vitrin Yönetimi -->
-                <androidx.cardview.widget.CardView
-                    android:id="@+id/cardPendingBox"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_rowWeight="1"
-                    android:layout_columnWeight="1"
-                    android:layout_margin="8dp"
-                    app:cardCornerRadius="12dp"
-                    app:cardElevation="4dp">
-
-                    <LinearLayout
-                        android:id="@+id/btnPendingStores"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:gravity="center"
-                        android:orientation="vertical"
-                        android:padding="24dp">
-
-                        <ImageView
-                            android:id="@+id/imgPendingIcon"
-                            android:layout_width="48dp"
-                            android:layout_height="48dp"
-                            android:src="@android:drawable/ic_input_add"
-                            app:tint="#43A047" />
-
-                        <TextView
-                            android:id="@+id/tvPendingTitle"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="8dp"
-                            android:text="Onay Bekleyenler"
-                            android:textStyle="bold" />
-
-                        <TextView
-                            android:id="@+id/tvPendingCount"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="0 Bekleyen"
-                            android:textColor="#757575"
-                            android:textSize="12sp" />
-                    </LinearLayout>
-                </androidx.cardview.widget.CardView>
-
-                <!-- 3. Kullanıcılar / Ürünler / Vitrin -->
-                <androidx.cardview.widget.CardView
-                    android:id="@+id/cardUsersBox"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_rowWeight="1"
-                    android:layout_columnWeight="1"
-                    android:layout_margin="8dp"
-                    app:cardCornerRadius="12dp"
-                    app:cardElevation="4dp">
-
-                    <LinearLayout
-                        android:id="@+id/btnUsers"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:gravity="center"
-                        android:orientation="vertical"
-                        android:padding="24dp">
-
-                        <ImageView
-                            android:id="@+id/imgUsersIcon"
-                            android:layout_width="48dp"
-                            android:layout_height="48dp"
-                            android:src="@android:drawable/ic_menu_myplaces"
-                            app:tint="#FB8C00" />
-
-                        <TextView
-                            android:id="@+id/tvUsersTitle"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="8dp"
-                            android:text="Kullanıcılar"
-                            android:textAlignment="center"
-                            android:textStyle="bold" />
-                    </LinearLayout>
-                </androidx.cardview.widget.CardView>
-
-                <!-- 4. Raporlar / İstatistikler -->
-                <androidx.cardview.widget.CardView
-                    android:id="@+id/cardReportsBox"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_rowWeight="1"
-                    android:layout_columnWeight="1"
-                    android:layout_margin="8dp"
-                    app:cardCornerRadius="12dp"
-                    app:cardElevation="4dp">
-
-                    <LinearLayout
-                        android:id="@+id/btnReports"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:gravity="center"
-                        android:orientation="vertical"
-                        android:padding="24dp">
-
-                        <ImageView
-                            android:layout_width="48dp"
-                            android:layout_height="48dp"
-                            android:src="@android:drawable/ic_menu_sort_by_size"
-                            app:tint="#5E35B1" />
-
-                        <TextView
-                            android:id="@+id/tvReportsTitle"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="8dp"
-                            android:text="Raporlar"
-                            android:textStyle="bold" />
-                    </LinearLayout>
-                </androidx.cardview.widget.CardView>
-
-                <!-- 5. Editör Talepleri (YENİ EKLENEN KISIM) -->
-                <androidx.cardview.widget.CardView
-                    android:id="@+id/cardEditorRequests"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_rowWeight="1"
-                    android:layout_columnWeight="1"
-                    android:layout_margin="8dp"
-                    android:visibility="gone"
-                    app:cardCornerRadius="12dp"
-                    app:cardElevation="4dp">
-
-                    <LinearLayout
-                        android:id="@+id/btnEditorRequests"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:gravity="center"
-                        android:orientation="vertical"
-                        android:padding="24dp">
-
-                        <ImageView
-                            android:layout_width="48dp"
-                            android:layout_height="48dp"
-                            android:src="@android:drawable/ic_dialog_email"
-                            app:tint="#E91E63" />
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="8dp"
-                            android:text="Editör Talepleri"
-                            android:textStyle="bold" />
-
-                        <TextView
-                            android:id="@+id/tvEditorReqCount"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="0 Bekleyen"
-                            android:textColor="#757575"
-                            android:textSize="12sp" />
-                    </LinearLayout>
-                </androidx.cardview.widget.CardView>
-
-            </GridLayout>
-
-            <!-- Personel Yönetimi (Alt Kısım) -->
-            <androidx.cardview.widget.CardView
-                android:id="@+id/cardStaffManagement"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_margin="8dp"
-                android:visibility="gone"
-                app:cardCornerRadius="12dp"
-                app:cardElevation="4dp">
-
-                <LinearLayout
+                <TextView
+                    android:id="@+id/tvAdminTitle"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    android:text="Yönetim Paneli"
+                    android:textSize="22sp"
+                    android:textStyle="bold"
+                    android:textColor="#333333"
+                    android:gravity="center"/>
+
+                <TextView
+                    android:id="@+id/tvAdminWelcome"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Hoşgeldiniz"
+                    android:textSize="14sp"
+                    android:textColor="#757575"
+                    android:gravity="center"
+                    android:layout_marginTop="4dp"/>
+
+                <TextView
+                    android:id="@+id/tvAdminRole"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Yetki: ADMIN"
+                    android:textSize="12sp"
+                    android:textColor="#FFFFFF"
+                    android:background="#607D8B"
+                    android:paddingHorizontal="12dp"
+                    android:paddingVertical="4dp"
+                    android:layout_gravity="center"
+                    android:layout_marginTop="8dp"/>
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- 1. KUTU: ONAY BEKLEYENLER -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/cardPendingBoxManual"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:cardCornerRadius="12dp"
+            android:layout_marginBottom="12dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:padding="16dp"
+                android:gravity="center_vertical">
+
+                <ImageView
+                    android:id="@+id/imgPendingIcon"
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:src="@android:drawable/ic_input_add"
+                    app:tint="#FF9800"/>
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
                     android:orientation="vertical"
-                    android:padding="16dp">
+                    android:paddingStart="16dp">
+
+                    <TextView
+                        android:id="@+id/tvPendingTitle"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Bekleyen İşlemler"
+                        android:textStyle="bold"
+                        android:textSize="16sp"
+                        android:textColor="#333333"/>
+
+                    <TextView
+                        android:id="@+id/tvPendingCount"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="0 Bekleyen"
+                        android:textSize="14sp"
+                        android:textColor="#757575"/>
+                </LinearLayout>
+
+                <Button
+                    android:id="@+id/btnPendingStores"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="İncele"
+                    style="@style/Widget.MaterialComponents.Button.TextButton"/>
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- 2. KUTU: RAPORLAR -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/cardReportsBox"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:cardCornerRadius="12dp"
+            android:layout_marginBottom="12dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:padding="16dp"
+                android:gravity="center_vertical">
+
+                <ImageView
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:src="@android:drawable/ic_menu_sort_by_size"
+                    app:tint="#2196F3"/>
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical"
+                    android:paddingStart="16dp">
+
+                    <TextView
+                        android:id="@+id/tvReportsTitle"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Raporlar ve İstatistikler"
+                        android:textStyle="bold"
+                        android:textSize="16sp"
+                        android:textColor="#333333"/>
 
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Personel Yönetimi (Editör Ata)"
-                        android:textSize="16sp"
-                        android:textStyle="bold" />
-
-                    <com.google.android.material.textfield.TextInputLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="8dp"
-                        android:hint="Kullanıcı E-postası">
-
-                        <com.google.android.material.textfield.TextInputEditText
-                            android:id="@+id/etStaffEmail"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:inputType="textEmailAddress" />
-                    </com.google.android.material.textfield.TextInputLayout>
-
-                    <Button
-                        android:id="@+id/btnSearchUser"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="8dp"
-                        android:text="Kullanıcı Ara" />
-
-                    <!-- Sonuç Alanı -->
-                    <LinearLayout
-                        android:id="@+id/layoutUserResult"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="8dp"
-                        android:orientation="vertical"
-                        android:visibility="gone">
-
-                        <TextView
-                            android:id="@+id/tvResultUserInfo"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="Bulunan Kişi: Ali Veli"
-                            android:textStyle="bold" />
-
-                        <Button
-                            android:id="@+id/btnMakeEditor"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:text="Editör Olarak Ata"
-                            android:backgroundTint="#4CAF50" />
-                    </LinearLayout>
-
+                        android:text="Detaylı analizleri görüntüle"
+                        android:textSize="14sp"
+                        android:textColor="#757575"/>
                 </LinearLayout>
-            </androidx.cardview.widget.CardView>
 
-        </LinearLayout>
-    </ScrollView>
-</LinearLayout>
+                <Button
+                    android:id="@+id/btnReports"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Görüntüle"
+                    style="@style/Widget.MaterialComponents.Button.TextButton"/>
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- 3. KUTU: KULLANICI / VİTRİN / ÜRÜN YÖNETİMİ -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/cardUsersBox"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:cardCornerRadius="12dp"
+            android:layout_marginBottom="12dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:padding="16dp"
+                android:gravity="center_vertical">
+
+                <ImageView
+                    android:id="@+id/imgUsersIcon"
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:src="@android:drawable/ic_menu_myplaces"
+                    app:tint="#673AB7"/>
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical"
+                    android:paddingStart="16dp">
+
+                    <TextView
+                        android:id="@+id/tvUsersTitle"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Kullanıcı Yönetimi"
+                        android:textStyle="bold"
+                        android:textSize="16sp"
+                        android:textColor="#333333"/>
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Kayıtları düzenle"
+                        android:textSize="14sp"
+                        android:textColor="#757575"/>
+                </LinearLayout>
+
+                <Button
+                    android:id="@+id/btnUsers"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Yönet"
+                    style="@style/Widget.MaterialComponents.Button.TextButton"/>
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- 4. KUTU: PERSONEL YÖNETİMİ (Sadece Manager) -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/cardStaffManagement"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:cardCornerRadius="12dp"
+            android:layout_marginBottom="12dp"
+            android:visibility="gone">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <TextView
+                    android:id="@+id/tvStaffTitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Personel Yönetimi"
+                    android:textStyle="bold"
+                    android:textSize="16sp"
+                    android:textColor="#333333"/>
+
+                <TextView
+                    android:id="@+id/tvStaffDesc"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Editör ata veya yetkilerini düzenle"
+                    android:textSize="12sp"
+                    android:textColor="#757575"
+                    android:layout_marginBottom="8dp"/>
+
+                <com.google.android.material.textfield.TextInputLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:hint="Personel E-posta Ara"
+                    style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox">
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/etStaffEmail"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:inputType="textEmailAddress"/>
+                </com.google.android.material.textfield.TextInputLayout>
+
+                <LinearLayout
+                    android:id="@+id/layoutUserResult"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginTop="8dp"
+                    android:visibility="gone">
+                    <TextView
+                        android:id="@+id/tvResultUserInfo"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="Kullanıcı: Ahmet Yılmaz"
+                        android:textSize="14sp"/>
+                    <Button
+                        android:id="@+id/btnMakeEditor"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Editör Yap"
+                        android:enabled="false"/>
+                </LinearLayout>
+
+                <Button
+                    android:id="@+id/btnSearchUser"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Ara"
+                    android:layout_marginTop="4dp"/>
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- 5. KUTU: EDİTÖR İSTEKLERİ (Sadece Manager) -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/cardEditorRequests"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:cardCornerRadius="12dp"
+            android:layout_marginBottom="12dp"
+            android:visibility="gone">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:padding="16dp"
+                android:gravity="center_vertical">
+
+                <ImageView
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:src="@android:drawable/ic_dialog_email"
+                    app:tint="#FF5722"/>
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical"
+                    android:paddingStart="16dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Editör İstekleri"
+                        android:textStyle="bold"
+                        android:textSize="16sp"
+                        android:textColor="#333333"/>
+
+                    <TextView
+                        android:id="@+id/tvEditorReqCount"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Bekleyen istek yok"
+                        android:textSize="14sp"
+                        android:textColor="#757575"/>
+                </LinearLayout>
+
+                <Button
+                    android:id="@+id/btnEditorRequests"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="İncele"
+                    style="@style/Widget.MaterialComponents.Button.TextButton"/>
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- 6. YENİ KUTU: MAĞAZA YÖNETİMİ (Sadece Admin İçin) -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/cardStoreManagement"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:cardCornerRadius="12dp"
+            android:layout_marginBottom="12dp"
+            android:visibility="gone">
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:padding="16dp"
+                android:gravity="center_vertical">
+                <ImageView
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:src="@android:drawable/ic_menu_edit"
+                    app:tint="#4CAF50"/>
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical"
+                    android:paddingStart="16dp">
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Mağaza Yönetimi"
+                        android:textStyle="bold"
+                        android:textSize="16sp"
+                        android:textColor="#333333"/>
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Mağaza bilgilerini güncelle"
+                        android:textSize="14sp"
+                        android:textColor="#757575"/>
+                </LinearLayout>
+                <Button
+                    android:id="@+id/btnStoreManagement"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Düzenle"
+                    style="@style/Widget.MaterialComponents.Button.TextButton"/>
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- 7. YENİ KUTU: SEPET ÖNERİLERİ (Sadece Admin) -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/cardCartSuggestions"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:cardCornerRadius="12dp"
+            android:layout_marginBottom="12dp"
+            android:visibility="gone">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:padding="16dp"
+                android:gravity="center_vertical">
+
+                <ImageView
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:src="@android:drawable/ic_input_get"
+                    app:tint="#009688"/>
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical"
+                    android:paddingStart="16dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Sepet Önerileri"
+                        android:textStyle="bold"
+                        android:textSize="16sp"
+                        android:textColor="#333333"/>
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Boş sepette görünecek ürünleri seç"
+                        android:textSize="14sp"
+                        android:textColor="#757575"/>
+                </LinearLayout>
+
+                <Button
+                    android:id="@+id/btnCartSuggestions"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Düzenle"
+                    style="@style/Widget.MaterialComponents.Button.TextButton"/>
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- 8. YENİ KUTU: MAĞAZA SIRALAMASI (Sadece Admin) -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/cardStoreSorting"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:cardCornerRadius="12dp"
+            android:layout_marginBottom="12dp"
+            android:visibility="gone">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:padding="16dp"
+                android:gravity="center_vertical">
+
+                <ImageView
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:src="@android:drawable/ic_menu_sort_by_size"
+                    app:tint="#E91E63"/>
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical"
+                    android:paddingStart="16dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Mağaza Sıralaması"
+                        android:textStyle="bold"
+                        android:textSize="16sp"
+                        android:textColor="#333333"/>
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Popüler listesini düzenle"
+                        android:textSize="14sp"
+                        android:textColor="#757575"/>
+                </LinearLayout>
+
+                <Button
+                    android:id="@+id/btnStoreSorting"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Sırala"
+                    style="@style/Widget.MaterialComponents.Button.TextButton"/>
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- GENEL BUTON: DUYURU -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnAnnouncements"
+            android:layout_width="match_parent"
+            android:layout_height="60dp"
+            android:text="📢  Genel Duyuru Gönder"
+            app:cornerRadius="12dp"
+            android:textSize="16sp"
+            android:backgroundTint="#607D8B"
+            android:layout_marginTop="16dp"/>
+
+    </LinearLayout>
+</androidx.core.widget.NestedScrollView>

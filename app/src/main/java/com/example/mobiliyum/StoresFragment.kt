@@ -22,10 +22,11 @@ class StoresFragment : Fragment() {
     private val binding get() = _binding!!
 
     private lateinit var storeAdapter: StoreAdapter
-
-    // Tüm listeyi burada tutuyoruz, adapter'a filtreli kopyasını göndereceğiz
     private var allStores = ArrayList<Store>()
     private val db = FirebaseFirestore.getInstance()
+
+    // Adminin belirlediği sıralama listesi (ID'ler)
+    private var customSortOrder = ArrayList<Long>()
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
@@ -41,35 +42,83 @@ class StoresFragment : Fragment() {
         binding.rvStores.layoutManager = LinearLayoutManager(context)
         binding.rvStores.setHasFixedSize(true)
 
-        // Adapter Kurulumu (ListAdapter olduğu için liste vermiyoruz)
         storeAdapter = StoreAdapter { selectedStore ->
-            // İstatistik Kaydı
-            val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
-            val updates = mapOf(
-                "clickCount" to FieldValue.increment(1),
-                "clickHistory.$today" to FieldValue.increment(1)
-            )
-            db.collection("stores").document(selectedStore.id.toString()).update(updates)
-
-            // Detay sayfasına geçiş
-            val detailFragment = StoreDetailFragment()
-            val bundle = Bundle()
-            bundle.putInt("id", selectedStore.id)
-            bundle.putString("name", selectedStore.name)
-            bundle.putString("image", selectedStore.imageUrl)
-            bundle.putString("location", selectedStore.location)
-
-            detailFragment.arguments = bundle
-
-            parentFragmentManager.beginTransaction()
-                .replace(R.id.fragmentContainer, detailFragment)
-                .addToBackStack(null)
-                .commit()
+            recordClick(selectedStore)
+            openStoreDetail(selectedStore)
         }
         binding.rvStores.adapter = storeAdapter
 
         setupSearchView()
-        fetchStoresFromFirestore()
+
+        // Önce özel sıralamayı çek, sonra mağazaları yükle
+        fetchCustomSortOrder {
+            fetchStoresFromFirestore()
+        }
+
+        // Filtre Butonları Dinleyicisi
+        binding.toggleStoreFilter.addOnButtonCheckedListener { _, checkedId, isChecked ->
+            if (isChecked) {
+                applyFilter(checkedId, binding.searchViewStore.query.toString())
+            }
+        }
+    }
+
+    private fun fetchCustomSortOrder(onComplete: () -> Unit) {
+        db.collection("app_settings").document("store_sorting").get()
+            .addOnSuccessListener { doc ->
+                val ids = doc.get("sortedIds") as? List<Long>
+                if (ids != null) {
+                    customSortOrder.clear()
+                    customSortOrder.addAll(ids)
+                }
+                onComplete()
+            }
+            .addOnFailureListener { onComplete() } // Hata olsa da devam et
+    }
+
+    private fun fetchStoresFromFirestore() {
+        db.collection("stores").get()
+            .addOnSuccessListener { documents ->
+                allStores.clear()
+                for (document in documents) {
+                    val store = document.toObject(Store::class.java)
+                    allStores.add(store)
+                }
+                // İlk açılışta seçili olan filtreyi uygula
+                applyFilter(binding.toggleStoreFilter.checkedButtonId, "")
+            }
+            .addOnFailureListener { e ->
+                Toast.makeText(context, "Hata: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
+            }
+    }
+
+    private fun applyFilter(checkedId: Int, query: String) {
+        // 1. Önce Arama Filtresi
+        val searchLower = query.lowercase(Locale.getDefault())
+        var filteredList = if (query.isEmpty()) {
+            ArrayList(allStores)
+        } else {
+            allStores.filter {
+                it.name.lowercase().contains(searchLower) ||
+                        it.category.lowercase().contains(searchLower)
+            }
+        }
+
+        // 2. Sonra Kategori/Etap Filtresi
+        filteredList = when (checkedId) {
+            R.id.btnFilterEtapA -> filteredList.filter { it.etap == "A" }
+            R.id.btnFilterEtapB -> filteredList.filter { it.etap == "B" }
+            else -> {
+                // POPÜLER (Özel Sıralama)
+                // customSortOrder listesindeki ID sırasına göre diz
+                filteredList.sortedBy { store ->
+                    val index = customSortOrder.indexOf(store.id.toLong())
+                    if (index == -1) Int.MAX_VALUE else index
+                }
+            }
+        }
+
+        storeAdapter.submitList(ArrayList(filteredList))
     }
 
     private fun setupSearchView() {
@@ -77,45 +126,35 @@ class StoresFragment : Fragment() {
         binding.searchViewStore.setOnQueryTextListener(object : SearchView.OnQueryTextListener {
             override fun onQueryTextSubmit(query: String?): Boolean = false
             override fun onQueryTextChange(newText: String?): Boolean {
-                filterList(newText)
+                applyFilter(binding.toggleStoreFilter.checkedButtonId, newText ?: "")
                 return true
             }
         })
     }
 
-    private fun filterList(query: String?) {
-        val listToSend = if (query.isNullOrEmpty()) {
-            ArrayList(allStores)
-        } else {
-            val searchText = query.lowercase(Locale.getDefault())
-            val filtered = allStores.filter { store ->
-                store.name.lowercase(Locale.getDefault()).contains(searchText) ||
-                        store.category.lowercase(Locale.getDefault()).contains(searchText)
-            }
-            ArrayList(filtered)
-        }
-        // DiffUtil değişimi algılayıp animasyonla güncelleyecek
-        storeAdapter.submitList(listToSend)
+    private fun recordClick(store: Store) {
+        val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+        db.collection("stores").document(store.id.toString()).update(
+            mapOf(
+                "clickCount" to FieldValue.increment(1),
+                "clickHistory.$today" to FieldValue.increment(1)
+            )
+        )
     }
 
-    private fun fetchStoresFromFirestore() {
-        db.collection("stores")
-            .orderBy("id", Query.Direction.ASCENDING)
-            .get()
-            .addOnSuccessListener { documents ->
-                allStores.clear()
-                for (document in documents) {
-                    val store = document.toObject(Store::class.java)
-                    allStores.add(store)
-                }
-                // İlk yüklemede hepsini göster
-                storeAdapter.submitList(ArrayList(allStores))
-            }
-            .addOnFailureListener { exception ->
-                context?.let {
-                    Toast.makeText(it, "Hata: ${exception.localizedMessage}", Toast.LENGTH_SHORT).show()
-                }
-            }
+    private fun openStoreDetail(store: Store) {
+        val detailFragment = StoreDetailFragment()
+        val bundle = Bundle()
+        bundle.putInt("id", store.id)
+        bundle.putString("name", store.name)
+        bundle.putString("image", store.imageUrl)
+        bundle.putString("location", store.location)
+        detailFragment.arguments = bundle
+
+        parentFragmentManager.beginTransaction()
+            .replace(R.id.fragmentContainer, detailFragment)
+            .addToBackStack(null)
+            .commit()
     }
 
     override fun onDestroyView() {

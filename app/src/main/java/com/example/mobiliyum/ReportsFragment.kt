@@ -45,14 +45,11 @@ class ReportsFragment : Fragment() {
     private var tvCategoryStatsTitle: TextView? = null
     private var tvStatSummary: TextView? = null
 
-    // Adapterları burada tanımlayıp tekrar tekrar oluşturmaktan kaçınıyoruz
     private val storeAdapter = ReportStoreAdapter()
-    private val userAdapter = ReportUserAdapter()
-    // Ürün adapter'ı iki modda çalıştığı için (Normal/Favori), dinamik yönetim gerektiriyor
-    // Ancak filtreleme performansı için instance'ları tutmak iyidir.
+    // Kullanıcı listesi yerine Favorilenen Ürünler için adapter
     private val productAdapterNormal = ReportProductAdapter(false)
-    private val productAdapterFav = ReportProductAdapter(true)
-    private val topProductsAdapter = ReportProductAdapter(false) // Vitrin için
+    private val productAdapterFav = ReportProductAdapter(true) // BU ADAPTER'I KULLANACAĞIZ
+    private val topProductsAdapter = ReportProductAdapter(false)
 
     private val db = FirebaseFirestore.getInstance()
     private var currentTab = 0
@@ -85,11 +82,9 @@ class ReportsFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        // 1. Programatik Arayüzü (Genel İstatistikler) Kur
         setupGeneralStatsUI(binding.root as LinearLayout)
 
         binding.rvReports.layoutManager = LinearLayoutManager(context)
-        // Varsayılan adapter ataması (Boş)
         binding.rvReports.adapter = storeAdapter
 
         setupTabs()
@@ -122,7 +117,7 @@ class ReportsFragment : Fragment() {
             // Admin Modu
             binding.tabLayoutReports.addTab(binding.tabLayoutReports.newTab().setText("Mağazalar"))
             binding.tabLayoutReports.addTab(binding.tabLayoutReports.newTab().setText("Ürünler"))
-            binding.tabLayoutReports.addTab(binding.tabLayoutReports.newTab().setText("Kullanıcılar"))
+            binding.tabLayoutReports.addTab(binding.tabLayoutReports.newTab().setText("Favorilenenler")) // DEĞİŞTİ
         } else {
             // Manager Modu
             binding.tabLayoutReports.addTab(binding.tabLayoutReports.newTab().setText("Genel Bakış"))
@@ -131,7 +126,7 @@ class ReportsFragment : Fragment() {
         }
     }
 
-    // --- PROGRAMATİK UI OLUŞTURMA ---
+    // --- PROGRAMATİK UI OLUŞTURMA (AYNI KALIYOR) ---
     private fun setupGeneralStatsUI(rootLayout: LinearLayout) {
         val context = requireContext()
 
@@ -195,7 +190,6 @@ class ReportsFragment : Fragment() {
             layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
             layoutManager = LinearLayoutManager(context)
             isNestedScrollingEnabled = false
-            // ADAPTER ATAMASI (Burada yapıyoruz)
             adapter = topProductsAdapter
         }
         layoutGeneralStats?.addView(rvTopProducts)
@@ -352,7 +346,6 @@ class ReportsFragment : Fragment() {
                 val topProducts = sortedProducts.take(5).filter { it.clickCount > 0 }
 
                 if (topProducts.isNotEmpty()) {
-                    // DÜZELTME: submitList ile güncelleme
                     topProductsAdapter.submitList(topProducts)
                     rvTopProducts?.visibility = View.VISIBLE
                     tvTopProductsTitle?.visibility = View.VISIBLE
@@ -440,7 +433,7 @@ class ReportsFragment : Fragment() {
             when (currentTab) {
                 0 -> loadStores(searchQuery)
                 1 -> loadProducts(searchQuery, false)
-                2 -> loadUsers(searchQuery)
+                2 -> loadProducts(searchQuery, true) // Favorilenenleri Getir
             }
         } else { // MANAGER
             when (currentTab) {
@@ -461,28 +454,10 @@ class ReportsFragment : Fragment() {
             if (sortMode == 1) list.sortBy { it.clickCount } else list.sortByDescending { it.clickCount }
             binding.tvReportCount.text = "Toplam: ${list.size} Mağaza"
 
-            // Adapter Değişimi ve Veri Yükleme
             if (binding.rvReports.adapter != storeAdapter) {
                 binding.rvReports.adapter = storeAdapter
             }
             storeAdapter.submitList(list)
-        }
-    }
-
-    private fun loadUsers(query: String) {
-        db.collection("users").get().addOnSuccessListener { docs ->
-            val list = ArrayList<User>()
-            for (doc in docs) {
-                val user = doc.toObject(User::class.java)
-                val matchSearch = query.isEmpty() || user.fullName.contains(query, true) || user.email.contains(query, true)
-                if (matchSearch) list.add(user)
-            }
-            binding.tvReportCount.text = "Toplam: ${list.size} Kullanıcı"
-
-            if (binding.rvReports.adapter != userAdapter) {
-                binding.rvReports.adapter = userAdapter
-            }
-            userAdapter.submitList(list)
         }
     }
 
@@ -534,9 +509,9 @@ class ReportsFragment : Fragment() {
         tvStatSummary = null
     }
 
-    // --- ADAPTERLAR (ListAdapter + DiffUtil) ---
+    // --- ADAPTERLAR ---
 
-    // 1. ReportStoreAdapter
+    // 1. ReportStoreAdapter (Stores için özel)
     class ReportStoreAdapter : ListAdapter<Store, ReportStoreAdapter.VH>(DiffCallback()) {
         class DiffCallback : DiffUtil.ItemCallback<Store>() {
             override fun areItemsTheSame(oldItem: Store, newItem: Store) = oldItem.id == newItem.id
@@ -557,7 +532,7 @@ class ReportsFragment : Fragment() {
         }
     }
 
-    // 2. ReportProductAdapter
+    // 2. ReportProductAdapter (Ürünler ve Favoriler için ortak)
     class ReportProductAdapter(private val isFavMode: Boolean) : ListAdapter<Product, ReportProductAdapter.VH>(DiffCallback()) {
         class DiffCallback : DiffUtil.ItemCallback<Product>() {
             override fun areItemsTheSame(oldItem: Product, newItem: Product) = oldItem.id == newItem.id
@@ -587,25 +562,5 @@ class ReportsFragment : Fragment() {
         }
     }
 
-    // 3. ReportUserAdapter
-    class ReportUserAdapter : ListAdapter<User, ReportUserAdapter.VH>(DiffCallback()) {
-        class DiffCallback : DiffUtil.ItemCallback<User>() {
-            override fun areItemsTheSame(oldItem: User, newItem: User) = oldItem.id == newItem.id
-            override fun areContentsTheSame(oldItem: User, newItem: User) = oldItem == newItem
-        }
-        inner class VH(val binding: ItemReportUserBinding) : RecyclerView.ViewHolder(binding.root)
-
-        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
-            val binding = ItemReportUserBinding.inflate(LayoutInflater.from(parent.context), parent, false)
-            return VH(binding)
-        }
-        override fun onBindViewHolder(holder: VH, position: Int) {
-            val user = getItem(position)
-            holder.binding.tvUserName.text = user.fullName
-            holder.binding.tvUserEmail.text = user.email
-            holder.binding.tvUserRole.text = user.role.name
-            holder.binding.btnChangeRole.visibility = View.GONE
-            holder.binding.btnBanUser.visibility = View.GONE
-        }
-    }
+    // 3. ReportUserAdapter SİLİNDİ (Artık kullanılmıyor)
 }

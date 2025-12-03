@@ -44,16 +44,25 @@ class ManagementFragment : Fragment() {
         binding.tvAdminWelcome.text = "Hoşgeldiniz, ${user?.fullName ?: "Yönetici"}"
         binding.tvAdminRole.text = "Yetki: ${role.name}"
 
+        // Başlangıçta hepsini gizle (Temiz başlangıç)
+        hideAllCards()
+
         // --- ROL YÖNETİMİ ---
         if (role == UserRole.ADMIN || role == UserRole.SRV) {
             // --- ADMIN MODU ---
             binding.tvAdminTitle.text = "Sistem Admin Paneli"
             binding.tvPendingTitle.text = "Satın Alma Onayları"
-            updatePendingCount(null)
+
+            // Görünen Kartlar
+            binding.cardPendingBoxManual.visibility = View.VISIBLE
+            binding.cardReportsBox.visibility = View.VISIBLE
+            binding.cardUsersBox.visibility = View.VISIBLE
+            binding.cardStoreSorting.visibility = View.VISIBLE
+            binding.cardCartSuggestions.visibility = View.VISIBLE
+            binding.cardStoreManagement.visibility = View.VISIBLE
 
             binding.tvUsersTitle.text = "Kullanıcı Yönetimi"
-            binding.cardStaffManagement.visibility = View.GONE
-            binding.cardEditorRequests.visibility = View.GONE
+            updatePendingCount(null)
 
             binding.btnPendingStores.setOnClickListener { showPurchaseRequestsDialog(null) }
             binding.btnReports.setOnClickListener { showReportsDialog(-1) }
@@ -64,15 +73,30 @@ class ManagementFragment : Fragment() {
                     .commit()
             }
 
-            binding.cardEditorRequests.visibility = View.VISIBLE
-            binding.tvEditorReqCount.text = "Sepet Önerilerini Düzenle"
-            binding.tvEditorReqCount.setTextColor(Color.parseColor("#FF6F00"))
-            binding.btnEditorRequests.setOnClickListener {
+            // Sepet Önerileri Butonu
+            binding.btnCartSuggestions.setOnClickListener {
                 parentFragmentManager.beginTransaction()
                     .replace(R.id.fragmentContainer, AdminCartSuggestionsFragment())
                     .addToBackStack(null)
                     .commit()
             }
+
+            // Mağaza Sıralama Butonu
+            binding.btnStoreSorting.setOnClickListener {
+                parentFragmentManager.beginTransaction()
+                    .replace(R.id.fragmentContainer, AdminStoreSortingFragment())
+                    .addToBackStack(null)
+                    .commit()
+            }
+
+            // Mağaza Yönetimi Butonu
+            binding.btnStoreManagement.setOnClickListener {
+                parentFragmentManager.beginTransaction()
+                    .replace(R.id.fragmentContainer, AdminStoreListFragment())
+                    .addToBackStack(null)
+                    .commit()
+            }
+
         }
         else if (role == UserRole.MANAGER) {
             // --- MANAGER MODU ---
@@ -82,15 +106,24 @@ class ManagementFragment : Fragment() {
             val myStoreId = user?.storeId
 
             if (myStoreId != null) {
-                binding.tvPendingTitle.text = "Müşteri Onayları"
-                updatePendingCount(myStoreId)
-                binding.btnPendingStores.setOnClickListener { showPurchaseRequestsDialog(myStoreId) }
+                // Görünen Kartlar
+                binding.cardPendingBoxManual.visibility = View.VISIBLE
+                binding.cardReportsBox.visibility = View.VISIBLE
+                binding.cardUsersBox.visibility = View.VISIBLE
+                binding.cardEditorRequests.visibility = View.VISIBLE
+                binding.cardStaffManagement.visibility = View.VISIBLE
 
+                binding.tvPendingTitle.text = "Müşteri Onayları"
                 binding.tvReportsTitle.text = "Mağaza İstatistikleri"
+                binding.tvUsersTitle.text = "Vitrin Yönetimi" // Kullanıcı kartını Vitrin için kullanıyoruz
+                binding.imgUsersIcon.setImageResource(android.R.drawable.ic_menu_gallery)
+
+                updatePendingCount(myStoreId)
+                updateEditorRequestCount(myStoreId)
+
+                binding.btnPendingStores.setOnClickListener { showPurchaseRequestsDialog(myStoreId) }
                 binding.btnReports.setOnClickListener { showReportsDialog(myStoreId) }
 
-                binding.tvUsersTitle.text = "Vitrin Yönetimi"
-                binding.imgUsersIcon.setImageResource(android.R.drawable.ic_menu_gallery)
                 binding.btnUsers.setOnClickListener {
                     parentFragmentManager.beginTransaction()
                         .replace(R.id.fragmentContainer, StoreShowcaseFragment())
@@ -98,29 +131,28 @@ class ManagementFragment : Fragment() {
                         .commit()
                 }
 
-                binding.cardEditorRequests.visibility = View.VISIBLE
-                updateEditorRequestCount(myStoreId)
                 binding.btnEditorRequests.setOnClickListener {
                     showEditorRequestsDialog(myStoreId)
                 }
             } else {
                 binding.tvPendingCount.text = "Mağaza kaydı yok"
             }
-            binding.cardStaffManagement.visibility = View.VISIBLE
         }
         else if (role == UserRole.EDITOR) {
             // --- EDITOR MODU ---
             binding.tvAdminTitle.text = "Editör Paneli"
             binding.tvAdminTitle.setBackgroundColor(Color.parseColor("#43A047"))
 
-            binding.cardReportsBox.visibility = View.GONE
-            binding.cardStaffManagement.visibility = View.GONE
-            binding.cardEditorRequests.visibility = View.GONE
+            // Görünen Kartlar
+            binding.cardPendingBoxManual.visibility = View.VISIBLE
+            binding.cardUsersBox.visibility = View.VISIBLE
 
-            binding.cardPendingBox.visibility = View.VISIBLE
             binding.tvPendingTitle.text = "Vitrin Düzenle"
             binding.tvPendingCount.text = "Seçim Yap"
             binding.imgPendingIcon.setImageResource(android.R.drawable.ic_menu_gallery)
+
+            binding.tvUsersTitle.text = "Ürün Yönetimi"
+            binding.imgUsersIcon.setImageResource(android.R.drawable.ic_menu_edit)
 
             binding.btnPendingStores.setOnClickListener {
                 parentFragmentManager.beginTransaction()
@@ -128,10 +160,6 @@ class ManagementFragment : Fragment() {
                     .addToBackStack(null)
                     .commit()
             }
-
-            binding.cardUsersBox.visibility = View.VISIBLE
-            binding.tvUsersTitle.text = "Ürün Yönetimi"
-            binding.imgUsersIcon.setImageResource(android.R.drawable.ic_menu_edit)
 
             binding.btnUsers.setOnClickListener {
                 parentFragmentManager.beginTransaction()
@@ -143,6 +171,7 @@ class ManagementFragment : Fragment() {
 
         binding.btnAnnouncements.setOnClickListener { showAnnouncementDialog() }
 
+        // Personel Arama Butonu (Manager için)
         binding.btnSearchUser.setOnClickListener {
             val email = binding.etStaffEmail.text.toString().trim()
             if (email.isNotEmpty()) searchUserByEmail(email)
@@ -150,6 +179,17 @@ class ManagementFragment : Fragment() {
         binding.btnMakeEditor.setOnClickListener {
             if (foundUser != null) assignEditorRole(foundUser!!)
         }
+    }
+
+    private fun hideAllCards() {
+        binding.cardPendingBoxManual.visibility = View.GONE
+        binding.cardReportsBox.visibility = View.GONE
+        binding.cardUsersBox.visibility = View.GONE
+        binding.cardStaffManagement.visibility = View.GONE
+        binding.cardEditorRequests.visibility = View.GONE
+        binding.cardStoreSorting.visibility = View.GONE
+        binding.cardCartSuggestions.visibility = View.GONE
+        binding.cardStoreManagement.visibility = View.GONE
     }
 
     private fun updateEditorRequestCount(storeId: Int) {
@@ -262,10 +302,12 @@ class ManagementFragment : Fragment() {
                             Toast.makeText(context, "Onaya gönderildi.", Toast.LENGTH_LONG).show()
                         }
                     } else {
-                        val req = StoreRequest(storeId = user?.storeId ?: 0, requesterName = user?.fullName ?: "Yönetici", title = title, message = message, type="ANNOUNCEMENT")
-                        EditorManager.processRequest(req, true) {
-                            Toast.makeText(context, "Yayınlandı.", Toast.LENGTH_SHORT).show()
-                        }
+                        // Admin veya Manager direkt yayınlar
+                        val storeId = user?.storeId ?: 0
+                        val author = user?.fullName ?: "Yönetici"
+
+                        EditorManager.publishAnnouncement(storeId, title, message, author)
+                        Toast.makeText(context, "Duyuru yayınlandı.", Toast.LENGTH_SHORT).show()
                     }
                 }
             }

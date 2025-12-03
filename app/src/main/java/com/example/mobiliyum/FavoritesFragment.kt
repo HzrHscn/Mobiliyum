@@ -20,9 +20,9 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
-import com.example.mobiliyum.databinding.DialogPriceAnalysisBinding // Dialog Binding
-import com.example.mobiliyum.databinding.FragmentStoresBinding // Layout Binding (fragment_stores kullanıldığı için)
-import com.example.mobiliyum.databinding.ItemFavoriteBinding // Adapter Binding
+import com.example.mobiliyum.databinding.DialogPriceAnalysisBinding
+import com.example.mobiliyum.databinding.FragmentFavoritesBinding // YENİ BINDING
+import com.example.mobiliyum.databinding.ItemFavoriteBinding
 import com.google.firebase.firestore.FirebaseFirestore
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -31,40 +31,40 @@ import kotlin.math.max
 
 class FavoritesFragment : Fragment() {
 
-    private var _binding: FragmentStoresBinding? = null
+    // Binding sınıfı değişti: FragmentFavoritesBinding
+    private var _binding: FragmentFavoritesBinding? = null
     private val binding get() = _binding!!
 
     private lateinit var adapter: FavoritesAdapter
     private val db = FirebaseFirestore.getInstance()
-    // Listeyi adapter içinde yöneteceğiz, burada sadece geçici tutuyoruz
     private val favoriteUiList = ArrayList<FavoriteUiItem>()
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View {
-        // fragment_stores.xml kullanıldığı için FragmentStoresBinding ile inflate ediyoruz
-        _binding = FragmentStoresBinding.inflate(inflater, container, false)
+        _binding = FragmentFavoritesBinding.inflate(inflater, container, false)
         return binding.root
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        // Başlık ve Arayüz Ayarları
+        // Artık tvTitle ve cardSearch referansları hatasız çalışacak
         binding.tvTitle.text = "Favorilerim & Fiyat Takibi"
-        binding.cardSearch.visibility = View.GONE // Arama çubuğunu gizle
+        // cardSearch zaten XML'de gone, ama kodda da garantiye alalım
+        binding.cardSearch.visibility = View.GONE
 
-        binding.rvStores.layoutManager = LinearLayoutManager(context)
+        // RecyclerView ID'si değişti: rvFavorites
+        binding.rvFavorites.layoutManager = LinearLayoutManager(context)
 
-        // Adapter Kurulumu (DiffUtil)
         adapter = FavoritesAdapter(
             onDetailClick = { product -> openDetail(product) },
             onRemoveClick = { item, _ -> confirmRemoveFavorite(item) },
             onGraphClick = { product -> showAnalysisDialog(product) },
             onAlertChange = { id, check -> FavoritesManager.updatePriceAlert(id, check) }
         )
-        binding.rvStores.adapter = adapter
+        binding.rvFavorites.adapter = adapter
 
         loadFavorites()
     }
@@ -75,7 +75,6 @@ class FavoritesFragment : Fragment() {
             .addOnSuccessListener { favDocs ->
                 if (favDocs.isEmpty) {
                     Toast.makeText(context, "Henüz favoriniz yok.", Toast.LENGTH_SHORT).show()
-                    // Listeyi temizle
                     adapter.submitList(emptyList())
                     return@addOnSuccessListener
                 }
@@ -97,7 +96,6 @@ class FavoritesFragment : Fragment() {
                                 val isAlertOn = alertMap[product.id.toString()] ?: false
                                 favoriteUiList.add(FavoriteUiItem(product, isAlertOn))
                             }
-                            // Listeyi Adapter'a gönder (Kopya gönderiyoruz ki DiffUtil çalışsın)
                             adapter.submitList(ArrayList(favoriteUiList))
                         }
                 }
@@ -107,7 +105,6 @@ class FavoritesFragment : Fragment() {
     private fun openDetail(product: Product) {
         val detailFragment = ProductDetailFragment()
         val bundle = Bundle()
-        // Parcelable olarak gönderiyoruz
         bundle.putParcelable("product_data", product)
         detailFragment.arguments = bundle
 
@@ -122,7 +119,6 @@ class FavoritesFragment : Fragment() {
             .setMessage("${item.product.name} silinecek.")
             .setPositiveButton("Çıkar") { _, _ ->
                 FavoritesManager.toggleFavorite(item.product) {
-                    // Listeden sil ve güncelle
                     favoriteUiList.remove(item)
                     adapter.submitList(ArrayList(favoriteUiList))
                 }
@@ -130,12 +126,10 @@ class FavoritesFragment : Fragment() {
     }
 
     private fun showAnalysisDialog(product: Product) {
-        // Dialog Binding kullanımı
         val dialogBinding = DialogPriceAnalysisBinding.inflate(LayoutInflater.from(context))
 
         dialogBinding.tvGraphTitle.text = "${product.name}"
 
-        // YENİ GRAFİK MOTORU
         val graphView = InternalGraphView(requireContext())
         graphView.layoutParams = FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
@@ -143,11 +137,10 @@ class FavoritesFragment : Fragment() {
         )
         dialogBinding.graphContainer.addView(graphView)
 
-        // Veriyi Hazırla
         val historyMap = HashMap<Long, Double>()
         val currentPrice = PriceUtils.parsePrice(product.price)
         val now = System.currentTimeMillis()
-        historyMap[now] = currentPrice // Bugünü ekle
+        historyMap[now] = currentPrice
 
         if (product.priceHistory.isNotEmpty()) {
             val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
@@ -174,7 +167,7 @@ class FavoritesFragment : Fragment() {
             graphView.setData(filteredData, startTime, now)
         }
 
-        updateGraph(30) // Varsayılan: Aylık
+        updateGraph(30)
         dialogBinding.toggleGroupPeriod.check(R.id.btnMonth)
 
         dialogBinding.toggleGroupPeriod.addOnButtonCheckedListener { _, id, isChecked ->
@@ -199,10 +192,9 @@ class FavoritesFragment : Fragment() {
 }
 
 // --- VERİ MODELİ ---
-// Data Class olduğu için DiffUtil içerik kontrolünü otomatik yapar
 data class FavoriteUiItem(val product: Product, var isAlertOn: Boolean)
 
-// --- ADAPTER (LISTADAPTER & VIEW BINDING) ---
+// --- ADAPTER ---
 class FavoritesAdapter(
     private val onDetailClick: (Product) -> Unit,
     private val onRemoveClick: (FavoriteUiItem, Int) -> Unit,
@@ -210,7 +202,6 @@ class FavoritesAdapter(
     private val onAlertChange: (Int, Boolean) -> Unit
 ) : ListAdapter<FavoriteUiItem, FavoritesAdapter.VH>(FavoriteDiffCallback()) {
 
-    // DiffUtil Callback
     class FavoriteDiffCallback : DiffUtil.ItemCallback<FavoriteUiItem>() {
         override fun areItemsTheSame(oldItem: FavoriteUiItem, newItem: FavoriteUiItem): Boolean {
             return oldItem.product.id == newItem.product.id
@@ -238,11 +229,9 @@ class FavoritesAdapter(
             .load(item.product.imageUrl)
             .into(holder.binding.imgFavProduct)
 
-        // Switch dinleyicisini geçici kapat
         holder.binding.switchPriceAlert.setOnCheckedChangeListener(null)
         holder.binding.switchPriceAlert.isChecked = item.isAlertOn
 
-        // Tıklama Olayları
         holder.binding.infoLayout.setOnClickListener { onDetailClick(item.product) }
         holder.binding.imgFavProduct.setOnClickListener { onDetailClick(item.product) }
 
@@ -259,8 +248,7 @@ class FavoritesAdapter(
     }
 }
 
-// --- ZAMAN EKSENLİ GRAFİK MOTORU (CUSTOM VIEW) ---
-// Bu kısım değişmedi, olduğu gibi kalabilir.
+// --- ZAMAN EKSENLİ GRAFİK MOTORU ---
 class InternalGraphView @JvmOverloads constructor(c: Context, a: AttributeSet? = null) : View(c, a) {
     private val pLine = Paint().apply { color = Color.parseColor("#4CAF50"); strokeWidth = 5f; style = Paint.Style.STROKE; isAntiAlias = true }
     private val pDot = Paint().apply { color = Color.parseColor("#FF6F00"); style = Paint.Style.FILL; isAntiAlias = true }
