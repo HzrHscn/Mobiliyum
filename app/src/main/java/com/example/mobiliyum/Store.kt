@@ -15,6 +15,8 @@ data class Store(
     val clickHistory: HashMap<String, Int> = hashMapOf(),
     // YENİ ALAN: Etap Bilgisi ("A" veya "B")
     val etap: String = "",
+    // YENİ: Mağaza Aktif mi?
+    val isActive: Boolean = true,
     // YENİ: Mağazanın Seçimi (Vitrin) için seçilen ürün ID'leri
     val featuredProductIds: List<Int> = listOf()
 ) : Parcelable

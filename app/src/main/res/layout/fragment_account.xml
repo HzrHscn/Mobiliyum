@@ -236,6 +236,15 @@
                 android:layout_marginBottom="8dp"/>
 
             <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnWebsite"
+                android:layout_width="match_parent"
+                android:layout_height="50dp"
+                android:text="Web Sitemiz (mobiliyum.com)"
+                android:backgroundTint="#F44336"
+                app:icon="@android:drawable/ic_menu_compass"
+                android:layout_marginBottom="8dp"/>
+
+            <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnNotifications"
                 android:layout_width="match_parent"
                 android:layout_height="50dp"

@@ -379,7 +379,7 @@ class ProductDetailFragment : Fragment() {
         val iconRes = when {
             lower.contains("yatak odası") -> R.drawable.yatakodalogo
             lower.contains("yatak") -> R.drawable.yataklogo
-            lower.contains("koltuk") || lower.contains("köşe") || lower.contains("sofa") -> R.drawable.oturmaodalogo
+            lower.contains("koltuk") || lower.contains("köşe") || lower.contains("sofa") || lower.contains("oturma") -> R.drawable.oturmaodalogo
             lower.contains("yemek") -> R.drawable.yemekodalogo
             lower.contains("genç") || lower.contains("bebek") -> R.drawable.cocukodalogo
             lower.contains("ofis") || lower.contains("makam") -> R.drawable.ofislogo

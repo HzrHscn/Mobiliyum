@@ -1,0 +1,212 @@
+package com.example.mobiliyum
+
+import android.app.Activity
+import android.content.Intent
+import android.net.Uri
+import android.os.Bundle
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import android.widget.TextView
+import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.widget.SearchView
+import androidx.fragment.app.Fragment
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
+import com.example.mobiliyum.databinding.FragmentAdminProductListBinding
+import com.google.firebase.firestore.FirebaseFirestore
+import java.io.BufferedReader
+import java.io.InputStreamReader
+import java.util.Locale
+import kotlin.random.Random
+
+class AdminProductListFragment : Fragment() {
+
+    private var _binding: FragmentAdminProductListBinding? = null
+    private val binding get() = _binding!!
+    private val db = FirebaseFirestore.getInstance()
+    private var allProducts = ArrayList<Product>()
+    private lateinit var adapter: AdminProductAdapter
+
+    // Dosya Seçme Sonucunu Dinleyen Launcher
+    private val csvFileLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            result.data?.data?.let { uri ->
+                readAndUploadCSV(uri)
+            }
+        }
+    }
+
+    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
+        _binding = FragmentAdminProductListBinding.inflate(inflater, container, false)
+        return binding.root
+    }
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+
+        binding.rvAdminProductList.layoutManager = LinearLayoutManager(context)
+        adapter = AdminProductAdapter(arrayListOf()) { product ->
+            val fragment = AdminProductEditFragment()
+            val bundle = Bundle()
+            bundle.putParcelable("product_data", product)
+            fragment.arguments = bundle
+            parentFragmentManager.beginTransaction()
+                .replace(R.id.fragmentContainer, fragment)
+                .addToBackStack(null)
+                .commit()
+        }
+        binding.rvAdminProductList.adapter = adapter
+
+        loadProducts()
+
+        binding.fabAddProduct.setOnClickListener {
+            parentFragmentManager.beginTransaction()
+                .replace(R.id.fragmentContainer, AdminProductEditFragment())
+                .addToBackStack(null)
+                .commit()
+        }
+
+        // CSV Butonu
+        binding.btnUploadCsv.setOnClickListener {
+            openFilePicker()
+        }
+
+        binding.searchViewAdminProduct.setOnQueryTextListener(object : SearchView.OnQueryTextListener {
+            override fun onQueryTextSubmit(query: String?): Boolean = false
+            override fun onQueryTextChange(newText: String?): Boolean {
+                filter(newText ?: "")
+                return true
+            }
+        })
+    }
+
+    private fun openFilePicker() {
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "text/*" // CSV veya text dosyaları için
+        }
+        csvFileLauncher.launch(intent)
+    }
+
+    private fun readAndUploadCSV(uri: Uri) {
+        try {
+            val inputStream = requireContext().contentResolver.openInputStream(uri)
+            val reader = BufferedReader(InputStreamReader(inputStream))
+            var line: String?
+            var count = 0
+
+            // CSV FORMATI: Ürün Adı;Fiyat;Kategori;MağazaID;ResimURL;productURL;Açıklama
+            // Örnek: Chester Koltuk;15.000 TL;Oturma Odası;101;http://...;http://...;Konforlu chester koltuk
+
+            val batch = db.batch() // Toplu işlem için batch kullanımı
+
+            while (reader.readLine().also { line = it } != null) {
+                // Boş satırları atla
+                if (line.isNullOrEmpty()) continue
+
+                // Noktalı virgül ile ayır
+                val tokens = line!!.split(";")
+
+                // En az 4 temel alanın dolu olması gerekir (Ad, Fiyat, Kategori, MağazaID)
+                if (tokens.size >= 4) {
+                    val name = tokens[0].trim()
+                    val price = tokens[1].trim()
+                    val category = tokens[2].trim()
+                    val storeIdStr = tokens[3].trim()
+                    val imageUrl = if (tokens.size > 4) tokens[4].trim() else ""
+                    val productUrl = if (tokens.size > 5) tokens[5].trim() else ""
+                    val description = if (tokens.size > 6) tokens[6].trim() else ""
+
+                    // Mağaza ID'sini Int'e çevir, hata varsa 0 yap
+                    val storeId = storeIdStr.toIntOrNull() ?: 0
+
+                    if (name.isNotEmpty() && storeId != 0) {
+                        val newId = Random.nextInt(100000, 999999)
+
+                        val productRef = db.collection("products").document(newId.toString())
+                        val productData = Product(
+                            id = newId,
+                            name = name,
+                            price = price,
+                            category = category,
+                            storeId = storeId,
+                            imageUrl = imageUrl,
+                            productUrl = productUrl,
+                            description = description,
+                            isActive = true
+                        )
+                        batch.set(productRef, productData)
+                        count++
+                    }
+                }
+            }
+            reader.close()
+
+            // Batch işlemini çalıştır
+            if (count > 0) {
+                batch.commit().addOnSuccessListener {
+                    Toast.makeText(context, "$count ürün başarıyla yüklendi!", Toast.LENGTH_LONG).show()
+                    loadProducts() // Listeyi yenile
+                }.addOnFailureListener {
+                    Toast.makeText(context, "Yükleme sırasında hata oluştu: ${it.message}", Toast.LENGTH_LONG).show()
+                }
+            } else {
+                Toast.makeText(context, "Dosyada geçerli ürün bulunamadı.", Toast.LENGTH_SHORT).show()
+            }
+
+        } catch (e: Exception) {
+            Toast.makeText(context, "Dosya okuma hatası: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun loadProducts() {
+        db.collection("products").get().addOnSuccessListener { result ->
+            allProducts.clear()
+            for (doc in result) {
+                val p = doc.toObject(Product::class.java)
+                allProducts.add(p)
+            }
+            // Sadece aktif ürünleri değil, admin panelinde HEPSİNİ gösterelim ki düzenleyebilelim
+            // Ama listede pasif olduğunu belirtmek için renklendirme yapabiliriz (Adapter'da)
+            adapter.updateList(allProducts)
+        }
+    }
+
+    private fun filter(text: String) {
+        val filtered = allProducts.filter { it.name.lowercase().contains(text.lowercase()) }
+        adapter.updateList(ArrayList(filtered))
+    }
+
+    override fun onDestroyView() {
+        super.onDestroyView()
+        _binding = null
+    }
+
+    class AdminProductAdapter(private var list: ArrayList<Product>, val onClick: (Product) -> Unit) : RecyclerView.Adapter<AdminProductAdapter.VH>() {
+        class VH(v: View) : RecyclerView.ViewHolder(v) {
+            val tvName: TextView = v.findViewById(android.R.id.text1)
+            val tvInfo: TextView = v.findViewById(android.R.id.text2)
+        }
+        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
+            val v = LayoutInflater.from(parent.context).inflate(android.R.layout.simple_list_item_2, parent, false)
+            return VH(v)
+        }
+        override fun onBindViewHolder(holder: VH, position: Int) {
+            val item = list[position]
+            holder.tvName.text = if (item.isActive) item.name else "${item.name} (PASİF)"
+            holder.tvInfo.text = "${item.category} | ${item.price}"
+
+            // Pasif ürünleri soluk göster
+            holder.itemView.alpha = if (item.isActive) 1.0f else 0.5f
+
+            holder.itemView.setOnClickListener { onClick(item) }
+        }
+        override fun getItemCount() = list.size
+        fun updateList(newList: ArrayList<Product>) {
+            list = newList
+            notifyDataSetChanged()
+        }
+    }
+}

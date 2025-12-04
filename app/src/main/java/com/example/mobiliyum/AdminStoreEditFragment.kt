@@ -8,6 +8,7 @@ import android.widget.Toast
 import androidx.fragment.app.Fragment
 import com.example.mobiliyum.databinding.FragmentAdminStoreEditBinding
 import com.google.firebase.firestore.FirebaseFirestore
+import kotlin.random.Random
 
 class AdminStoreEditFragment : Fragment() {
 
@@ -18,15 +19,10 @@ class AdminStoreEditFragment : Fragment() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        arguments?.let {
-            storeId = it.getInt("storeId", 0)
-        }
+        arguments?.let { storeId = it.getInt("storeId", 0) }
     }
 
-    override fun onCreateView(
-        inflater: LayoutInflater, container: ViewGroup?,
-        savedInstanceState: Bundle?
-    ): View {
+    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         _binding = FragmentAdminStoreEditBinding.inflate(inflater, container, false)
         return binding.root
     }
@@ -35,55 +31,56 @@ class AdminStoreEditFragment : Fragment() {
         super.onViewCreated(view, savedInstanceState)
 
         if (storeId != 0) {
+            binding.tvTitle.text = "Mağazayı Düzenle"
             loadStoreData()
+        } else {
+            binding.tvTitle.text = "Yeni Mağaza Ekle"
+            binding.switchStoreActive.isChecked = true // Yeni mağaza varsayılan aktiftir
         }
 
-        binding.btnSaveStore.setOnClickListener {
-            saveStoreData()
-        }
+        binding.btnSaveStore.setOnClickListener { saveStore() }
     }
 
     private fun loadStoreData() {
         db.collection("stores").document(storeId.toString()).get()
-            .addOnSuccessListener { document ->
-                val store = document.toObject(Store::class.java)
+            .addOnSuccessListener { doc ->
+                val store = doc.toObject(Store::class.java)
                 if (store != null) {
                     binding.etStoreName.setText(store.name)
+                    binding.etStoreCategory.setText(store.category)
                     binding.etStoreLocation.setText(store.location)
                     binding.etStoreImage.setText(store.imageUrl)
-                    binding.etStoreCategory.setText(store.category)
                     binding.etStoreEtap.setText(store.etap)
+                    // Aktiflik durumunu yükle
+                    binding.switchStoreActive.isChecked = store.isActive
                 }
             }
     }
 
-    private fun saveStoreData() {
-        val name = binding.etStoreName.text.toString().trim()
-        val location = binding.etStoreLocation.text.toString().trim()
-        val image = binding.etStoreImage.text.toString().trim()
-        val category = binding.etStoreCategory.text.toString().trim()
-        val etap = binding.etStoreEtap.text.toString().trim()
+    private fun saveStore() {
+        val name = binding.etStoreName.text.toString()
+        if (name.isEmpty()) return
 
-        if (name.isEmpty()) {
-            Toast.makeText(context, "Mağaza adı boş olamaz.", Toast.LENGTH_SHORT).show()
-            return
-        }
+        // Yeni ekleme ise ID oluştur, değilse mevcut ID'yi kullan
+        val idToSave = if (storeId == 0) Random.nextInt(10000, 99999) else storeId
 
-        val updates = mapOf(
+        val storeData = mapOf(
+            "id" to idToSave,
             "name" to name,
-            "location" to location,
-            "imageUrl" to image,
-            "category" to category,
-            "etap" to etap
+            "category" to binding.etStoreCategory.text.toString(),
+            "location" to binding.etStoreLocation.text.toString(),
+            "imageUrl" to binding.etStoreImage.text.toString(),
+            "etap" to binding.etStoreEtap.text.toString(),
+            // Switch durumunu kaydet
+            "isActive" to binding.switchStoreActive.isChecked
         )
 
-        db.collection("stores").document(storeId.toString()).update(updates)
+        // merge yerine set kullanıp ID'yi de garanti altına alalım
+        db.collection("stores").document(idToSave.toString())
+            .set(storeData, com.google.firebase.firestore.SetOptions.merge())
             .addOnSuccessListener {
-                Toast.makeText(context, "Mağaza güncellendi!", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, "Mağaza başarıyla kaydedildi.", Toast.LENGTH_SHORT).show()
                 parentFragmentManager.popBackStack()
-            }
-            .addOnFailureListener {
-                Toast.makeText(context, "Hata oluştu.", Toast.LENGTH_SHORT).show()
             }
     }
 

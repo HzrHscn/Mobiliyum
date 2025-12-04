@@ -2,77 +2,73 @@
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:padding="24dp"
     android:background="#FFFFFF">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:padding="24dp">
+        android:orientation="vertical">
 
         <TextView
+            android:id="@+id/tvTitle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Mağaza Bilgilerini Düzenle"
-            android:textSize="22sp"
+            android:text="Mağaza Ekle/Düzenle"
+            android:textSize="24sp"
             android:textStyle="bold"
-            android:textColor="#333333"
             android:layout_marginBottom="24dp"/>
 
         <EditText
             android:id="@+id/etStoreName"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="Mağaza Adı"
-            android:background="@android:drawable/edit_text"
-            android:padding="12dp"
-            android:layout_marginBottom="16dp"/>
-
-        <EditText
-            android:id="@+id/etStoreLocation"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:hint="Konum / Adres"
-            android:background="@android:drawable/edit_text"
-            android:padding="12dp"
-            android:layout_marginBottom="16dp"/>
-
-        <EditText
-            android:id="@+id/etStoreImage"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:hint="Logo URL (https://...)"
-            android:background="@android:drawable/edit_text"
-            android:padding="12dp"
-            android:layout_marginBottom="16dp"/>
+            android:hint="Mağaza Adı"/>
 
         <EditText
             android:id="@+id/etStoreCategory"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="Kategori (Örn: Mobilya)"
-            android:background="@android:drawable/edit_text"
-            android:padding="12dp"
-            android:layout_marginBottom="16dp"/>
+            android:hint="Kategori"
+            android:layout_marginTop="12dp"/>
+
+        <EditText
+            android:id="@+id/etStoreLocation"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Konum (Örn: A Blok No:12)"
+            android:layout_marginTop="12dp"/>
 
         <EditText
             android:id="@+id/etStoreEtap"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="Etap (Örn: A Etap)"
-            android:background="@android:drawable/edit_text"
-            android:padding="12dp"
-            android:layout_marginBottom="16dp"/>
+            android:hint="Etap (A veya B)"
+            android:layout_marginTop="12dp"/>
+
+        <EditText
+            android:id="@+id/etStoreImage"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Resim URL"
+            android:layout_marginTop="12dp"/>
+
+        <com.google.android.material.switchmaterial.SwitchMaterial
+            android:id="@+id/switchStoreActive"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Mağaza Aktif (Görünür)"
+            android:checked="true"
+            android:textSize="16sp"
+            android:layout_marginTop="16dp"/>
 
         <Button
             android:id="@+id/btnSaveStore"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Değişiklikleri Kaydet"
-            android:backgroundTint="#4CAF50"
-            android:textColor="#FFFFFF"
-            android:padding="12dp"
-            android:layout_marginTop="16dp"/>
+            android:layout_height="60dp"
+            android:text="Kaydet"
+            android:layout_marginTop="24dp"
+            android:backgroundTint="#FF6F00"/>
 
     </LinearLayout>
 </ScrollView>

@@ -1,22 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
 <menu xmlns:android="http://schemas.android.com/apk/res/android">
     <item
-        android:id="@+id/nav_home"
-        android:icon="@android:drawable/ic_menu_compass"
-        android:title="Anasayfa" />
-
-    <item
         android:id="@+id/nav_stores"
-        android:icon="@android:drawable/ic_menu_myplaces"
+        android:icon="@drawable/magazalarlogo"
         android:title="Mağazalar" />
 
     <item
+        android:id="@+id/nav_products"
+        android:icon="@drawable/productslogo"
+        android:title="Ürünler" />
+
+    <item
         android:id="@+id/nav_cart"
-        android:icon="@android:drawable/ic_menu_agenda"
+        android:icon="@drawable/sepetimlogo"
         android:title="Sepetim" />
 
     <item
         android:id="@+id/nav_profile"
-        android:icon="@android:drawable/ic_menu_info_details"
+        android:icon="@drawable/hesabimlogo"
         android:title="Hesabım" />
 </menu>

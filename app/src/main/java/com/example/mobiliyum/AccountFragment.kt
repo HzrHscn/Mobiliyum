@@ -118,6 +118,11 @@ class AccountFragment : Fragment() {
                 .commit()
         }
 
+        binding.btnWebsite.setOnClickListener {
+            // Web Fragment'ı (Eski HomeFragment) aç
+            (activity as? MainActivity)?.loadFragment((activity as MainActivity).webFragment)
+        }
+
         binding.btnNotifications.setOnClickListener {
             parentFragmentManager.beginTransaction()
                 .replace(R.id.fragmentContainer, NotificationsFragment())

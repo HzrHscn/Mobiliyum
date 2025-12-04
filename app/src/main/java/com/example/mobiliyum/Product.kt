@@ -22,5 +22,8 @@ data class Product(
 
     val priceHistory: HashMap<String, Double> = hashMapOf(),
 
-    var quantity: Int = 1
+    var quantity: Int = 1,
+
+    // YENİ: Ürün Aktif mi?
+    val isActive: Boolean = true
 ) : Parcelable

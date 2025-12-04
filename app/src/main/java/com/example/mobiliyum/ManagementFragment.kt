@@ -60,6 +60,7 @@ class ManagementFragment : Fragment() {
             binding.cardStoreSorting.visibility = View.VISIBLE
             binding.cardCartSuggestions.visibility = View.VISIBLE
             binding.cardStoreManagement.visibility = View.VISIBLE
+            binding.cardProductManagement.visibility = View.VISIBLE
 
             binding.tvUsersTitle.text = "Kullanıcı Yönetimi"
             updatePendingCount(null)
@@ -93,6 +94,14 @@ class ManagementFragment : Fragment() {
             binding.btnStoreManagement.setOnClickListener {
                 parentFragmentManager.beginTransaction()
                     .replace(R.id.fragmentContainer, AdminStoreListFragment())
+                    .addToBackStack(null)
+                    .commit()
+            }
+
+            // Ürün Yönetimi Butonu
+            binding.btnProductManagement.setOnClickListener {
+                parentFragmentManager.beginTransaction()
+                    .replace(R.id.fragmentContainer, AdminProductListFragment())
                     .addToBackStack(null)
                     .commit()
             }
@@ -190,6 +199,7 @@ class ManagementFragment : Fragment() {
         binding.cardStoreSorting.visibility = View.GONE
         binding.cardCartSuggestions.visibility = View.GONE
         binding.cardStoreManagement.visibility = View.GONE
+        binding.cardProductManagement.visibility = View.GONE
     }
 
     private fun updateEditorRequestCount(storeId: Int) {
