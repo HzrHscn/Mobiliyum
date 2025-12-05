@@ -168,4 +168,9 @@ class MainActivity : AppCompatActivity() {
         badge.isVisible = count > 0
         badge.number = count
     }
+
+    // Fragmentlardan sekmeyi değiştirmek için bu fonksiyon
+    fun switchToTab(tabId: Int) {
+        binding.bottomNavigationView.selectedItemId = tabId
+    }
 }

@@ -64,25 +64,52 @@ class AccountFragment : Fragment() {
             )
         }
 
-        // --- Kayıt İşlemi ---
+        // --- SÖZLEŞME METNİNE TIKLANINCA ---
+        binding.tvTermsText.setOnClickListener {
+            showTermsDialog()
+        }
+
+        // --- KAYIT İŞLEMİ (GÜNCELLENDİ) ---
         binding.btnRegister.setOnClickListener {
             val name = binding.etRegName.text.toString().trim()
             val email = binding.etRegEmail.text.toString().trim()
             val pass = binding.etRegPassword.text.toString().trim()
-            if (name.isEmpty() || email.isEmpty() || pass.isEmpty()) return@setOnClickListener
 
+            // 1. Boş Alan Kontrolü
+            if (name.isEmpty() || email.isEmpty() || pass.isEmpty()) {
+                Toast.makeText(context, "Lütfen tüm alanları doldurun.", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+
+            // 2. Sözleşme Onay Kontrolü
+            if (!binding.cbTerms.isChecked) {
+                Toast.makeText(context, "Lütfen Kullanıcı Sözleşmesini onaylayın.", Toast.LENGTH_LONG).show()
+                return@setOnClickListener
+            }
+
+            // 3. Kayıt Başlat
             UserManager.register(email, pass, name,
                 onSuccess = {
-                    FavoritesManager.loadUserFavorites {
-                        Toast.makeText(context, "Kayıt Başarılı! Hoşgeldiniz.", Toast.LENGTH_SHORT).show()
-                        (activity as? MainActivity)?.showBottomNav()
-                        parentFragmentManager.beginTransaction()
-                            .replace(R.id.fragmentContainer, HomeFragment())
-                            .commit()
-                    }
+                    // Kayıt başarılı oldu ve mail gönderildi
+                    AlertDialog.Builder(context)
+                        .setTitle("Doğrulama Maili Gönderildi 📧")
+                        .setMessage("Lütfen $email adresine gönderilen linke tıklayarak hesabınızı doğrulayın. Doğrulama yaptıktan sonra giriş yapabilirsiniz.")
+                        .setPositiveButton("Tamam") { _, _ ->
+                            // Giriş ekranına yönlendir
+                            binding.layoutRegisterContainer.visibility = View.GONE
+                            binding.layoutLoginContainer.visibility = View.VISIBLE
+
+                            // Alanları temizle
+                            binding.etRegName.text?.clear()
+                            binding.etRegEmail.text?.clear()
+                            binding.etRegPassword.text?.clear()
+                            binding.cbTerms.isChecked = false
+                        }
+                        .setCancelable(false) // Kullanıcı kapatamasın, okusun
+                        .show()
                 },
                 onFailure = { errorMessage ->
-                    Toast.makeText(context, "Kayıt Hatası: $errorMessage", Toast.LENGTH_LONG).show()
+                    Toast.makeText(context, "Hata: $errorMessage", Toast.LENGTH_LONG).show()
                 }
             )
         }
@@ -183,6 +210,24 @@ class AccountFragment : Fragment() {
             }
             showChangePasswordDialog()
         }
+    }
+
+    // --- SÖZLEŞME PENCERESİ ---
+    private fun showTermsDialog() {
+        val termsText = """
+            <b>KULLANICI SÖZLEŞMESİ VE GİZLİLİK POLİTİKASI</b><br><br>
+            1. <b>Hizmet Kullanımı:</b> Bu uygulamayı kullanarak, sağlanan hizmetlerin yasalara uygun şekilde kullanılacağını kabul edersiniz.<br><br>
+            2. <b>Veri Gizliliği (KVKK):</b> Kişisel verileriniz (Ad, E-posta, Favoriler vb.) hizmet kalitesini artırmak amacıyla işlenmektedir. Verileriniz 3. şahıslarla paylaşılmaz.<br><br>
+            3. <b>Hesap Güvenliği:</b> Hesabınızın güvenliğinden siz sorumlusunuz. Şifrenizi kimseyle paylaşmayınız.<br><br>
+            4. <b>Email Doğrulama:</b> Gerçek kişi olduğunuzu doğrulamak için email onayı zorunludur.<br><br>
+            <i>Bu metin örnektir ileride güncelleyeceğim.</i>
+        """.trimIndent()
+
+        AlertDialog.Builder(context)
+            .setTitle("Sözleşme Metni")
+            .setMessage(Html.fromHtml(termsText, Html.FROM_HTML_MODE_LEGACY))
+            .setPositiveButton("Okudum, Anladım", null)
+            .show()
     }
 
     private fun showChangePasswordDialog() {

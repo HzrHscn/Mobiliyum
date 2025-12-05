@@ -146,6 +146,7 @@ class AdminProductEditFragment : Fragment() {
             "description" to description,
             "storeId" to selectedStore.id,
             "isActive" to isActive, // Kritik alan: Pasif ise kullanıcı göremez
+            "lastUpdated" to System.currentTimeMillis(), // YENİ: Şu anki zamanı kaydet
 
             // Eski verileri kaybetmemek için koruyoruz
             "rating" to (currentProduct?.rating ?: 0f),
@@ -162,12 +163,36 @@ class AdminProductEditFragment : Fragment() {
         db.collection("products").document(productIdInt.toString())
             .set(productData)
             .addOnSuccessListener {
-                val durum = if(isActive) "Aktif" else "Pasif (Gizli)"
-                Toast.makeText(context, "Ürün başarıyla kaydedildi. Durum: $durum", Toast.LENGTH_SHORT).show()
+                // 1. Ürünü oluştur (Product nesnesi olarak)
+                val updatedProduct = Product(
+                    id = productIdInt,
+                    name = name,
+                    price = price,
+                    category = category,
+                    imageUrl = imageUrl,
+                    productUrl = productUrl,
+                    description = description,
+                    storeId = selectedStore.id,
+                    isActive = isActive,
+                    // Eski değerleri koru
+                    rating = (currentProduct?.rating ?: 0f),
+                    reviewCount = (currentProduct?.reviewCount ?: 0),
+                    totalRating = (currentProduct?.totalRating ?: 0.0),
+                    favoriteCount = (currentProduct?.favoriteCount ?: 0),
+                    clickCount = (currentProduct?.clickCount ?: 0),
+                    priceHistory = (currentProduct?.priceHistory ?: hashMapOf()),
+                    quantity = (currentProduct?.quantity ?: 1)
+                )
+
+                // 2. YEREL ÖNBELLEĞİ GÜNCELLE (0 READ MALİYETİ)
+                DataManager.updateProductInCache(updatedProduct)
+
+                // 3. SUNUCUDAKİ VERSİYONU ARTIR (DİĞER KULLANICILAR İÇİN)
+                // Bu sayede diğer kullanıcılar uygulamayı açtığında yeni veriyi çeker.
+                DataManager.triggerServerVersionUpdate()
+
+                Toast.makeText(context, "Ürün başarıyla kaydedildi.", Toast.LENGTH_SHORT).show()
                 parentFragmentManager.popBackStack()
-            }
-            .addOnFailureListener { e ->
-                Toast.makeText(context, "Kaydetme hatası: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
             }
     }
 

@@ -48,6 +48,19 @@ class ProductsFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+
+        binding.swipeRefreshLayout.setOnRefreshListener {
+            // Belleği temizle ki zorla yeniden çeksin
+            DataManager.cachedProducts = null
+
+            // Versiyonu sıfırla ki sunucudan çekmeye zorlansın (Opsiyonel, sadece cache null yapmak yetmeyebilir)
+            val prefs = requireContext().getSharedPreferences("AppPrefs", android.content.Context.MODE_PRIVATE)
+            prefs.edit().remove("productsVersion").apply()
+
+            fetchProducts()
+            binding.swipeRefreshLayout.isRefreshing = false
+        }
+
         setupRecyclerView()
         setupListeners()
         fetchProducts()
@@ -82,23 +95,20 @@ class ProductsFragment : Fragment() {
 
     private fun fetchProducts() {
         binding.progressBarProducts.visibility = View.VISIBLE
-        val db = FirebaseFirestore.getInstance()
 
-        db.collection("products").get()
-            .addOnSuccessListener { documents ->
-                allProducts.clear()
-                for (doc in documents) {
-                    // ID int olduğu için ve mevcut yapını bozmamak için direkt çekiyoruz
-                    val product = doc.toObject(Product::class.java)
-                    allProducts.add(product)
-                }
+        // DataManager üzerinden akıllı çekim yapıyoruz
+        DataManager.fetchProductsSmart(
+            requireContext(),
+            onSuccess = { products -> // DÜZELTME: Sadece 'products' alıyoruz
+                allProducts = products
                 applyFiltersAndSort()
                 binding.progressBarProducts.visibility = View.GONE
-            }
-            .addOnFailureListener {
+            },
+            onError = {
                 binding.progressBarProducts.visibility = View.GONE
                 Toast.makeText(context, "Ürünler yüklenemedi", Toast.LENGTH_SHORT).show()
             }
+        )
     }
 
     // --- FİLTRELEME VE SIRALAMA ---

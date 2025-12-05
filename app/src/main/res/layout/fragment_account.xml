@@ -137,6 +137,29 @@
                     android:inputType="textPassword"/>
             </com.google.android.material.textfield.TextInputLayout>
 
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginBottom="16dp">
+
+                <CheckBox
+                    android:id="@+id/cbTerms"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:buttonTint="#FF6F00"/>
+
+                <TextView
+                    android:id="@+id/tvTermsText"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Kullanıcı Sözleşmesi ve Gizlilik Politikasını okudum, onaylıyorum."
+                    android:textSize="13sp"
+                    android:textColor="#555555"
+                    android:layout_marginStart="8dp"/>
+            </LinearLayout>
+
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnRegister"
                 android:layout_width="match_parent"

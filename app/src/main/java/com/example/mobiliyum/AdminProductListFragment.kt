@@ -162,16 +162,18 @@ class AdminProductListFragment : Fragment() {
     }
 
     private fun loadProducts() {
-        db.collection("products").get().addOnSuccessListener { result ->
-            allProducts.clear()
-            for (doc in result) {
-                val p = doc.toObject(Product::class.java)
-                allProducts.add(p)
+        // Doğrudan db.get() yerine DataManager kullanıyoruz
+        DataManager.fetchProductsSmart(
+            requireContext(),
+            onSuccess = { products ->
+                // Referansı kopyala ki filtrelemede sorun olmasın
+                allProducts = ArrayList(products)
+                adapter.updateList(allProducts)
+            },
+            onError = {
+                Toast.makeText(context, "Hata: $it", Toast.LENGTH_SHORT).show()
             }
-            // Sadece aktif ürünleri değil, admin panelinde HEPSİNİ gösterelim ki düzenleyebilelim
-            // Ama listede pasif olduğunu belirtmek için renklendirme yapabiliriz (Adapter'da)
-            adapter.updateList(allProducts)
-        }
+        )
     }
 
     private fun filter(text: String) {

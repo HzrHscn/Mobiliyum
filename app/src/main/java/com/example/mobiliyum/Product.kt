@@ -24,6 +24,10 @@ data class Product(
 
     var quantity: Int = 1,
 
+    // YENİ: Son Güncelleme Zamanı (Unix Timestamp)
+    val lastUpdated: Long = 0,
+
     // YENİ: Ürün Aktif mi?
     val isActive: Boolean = true
+
 ) : Parcelable

@@ -24,7 +24,7 @@ class StoreAnnouncementsFragment : Fragment() {
 
     private val db = FirebaseFirestore.getInstance()
     private val allList = ArrayList<NotificationItem>()
-    private lateinit var adapter: AnnouncementAdapter // Adapter referansı
+    private lateinit var adapter: AnnouncementAdapter
 
     private var storeId: String = ""
     private var storeName: String = ""
@@ -70,7 +70,10 @@ class StoreAnnouncementsFragment : Fragment() {
     }
 
     private fun loadAllAnnouncements() {
-        if (storeId.isEmpty()) return
+        if (storeId.isEmpty()) {
+            showEmptyState(true)
+            return
+        }
 
         db.collection("announcements")
             .whereEqualTo("type", "store_update")
@@ -82,9 +85,17 @@ class StoreAnnouncementsFragment : Fragment() {
                     allList.add(doc.toObject(NotificationItem::class.java))
                 }
 
-                // Varsayılan Filtre: 1 AY
-                binding.toggleFilter.check(R.id.btn1Month)
-                filterList(30)
+                if (allList.isEmpty()) {
+                    showEmptyState(true)
+                } else {
+                    showEmptyState(false)
+                    // Varsayılan Filtre: 1 AY
+                    binding.toggleFilter.check(R.id.btn1Month)
+                    filterList(30)
+                }
+            }
+            .addOnFailureListener {
+                showEmptyState(true)
             }
     }
 
@@ -103,9 +114,26 @@ class StoreAnnouncementsFragment : Fragment() {
         }
 
         filteredList.sortByDescending { it.date }
-
-        // DÜZELTME: Veriyi submitList ile gönder
         adapter.submitList(ArrayList(filteredList))
+
+        // Filtre sonucu boşsa da boş ekranı gösterelim mi?
+        // Genelde filtre sonucu boşsa sadece liste boş görünür, ama burada genel boş state'i kullanabiliriz.
+        if (filteredList.isEmpty() && allList.isNotEmpty()) {
+            // Burada "Filtreye uygun sonuç yok" diyebiliriz ama basitlik için listeyi gizlemeyelim, boş görünsün.
+            // Veya özel bir mesaj gösterilebilir. Şimdilik listeyi boş gösteriyoruz.
+        } else if (allList.isEmpty()) {
+            showEmptyState(true)
+        }
+    }
+
+    private fun showEmptyState(isEmpty: Boolean) {
+        if (isEmpty) {
+            binding.rvStoreAnnouncements.visibility = View.GONE
+            binding.layoutEmptyAnnouncements.visibility = View.VISIBLE
+        } else {
+            binding.rvStoreAnnouncements.visibility = View.VISIBLE
+            binding.layoutEmptyAnnouncements.visibility = View.GONE
+        }
     }
 
     override fun onDestroyView() {

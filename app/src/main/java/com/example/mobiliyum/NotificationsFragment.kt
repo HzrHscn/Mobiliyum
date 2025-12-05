@@ -43,7 +43,6 @@ class NotificationsFragment : Fragment() {
 
         binding.rvNotifications.layoutManager = LinearLayoutManager(context)
 
-        // Adapter Başlatma
         adapter = NotifAdapter { item -> handleNotificationClick(item) }
         binding.rvNotifications.adapter = adapter
 
@@ -62,25 +61,30 @@ class NotificationsFragment : Fragment() {
         val user = UserManager.getCurrentUser() ?: return
         allNotifications.clear()
 
+        // 1. Kullanıcıya özel bildirimler
         db.collection("users").document(user.id).collection("notifications").get()
             .addOnSuccessListener { userDocs ->
                 for (doc in userDocs) {
                     allNotifications.add(doc.toObject(NotificationItem::class.java))
                 }
 
+                // 2. Genel Duyurular (Takip edilen mağazalar vb.)
                 db.collection("announcements").orderBy("date", Query.Direction.DESCENDING).get()
                     .addOnSuccessListener { globalDocs ->
                         for (doc in globalDocs) {
                             val item = doc.toObject(NotificationItem::class.java)
                             if (item.type == "store_update") {
                                 val storeId = item.relatedId.toIntOrNull()
+                                // Eğer mağaza bildirimi ise ve kullanıcı takip ediyorsa ekle
                                 if (storeId != null && FavoritesManager.isFollowing(storeId)) {
                                     allNotifications.add(item)
                                 }
                             } else {
+                                // Genel duyuru ise herkese ekle
                                 allNotifications.add(item)
                             }
                         }
+                        // Yükleme bitince o anki sekmeyi filtrele
                         filterList(binding.tabLayoutNotif.selectedTabPosition)
                     }
             }
@@ -93,8 +97,15 @@ class NotificationsFragment : Fragment() {
             else -> allNotifications.filter { it.type == "general" }
         }.sortedByDescending { it.date }
 
-        // DÜZELTME: Veriyi submitList ile gönderiyoruz
-        adapter.submitList(ArrayList(filtered))
+        // BOŞ DURUM KONTROLÜ
+        if (filtered.isEmpty()) {
+            binding.rvNotifications.visibility = View.GONE
+            binding.layoutEmptyNotifications.visibility = View.VISIBLE
+        } else {
+            binding.rvNotifications.visibility = View.VISIBLE
+            binding.layoutEmptyNotifications.visibility = View.GONE
+            adapter.submitList(ArrayList(filtered))
+        }
     }
 
     private fun handleNotificationClick(item: NotificationItem) {
@@ -164,12 +175,11 @@ class NotificationsFragment : Fragment() {
         _binding = null
     }
 
-    // --- MODERN ADAPTER (ListAdapter + DiffUtil) ---
+    // --- MODERN ADAPTER ---
     class NotifAdapter(private val onItemClick: (NotificationItem) -> Unit) :
         ListAdapter<NotificationItem, NotifAdapter.VH>(NotifDiffCallback()) {
 
         class NotifDiffCallback : DiffUtil.ItemCallback<NotificationItem>() {
-            // ID ve İçerik kontrolü (Tarih değişirse içerik de değişmiş sayılır)
             override fun areItemsTheSame(oldItem: NotificationItem, newItem: NotificationItem) = oldItem.id == newItem.id
             override fun areContentsTheSame(oldItem: NotificationItem, newItem: NotificationItem) = oldItem == newItem
         }

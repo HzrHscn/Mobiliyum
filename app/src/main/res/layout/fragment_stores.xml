@@ -4,74 +4,107 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:background="#F5F5F5">
+    android:background="#FAFAFA">
 
-    <!-- Üst Arama ve Filtre Alanı -->
-    <LinearLayout
+    <androidx.cardview.widget.CardView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:background="@android:color/white"
-        android:elevation="4dp"
-        android:orientation="vertical"
-        android:paddingBottom="12dp">
+        app:cardElevation="2dp"
+        app:cardBackgroundColor="#FFFFFF"
+        android:layout_marginBottom="4dp">
 
-        <androidx.appcompat.widget.SearchView
-            android:id="@+id/searchViewStore"
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_margin="12dp"
-            app:iconifiedByDefault="false"
-            app:queryHint="Mağaza veya kategori ara..."
-            android:background="@drawable/bg_quantity_control"/>
+            android:orientation="vertical"
+            android:padding="16dp">
 
-        <!-- 3'lü Filtre Grubu -->
-        <com.google.android.material.button.MaterialButtonToggleGroup
-            android:id="@+id/toggleStoreFilter"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginHorizontal="12dp"
-            app:singleSelection="true"
-            app:selectionRequired="true"
-            app:checkedButton="@id/btnFilterPopular">
+            <androidx.appcompat.widget.SearchView
+                android:id="@+id/searchViewStore"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:background="@drawable/bg_quantity_control"
+                app:queryHint="Mağaza ara..."
+                app:iconifiedByDefault="false"
+                android:layout_marginBottom="12dp"/>
 
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnFilterPopular"
-                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-                android:layout_width="0dp"
+            <LinearLayout
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="Popüler"
-                android:textSize="12sp"
-                app:cornerRadius="8dp"/>
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
 
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnFilterEtapA"
-                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-                android:layout_width="0dp"
+                <HorizontalScrollView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:scrollbars="none">
+
+                    <com.google.android.material.chip.ChipGroup
+                        android:id="@+id/chipGroupEtap"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        app:singleSelection="true"
+                        app:selectionRequired="true">
+
+                        <com.google.android.material.chip.Chip
+                            android:id="@+id/chipPopular"
+                            style="@style/Widget.MaterialComponents.Chip.Choice"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Popüler (Vitrin)"
+                            android:checked="true"
+                            app:chipIcon="@android:drawable/btn_star_big_on"
+                            app:chipBackgroundColor="@color/design_default_color_background"/>
+
+                        <com.google.android.material.chip.Chip
+                            android:id="@+id/chipEtapA"
+                            style="@style/Widget.MaterialComponents.Chip.Choice"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="A Etabı"/>
+
+                        <com.google.android.material.chip.Chip
+                            android:id="@+id/chipEtapB"
+                            style="@style/Widget.MaterialComponents.Chip.Choice"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="B Etabı"/>
+                    </com.google.android.material.chip.ChipGroup>
+                </HorizontalScrollView>
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnSortStores"
+                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                    android:layout_width="52dp"
+                    android:layout_height="52dp"
+                    android:padding="0dp"
+                    app:icon="@android:drawable/ic_menu_sort_by_size"
+                    app:iconGravity="textStart"
+                    app:iconPadding="0dp"
+                    app:strokeColor="#DDDDDD"
+                    android:layout_marginStart="8dp"/>
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/tvSortInfo"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="A Etap"
-                android:textSize="12sp"
-                app:cornerRadius="8dp"/>
+                android:text="Sıralama: Mobiliyum"
+                android:textSize="11sp"
+                android:textColor="#9E9E9E"
+                android:gravity="end"
+                android:layout_marginTop="2dp"/>
 
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnFilterEtapB"
-                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="B Etap"
-                android:textSize="12sp"
-                app:cornerRadius="8dp"/>
-
-        </com.google.android.material.button.MaterialButtonToggleGroup>
-    </LinearLayout>
+        </LinearLayout>
+    </androidx.cardview.widget.CardView>
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/rvStores"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:padding="8dp"
+        android:paddingTop="8dp"
+        android:paddingBottom="80dp"
         android:clipToPadding="false"/>
 
 </LinearLayout>

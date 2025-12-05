@@ -17,41 +17,65 @@
             android:text="Mağaza Ekle/Düzenle"
             android:textSize="24sp"
             android:textStyle="bold"
+            android:textColor="#333333"
             android:layout_marginBottom="24dp"/>
 
-        <EditText
-            android:id="@+id/etStoreName"
+        <com.google.android.material.textfield.TextInputLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="Mağaza Adı"/>
+            android:hint="Mağaza Adı">
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/etStoreName"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="textCapWords"/>
+        </com.google.android.material.textfield.TextInputLayout>
 
-        <EditText
-            android:id="@+id/etStoreCategory"
+        <com.google.android.material.textfield.TextInputLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:hint="Kategori"
-            android:layout_marginTop="12dp"/>
+            android:layout_marginTop="16dp">
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/etStoreCategory"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"/>
+        </com.google.android.material.textfield.TextInputLayout>
 
-        <EditText
-            android:id="@+id/etStoreLocation"
+        <com.google.android.material.textfield.TextInputLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="Konum (Örn: A Blok No:12)"
-            android:layout_marginTop="12dp"/>
+            android:hint="Konum (Örn: 1. Kat No:12)"
+            android:layout_marginTop="16dp">
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/etStoreLocation"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"/>
+        </com.google.android.material.textfield.TextInputLayout>
 
-        <EditText
-            android:id="@+id/etStoreEtap"
+        <com.google.android.material.textfield.TextInputLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:hint="Etap (A veya B)"
-            android:layout_marginTop="12dp"/>
+            android:layout_marginTop="16dp">
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/etStoreEtap"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="textCapCharacters"/>
+        </com.google.android.material.textfield.TextInputLayout>
 
-        <EditText
-            android:id="@+id/etStoreImage"
+        <com.google.android.material.textfield.TextInputLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="Resim URL"
-            android:layout_marginTop="12dp"/>
+            android:hint="Logo URL"
+            android:layout_marginTop="16dp">
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/etStoreImage"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="textUri"/>
+        </com.google.android.material.textfield.TextInputLayout>
 
         <com.google.android.material.switchmaterial.SwitchMaterial
             android:id="@+id/switchStoreActive"
@@ -60,6 +84,7 @@
             android:text="Mağaza Aktif (Görünür)"
             android:checked="true"
             android:textSize="16sp"
+            android:padding="12dp"
             android:layout_marginTop="16dp"/>
 
         <Button
@@ -67,7 +92,9 @@
             android:layout_width="match_parent"
             android:layout_height="60dp"
             android:text="Kaydet"
-            android:layout_marginTop="24dp"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:layout_marginTop="32dp"
             android:backgroundTint="#FF6F00"/>
 
     </LinearLayout>

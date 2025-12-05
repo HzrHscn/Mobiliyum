@@ -1,5 +1,6 @@
 package com.example.mobiliyum
 
+import android.app.AlertDialog
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -11,7 +12,6 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import com.example.mobiliyum.databinding.FragmentStoresBinding
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
-import com.google.firebase.firestore.Query
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -25,13 +25,17 @@ class StoresFragment : Fragment() {
     private var allStores = ArrayList<Store>()
     private val db = FirebaseFirestore.getInstance()
 
-    // Adminin belirlediği sıralama listesi (ID'ler)
+    // Adminin belirlediği özel sıralama listesi (Store ID'leri)
     private var customSortOrder = ArrayList<Long>()
 
-    override fun onCreateView(
-        inflater: LayoutInflater, container: ViewGroup?,
-        savedInstanceState: Bundle?
-    ): View {
+    // Filtre Durumu
+    private var currentFilter = FilterType.POPULAR // Varsayılan Popüler
+    private var currentSort = SortType.WALKING_ORDER
+
+    enum class FilterType { POPULAR, ETAP_A, ETAP_B }
+    enum class SortType { WALKING_ORDER, ALPHABETICAL, POPULARITY }
+
+    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         _binding = FragmentStoresBinding.inflate(inflater, container, false)
         return binding.root
     }
@@ -48,19 +52,49 @@ class StoresFragment : Fragment() {
         }
         binding.rvStores.adapter = storeAdapter
 
-        setupSearchView()
+        setupListeners()
 
-        // Önce özel sıralamayı çek, sonra mağazaları yükle
+        // Önce admin sıralamasını çek, sonra mağazaları yükle
         fetchCustomSortOrder {
             fetchStoresFromFirestore()
         }
+    }
 
-        // Filtre Butonları Dinleyicisi
-        binding.toggleStoreFilter.addOnButtonCheckedListener { _, checkedId, isChecked ->
-            if (isChecked) {
-                applyFilter(checkedId, binding.searchViewStore.query.toString())
+    private fun setupListeners() {
+        binding.searchViewStore.setOnClickListener { binding.searchViewStore.onActionViewExpanded() }
+        binding.searchViewStore.setOnQueryTextListener(object : SearchView.OnQueryTextListener {
+            override fun onQueryTextSubmit(query: String?): Boolean = false
+            override fun onQueryTextChange(newText: String?): Boolean {
+                applyFilterAndSort(newText ?: "")
+                return true
             }
+        })
+
+        // Chip Seçimleri
+        binding.chipGroupEtap.setOnCheckedChangeListener { group, checkedId ->
+            currentFilter = when (checkedId) {
+                R.id.chipPopular -> FilterType.POPULAR
+                R.id.chipEtapA -> FilterType.ETAP_A
+                R.id.chipEtapB -> FilterType.ETAP_B
+                else -> FilterType.POPULAR
+            }
+
+            // Popüler seçiliyse sıralama butonunu gizle (Admin yönetiyor)
+            // Diğerlerinde göster
+            if (currentFilter == FilterType.POPULAR) {
+                binding.btnSortStores.visibility = View.GONE
+                binding.btnSortStores.isEnabled = false
+            } else {
+                binding.btnSortStores.visibility = View.VISIBLE
+                binding.btnSortStores.isEnabled = true
+                // Etaplara geçince varsayılan yürüyüş sırasını ayarla
+                currentSort = SortType.WALKING_ORDER
+            }
+
+            applyFilterAndSort(binding.searchViewStore.query.toString())
         }
+
+        binding.btnSortStores.setOnClickListener { showSortDialog() }
     }
 
     private fun fetchCustomSortOrder(onComplete: () -> Unit) {
@@ -73,7 +107,23 @@ class StoresFragment : Fragment() {
                 }
                 onComplete()
             }
-            .addOnFailureListener { onComplete() } // Hata olsa da devam et
+            .addOnFailureListener { onComplete() }
+    }
+
+    private fun showSortDialog() {
+        val options = arrayOf("Gezinti Sırası (Giriş -> Üst Kat)", "Alfabetik (A-Z)", "Popülerlik (Tık)")
+        AlertDialog.Builder(context)
+            .setTitle("Sıralama")
+            .setItems(options) { _, which ->
+                currentSort = when (which) {
+                    0 -> SortType.WALKING_ORDER
+                    1 -> SortType.ALPHABETICAL
+                    2 -> SortType.POPULARITY
+                    else -> SortType.WALKING_ORDER
+                }
+                applyFilterAndSort(binding.searchViewStore.query.toString())
+            }
+            .show()
     }
 
     private fun fetchStoresFromFirestore() {
@@ -82,54 +132,69 @@ class StoresFragment : Fragment() {
                 allStores.clear()
                 for (document in documents) {
                     val store = document.toObject(Store::class.java)
-                    allStores.add(store)
+                    // Sadece aktif mağazalar (eğer modelinde isActive varsa burayı aç)
+                    if (store.isActive) {
+                        allStores.add(store)
+                    }
                 }
-                // İlk açılışta seçili olan filtreyi uygula
-                applyFilter(binding.toggleStoreFilter.checkedButtonId, "")
-            }
-            .addOnFailureListener { e ->
-                Toast.makeText(context, "Hata: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
+                applyFilterAndSort("")
             }
     }
 
-    private fun applyFilter(checkedId: Int, query: String) {
-        // 1. Önce Arama Filtresi
+    private fun applyFilterAndSort(query: String) {
         val searchLower = query.lowercase(Locale.getDefault())
-        var filteredList = if (query.isEmpty()) {
-            ArrayList(allStores)
-        } else {
-            allStores.filter {
+        var result = ArrayList(allStores)
+
+        // 1. Arama Filtresi
+        if (query.isNotEmpty()) {
+            result = result.filter {
                 it.name.lowercase().contains(searchLower) ||
                         it.category.lowercase().contains(searchLower)
-            }
+            } as ArrayList<Store>
         }
 
-        // 2. Sonra Kategori/Etap Filtresi
-        filteredList = when (checkedId) {
-            R.id.btnFilterEtapA -> filteredList.filter { it.etap == "A" }
-            R.id.btnFilterEtapB -> filteredList.filter { it.etap == "B" }
-            else -> {
-                // POPÜLER (Özel Sıralama)
-                // customSortOrder listesindeki ID sırasına göre diz
-                filteredList.sortedBy { store ->
-                    val index = customSortOrder.indexOf(store.id.toLong())
-                    if (index == -1) Int.MAX_VALUE else index
+        // 2. Ana Filtreleme ve Sıralama
+        if (currentFilter == FilterType.POPULAR) {
+            // --- POPÜLER (ADMİN YÖNETİMİ) ---
+            binding.tvSortInfo.text = "Sıralama: Mobiliyum Vitrini"
+
+            // Sadece customSortOrder listesinde olan mağazaları al
+            val popularList = result.filter { customSortOrder.contains(it.id.toLong()) }
+
+            // Custom listesindeki sıraya göre diz
+            result = ArrayList(popularList.sortedBy { store ->
+                customSortOrder.indexOf(store.id.toLong())
+            })
+
+        } else {
+            // --- ETAPLAR (NORMAL SIRALAMA) ---
+
+            // Önce Etaba göre filtrele
+            result = when (currentFilter) {
+                FilterType.ETAP_A -> result.filter { it.etap.equals("A", ignoreCase = true) } as ArrayList<Store>
+                FilterType.ETAP_B -> result.filter { it.etap.equals("B", ignoreCase = true) } as ArrayList<Store>
+                else -> result
+            }
+
+            // Sonra seçili metoda göre sırala
+            result = when (currentSort) {
+                SortType.WALKING_ORDER -> {
+                    binding.tvSortInfo.text = "Sıralama: Kat Sırası"
+                    // StoreSortHelper: Location metnini puana çevirir (Giriş=0, 1.Kat=1000...)
+                    ArrayList(result.sortedBy { StoreSortHelper.calculateLocationWeight(it.location) })
+                }
+                SortType.ALPHABETICAL -> {
+                    binding.tvSortInfo.text = "Sıralama: Alfabetik"
+                    ArrayList(result.sortedBy { it.name })
+                }
+                SortType.POPULARITY -> {
+                    binding.tvSortInfo.text = "Sıralama: En Çok Ziyaret Edilenler"
+                    ArrayList(result.sortedByDescending { it.clickCount })
                 }
             }
         }
 
-        storeAdapter.submitList(ArrayList(filteredList))
-    }
-
-    private fun setupSearchView() {
-        binding.searchViewStore.setOnClickListener { binding.searchViewStore.onActionViewExpanded() }
-        binding.searchViewStore.setOnQueryTextListener(object : SearchView.OnQueryTextListener {
-            override fun onQueryTextSubmit(query: String?): Boolean = false
-            override fun onQueryTextChange(newText: String?): Boolean {
-                applyFilter(binding.toggleStoreFilter.checkedButtonId, newText ?: "")
-                return true
-            }
-        })
+        storeAdapter.submitList(result)
     }
 
     private fun recordClick(store: Store) {
@@ -152,6 +217,7 @@ class StoresFragment : Fragment() {
         detailFragment.arguments = bundle
 
         parentFragmentManager.beginTransaction()
+            .setCustomAnimations(android.R.anim.fade_in, android.R.anim.fade_out, android.R.anim.fade_in, android.R.anim.fade_out)
             .replace(R.id.fragmentContainer, detailFragment)
             .addToBackStack(null)
             .commit()

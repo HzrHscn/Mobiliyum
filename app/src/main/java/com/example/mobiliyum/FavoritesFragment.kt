@@ -21,7 +21,7 @@ import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
 import com.example.mobiliyum.databinding.DialogPriceAnalysisBinding
-import com.example.mobiliyum.databinding.FragmentFavoritesBinding // YENİ BINDING
+import com.example.mobiliyum.databinding.FragmentFavoritesBinding
 import com.example.mobiliyum.databinding.ItemFavoriteBinding
 import com.google.firebase.firestore.FirebaseFirestore
 import java.text.SimpleDateFormat
@@ -31,7 +31,6 @@ import kotlin.math.max
 
 class FavoritesFragment : Fragment() {
 
-    // Binding sınıfı değişti: FragmentFavoritesBinding
     private var _binding: FragmentFavoritesBinding? = null
     private val binding get() = _binding!!
 
@@ -50,12 +49,9 @@ class FavoritesFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        // Artık tvTitle ve cardSearch referansları hatasız çalışacak
         binding.tvTitle.text = "Favorilerim & Fiyat Takibi"
-        // cardSearch zaten XML'de gone, ama kodda da garantiye alalım
         binding.cardSearch.visibility = View.GONE
 
-        // RecyclerView ID'si değişti: rvFavorites
         binding.rvFavorites.layoutManager = LinearLayoutManager(context)
 
         adapter = FavoritesAdapter(
@@ -66,6 +62,12 @@ class FavoritesFragment : Fragment() {
         )
         binding.rvFavorites.adapter = adapter
 
+        // Ürünleri Keşfet butonu (Boş ekranda çıkar)
+        binding.btnDiscoverProducts.setOnClickListener {
+            // Ana aktivitedeki bottom navigation'dan 'Mağazalar' veya 'Ürünler' sekmesine yönlendir
+            // Örnek: Ürünler sekmesi (R.id.nav_products varsayıldı)
+            (activity as? MainActivity)?.switchToTab(R.id.nav_products) // Ürünler sekmesine git
+        }
         loadFavorites()
     }
 
@@ -74,8 +76,7 @@ class FavoritesFragment : Fragment() {
         db.collection("users").document(user.id).collection("favorites").get()
             .addOnSuccessListener { favDocs ->
                 if (favDocs.isEmpty) {
-                    Toast.makeText(context, "Henüz favoriniz yok.", Toast.LENGTH_SHORT).show()
-                    adapter.submitList(emptyList())
+                    showEmptyState(true)
                     return@addOnSuccessListener
                 }
 
@@ -96,10 +97,28 @@ class FavoritesFragment : Fragment() {
                                 val isAlertOn = alertMap[product.id.toString()] ?: false
                                 favoriteUiList.add(FavoriteUiItem(product, isAlertOn))
                             }
-                            adapter.submitList(ArrayList(favoriteUiList))
+
+                            if (favoriteUiList.isEmpty()) {
+                                showEmptyState(true)
+                            } else {
+                                showEmptyState(false)
+                                adapter.submitList(ArrayList(favoriteUiList))
+                            }
                         }
+                } else {
+                    showEmptyState(true)
                 }
             }
+    }
+
+    private fun showEmptyState(isEmpty: Boolean) {
+        if (isEmpty) {
+            binding.rvFavorites.visibility = View.GONE
+            binding.layoutEmptyFavorites.visibility = View.VISIBLE
+        } else {
+            binding.rvFavorites.visibility = View.VISIBLE
+            binding.layoutEmptyFavorites.visibility = View.GONE
+        }
     }
 
     private fun openDetail(product: Product) {
@@ -121,13 +140,18 @@ class FavoritesFragment : Fragment() {
                 FavoritesManager.toggleFavorite(item.product) {
                     favoriteUiList.remove(item)
                     adapter.submitList(ArrayList(favoriteUiList))
+                    // Eğer liste boşaldıysa boş ekranı göster
+                    if (favoriteUiList.isEmpty()) {
+                        showEmptyState(true)
+                    }
                 }
             }.setNegativeButton("İptal", null).show()
     }
 
     private fun showAnalysisDialog(product: Product) {
+        // ... (Bu kısım aynen kalacak, kodun devamlılığı için kısaltıyorum)
+        // Senin gönderdiğin orijinal showAnalysisDialog kodunun aynısı buraya gelecek.
         val dialogBinding = DialogPriceAnalysisBinding.inflate(LayoutInflater.from(context))
-
         dialogBinding.tvGraphTitle.text = "${product.name}"
 
         val graphView = InternalGraphView(requireContext())
@@ -191,10 +215,11 @@ class FavoritesFragment : Fragment() {
     }
 }
 
-// --- VERİ MODELİ ---
+// --- VERİ MODELİ, ADAPTER ve GRAFİK CLASSLARI AYNEN KALIYOR ---
+// (Bu dosyanın altındaki FavoriteUiItem, FavoritesAdapter ve InternalGraphView sınıfları
+// senin gönderdiğin kodla birebir aynıdır, tekrar yazıp uzatmadım ama dosyada olmalılar.)
 data class FavoriteUiItem(val product: Product, var isAlertOn: Boolean)
 
-// --- ADAPTER ---
 class FavoritesAdapter(
     private val onDetailClick: (Product) -> Unit,
     private val onRemoveClick: (FavoriteUiItem, Int) -> Unit,
@@ -203,13 +228,8 @@ class FavoritesAdapter(
 ) : ListAdapter<FavoriteUiItem, FavoritesAdapter.VH>(FavoriteDiffCallback()) {
 
     class FavoriteDiffCallback : DiffUtil.ItemCallback<FavoriteUiItem>() {
-        override fun areItemsTheSame(oldItem: FavoriteUiItem, newItem: FavoriteUiItem): Boolean {
-            return oldItem.product.id == newItem.product.id
-        }
-
-        override fun areContentsTheSame(oldItem: FavoriteUiItem, newItem: FavoriteUiItem): Boolean {
-            return oldItem == newItem
-        }
+        override fun areItemsTheSame(oldItem: FavoriteUiItem, newItem: FavoriteUiItem) = oldItem.product.id == newItem.product.id
+        override fun areContentsTheSame(oldItem: FavoriteUiItem, newItem: FavoriteUiItem) = oldItem == newItem
     }
 
     inner class VH(val binding: ItemFavoriteBinding) : RecyclerView.ViewHolder(binding.root)
@@ -221,26 +241,15 @@ class FavoritesAdapter(
 
     override fun onBindViewHolder(holder: VH, position: Int) {
         val item = getItem(position)
-
         holder.binding.tvFavName.text = item.product.name
         holder.binding.tvFavPrice.text = PriceUtils.formatPriceStyled(item.product.price)
-
-        Glide.with(holder.itemView.context)
-            .load(item.product.imageUrl)
-            .into(holder.binding.imgFavProduct)
-
+        Glide.with(holder.itemView.context).load(item.product.imageUrl).into(holder.binding.imgFavProduct)
         holder.binding.switchPriceAlert.setOnCheckedChangeListener(null)
         holder.binding.switchPriceAlert.isChecked = item.isAlertOn
-
         holder.binding.infoLayout.setOnClickListener { onDetailClick(item.product) }
         holder.binding.imgFavProduct.setOnClickListener { onDetailClick(item.product) }
-
-        holder.binding.btnRemoveFav.setOnClickListener {
-            onRemoveClick(item, holder.adapterPosition)
-        }
-
+        holder.binding.btnRemoveFav.setOnClickListener { onRemoveClick(item, holder.adapterPosition) }
         holder.binding.btnShowGraph.setOnClickListener { onGraphClick(item.product) }
-
         holder.binding.switchPriceAlert.setOnCheckedChangeListener { _, isChecked ->
             item.isAlertOn = isChecked
             onAlertChange(item.product.id, isChecked)
@@ -248,74 +257,36 @@ class FavoritesAdapter(
     }
 }
 
-// --- ZAMAN EKSENLİ GRAFİK MOTORU ---
 class InternalGraphView @JvmOverloads constructor(c: Context, a: AttributeSet? = null) : View(c, a) {
     private val pLine = Paint().apply { color = Color.parseColor("#4CAF50"); strokeWidth = 5f; style = Paint.Style.STROKE; isAntiAlias = true }
     private val pDot = Paint().apply { color = Color.parseColor("#FF6F00"); style = Paint.Style.FILL; isAntiAlias = true }
     private val pGrid = Paint().apply { color = Color.LTGRAY; strokeWidth = 2f; style = Paint.Style.STROKE; pathEffect = DashPathEffect(floatArrayOf(10f, 10f), 0f) }
     private val pText = Paint().apply { color = Color.DKGRAY; textSize = 24f; isAntiAlias = true; textAlign = Paint.Align.CENTER }
-
     private var dataMap: Map<Long, Double> = emptyMap()
     private var minTime: Long = 0
     private var maxTime: Long = 0
-
     fun setData(data: Map<Long, Double>, start: Long, end: Long) {
-        dataMap = data
-        minTime = start
-        maxTime = end
-        invalidate()
+        dataMap = data; minTime = start; maxTime = end; invalidate()
     }
-
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
         if (dataMap.isEmpty()) return
-
-        val padLeft = 80f
-        val padBottom = 60f
-        val padTop = 40f
-        val padRight = 40f
-
-        val w = width - padLeft - padRight
-        val h = height - padBottom - padTop
-
-        val maxP = dataMap.values.maxOrNull() ?: 100.0
-        val minP = dataMap.values.minOrNull() ?: 0.0
-        val rangeP = max((maxP - minP) * 1.2, 1.0)
-        val baseP = minP - (rangeP * 0.1)
-
+        val padLeft = 80f; val padBottom = 60f; val padTop = 40f; val padRight = 40f
+        val w = width - padLeft - padRight; val h = height - padBottom - padTop
+        val maxP = dataMap.values.maxOrNull() ?: 100.0; val minP = dataMap.values.minOrNull() ?: 0.0
+        val rangeP = max((maxP - minP) * 1.2, 1.0); val baseP = minP - (rangeP * 0.1)
         val rangeT = max(maxTime - minTime, 1L)
-
-        val sdf = SimpleDateFormat("dd MMM", Locale("tr"))
-        val labelCount = 5
+        val sdf = SimpleDateFormat("dd MMM", Locale("tr")); val labelCount = 5
         for (i in 0 until labelCount) {
-            val fraction = i.toFloat() / (labelCount - 1)
-            val x = padLeft + (fraction * w)
-            val time = minTime + (fraction * rangeT).toLong()
-
-            canvas.drawLine(x, padTop, x, height - padBottom, pGrid)
-            canvas.drawText(sdf.format(Date(time)), x, height - 10f, pText)
+            val fraction = i.toFloat() / (labelCount - 1); val x = padLeft + (fraction * w); val time = minTime + (fraction * rangeT).toLong()
+            canvas.drawLine(x, padTop, x, height - padBottom, pGrid); canvas.drawText(sdf.format(Date(time)), x, height - 10f, pText)
         }
-
-        val path = Path()
-        val sortedPoints = dataMap.toList().sortedBy { it.first }
-        var firstPoint = true
-
+        val path = Path(); val sortedPoints = dataMap.toList().sortedBy { it.first }; var firstPoint = true
         for ((t, p) in sortedPoints) {
-            val fractionX = (t - minTime).toFloat() / rangeT.toFloat()
-            val x = padLeft + (fractionX * w)
-
-            val fractionY = ((p - baseP) / rangeP).toFloat()
-            val y = (height - padBottom) - (fractionY * h)
-
-            if (firstPoint) {
-                path.moveTo(x, y)
-                firstPoint = false
-            } else {
-                path.lineTo(x, y)
-            }
-
-            canvas.drawCircle(x, y, 8f, pDot)
-            canvas.drawText("${p.toInt()}", x, y - 15f, pText)
+            val fractionX = (t - minTime).toFloat() / rangeT.toFloat(); val x = padLeft + (fractionX * w)
+            val fractionY = ((p - baseP) / rangeP).toFloat(); val y = (height - padBottom) - (fractionY * h)
+            if (firstPoint) { path.moveTo(x, y); firstPoint = false } else { path.lineTo(x, y) }
+            canvas.drawCircle(x, y, 8f, pDot); canvas.drawText("${p.toInt()}", x, y - 15f, pText)
         }
         canvas.drawPath(path, pLine)
     }

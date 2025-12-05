@@ -20,6 +20,8 @@ data class User(
     var isBanned: Boolean = false,
     // YENİ: Takip edilen mağaza ID'leri
     val followedStores: ArrayList<Int> = arrayListOf(),
+    // YENİ EKLENEN ALAN: Son doğrulama maili zamanı
+    var lastVerificationMailSent: Long = 0,
     // YENİ: Editör ise bildirim atabilir mi? (Manager verir bu yetkiyi)
     val canSendNotifications: Boolean = false
 ) : Parcelable
