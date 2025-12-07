@@ -110,7 +110,7 @@ class FavoritesFragment : Fragment() {
                 }
             }
     }
-
+//Boşkenki durumu ekledim
     private fun showEmptyState(isEmpty: Boolean) {
         if (isEmpty) {
             binding.rvFavorites.visibility = View.GONE
