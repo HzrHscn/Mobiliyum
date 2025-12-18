@@ -14,7 +14,7 @@ import com.google.firebase.firestore.Query
 
 class MainActivity : AppCompatActivity() {
 
-    private lateinit var binding: ActivityMainBinding
+    lateinit var binding: ActivityMainBinding
 
     private var activeAnnouncementId: String = ""
 
@@ -34,32 +34,35 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+        // BottomNavigation başlangıçta gizli (Login kontrolü bitene kadar)
         binding.bottomNavigationView.visibility = View.GONE
-
-         binding.bottomNavigationView.itemIconTintList = null // duruma göre açabilirim
+        binding.bottomNavigationView.itemIconTintList = null
 
         setupNavigation()
         setupNotificationPermissions()
         NotificationHelper.createNotificationChannel(this)
         listenForAnnouncements()
 
-        // Oturum Kontrolü
+        // --- OTURUM KONTROLÜ VE BAŞLANGIÇ EKRANI ---
         UserManager.checkSession { isLoggedIn ->
             if (isLoggedIn) {
                 FavoritesManager.loadUserFavorites {
                     // Giriş yapılıysa direkt Mağazalar (Stores) sayfasını aç
                     loadFragment(storesFragment)
                     binding.bottomNavigationView.visibility = View.VISIBLE
-                    // Menüde doğru item'ı seçili yap
+
+                    // Menüde Mağazalar sekmesini seçili yap
                     binding.bottomNavigationView.selectedItemId = R.id.nav_stores
 
                     FavoritesManager.startRealTimePriceAlerts(this)
                 }
             } else {
+                // Giriş yoksa Karşılama Ekranı
                 loadFragment(welcomeFragment)
             }
         }
 
+        // Bildirim kapatma butonu
         binding.btnCloseNotif.setOnClickListener {
             hideNotification()
             if (activeAnnouncementId.isNotEmpty()) {
