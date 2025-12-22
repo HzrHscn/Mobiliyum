@@ -21,20 +21,26 @@ class StoreDetailFragment : Fragment() {
 
     private var _binding: FragmentStoreDetailBinding? = null
     private val binding get() = _binding!!
+
     private lateinit var categoryAdapter: CategoryAdapter
     private lateinit var userChoiceAdapter: ProductAdapter
     private lateinit var storeChoiceAdapter: ProductAdapter
+
     private var currentAnnouncement: NotificationItem? = null
     private var categorySectionList = ArrayList<CategorySection>()
+
+    // Mağaza Bilgileri
     private var storeId: Int = 0
     private var storeName: String? = null
     private var storeImage: String? = null
     private var storeLocation: String? = null
+
     private val db = FirebaseFirestore.getInstance()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         arguments?.let {
+            // MainActivity'den gelen parça parça verileri alıyoruz
             storeId = it.getInt("id", 0)
             storeName = it.getString("name")
             storeImage = it.getString("image")
@@ -53,17 +59,20 @@ class StoreDetailFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
+        // UI Yerleşimi
         binding.tvDetailName.text = storeName
         binding.tvDetailLocation.text = storeLocation
-        if (storeImage != null && storeImage!!.isNotEmpty()) {
+
+        if (!storeImage.isNullOrEmpty()) {
             Glide.with(this).load(storeImage).into(binding.imgDetailLogo)
         }
 
-        // LayoutManager Ayarları
+        // RecyclerView Ayarları
         binding.rvProducts.layoutManager = LinearLayoutManager(context)
         binding.rvUserChoice.layoutManager = GridLayoutManager(context, 2)
         binding.rvStoreChoice.layoutManager = GridLayoutManager(context, 2)
 
+        // NestedScroll Sorununu Önlemek İçin
         binding.rvProducts.isNestedScrollingEnabled = false
         binding.rvUserChoice.isNestedScrollingEnabled = false
         binding.rvStoreChoice.isNestedScrollingEnabled = false
@@ -71,10 +80,14 @@ class StoreDetailFragment : Fragment() {
         setupFollowButton()
 
         if (storeId != 0) {
-            fetchStoreProducts()
+            // --- KRİTİK NOKTA: ARTIK VERİTABANI YOK, CACHE VAR ---
+            loadStoreProductsFromCache()
+
+            // Duyurular anlık olduğu için sorgulanabilir (Maliyet: 1 Read)
             fetchLatestAnnouncement()
         }
 
+        // Duyuru Tıklama
         binding.cardStoreAnnouncement.setOnClickListener {
             if (currentAnnouncement != null) {
                 AlertDialog.Builder(context)
@@ -85,6 +98,7 @@ class StoreDetailFragment : Fragment() {
             }
         }
 
+        // Tüm Duyurular
         binding.btnSeeAllAnnouncements.setOnClickListener {
             val fragment = StoreAnnouncementsFragment()
             val bundle = Bundle()
@@ -96,6 +110,105 @@ class StoreDetailFragment : Fragment() {
                 .addToBackStack(null)
                 .commit()
         }
+    }
+
+    // --- OPTİMİZE EDİLMİŞ VERİ ÇEKME ---
+    private fun loadStoreProductsFromCache() {
+        // DataManager bize RAM'deki veya Disk'teki ürünleri verir (İnternet harcamaz)
+        DataManager.fetchProductsSmart(
+            requireContext(),
+            onSuccess = { allProducts ->
+                // Filtreleme işlemini telefonda yapıyoruz (0 Maliyet)
+                val storeProducts = allProducts.filter { it.storeId == storeId }
+
+                if (storeProducts.isNotEmpty()) {
+                    groupProductsByCategory(storeProducts)
+                    setupFeaturedProducts(storeProducts)
+                } else {
+                    // Mağazanın ürünü yoksa boş kalır
+                }
+            },
+            onError = {
+                Toast.makeText(context, "Ürünler yüklenirken hata oluştu.", Toast.LENGTH_SHORT).show()
+            }
+        )
+    }
+
+    private fun setupFeaturedProducts(storeProducts: List<Product>) {
+        // Mağaza detaylarını (öne çıkan ID'leri) da Cache'den alalım
+        DataManager.fetchStoresSmart(
+            requireContext(),
+            onSuccess = { stores ->
+                val thisStore = stores.find { it.id == storeId }
+
+                if (thisStore != null) {
+                    var storeChoiceList = emptyList<Product>()
+
+                    // 1. Mağazanın Seçtikleri (Featured)
+                    if (thisStore.featuredProductIds.isNotEmpty()) {
+                        storeChoiceList = storeProducts.filter { thisStore.featuredProductIds.contains(it.id) }
+                    }
+
+                    // Eğer seçili yoksa son eklenenlerden koy
+                    if (storeChoiceList.size < 2) {
+                        storeChoiceList = storeProducts.takeLast(4).take(2)
+                    }
+
+                    if (storeChoiceList.isNotEmpty()) {
+                        binding.layoutStoreChoice.visibility = View.VISIBLE
+                        storeChoiceAdapter = ProductAdapter { product -> openProductDetail(product) }
+                        binding.rvStoreChoice.adapter = storeChoiceAdapter
+                        storeChoiceAdapter.submitList(ArrayList(storeChoiceList))
+                    } else {
+                        binding.layoutStoreChoice.visibility = View.GONE
+                    }
+
+                    // 2. Kullanıcıların Seçtikleri (Popüler)
+                    val userChoiceList = storeProducts.sortedWith(
+                        compareByDescending<Product> { it.favoriteCount }
+                            .thenByDescending { it.clickCount }
+                    ).take(2)
+
+                    if (userChoiceList.isNotEmpty()) {
+                        binding.layoutUserChoice.visibility = View.VISIBLE
+                        userChoiceAdapter = ProductAdapter { product -> openProductDetail(product) }
+                        binding.rvUserChoice.adapter = userChoiceAdapter
+                        userChoiceAdapter.submitList(ArrayList(userChoiceList))
+                    } else {
+                        binding.layoutUserChoice.visibility = View.GONE
+                    }
+                }
+            },
+            onError = { /* Hata olsa da akışı bozma */ }
+        )
+    }
+
+    private fun fetchLatestAnnouncement() {
+        // Bu kısım canlı kalabilir, mağaza başına 1 sorgu çok yük bindirmez.
+        db.collection("announcements")
+            .whereEqualTo("type", "store_update")
+            .whereEqualTo("relatedId", storeId.toString())
+            .get()
+            .addOnSuccessListener { docs ->
+                if (!docs.isEmpty) {
+                    val latestDoc = docs.map { it.toObject(NotificationItem::class.java) }
+                        .sortedByDescending { it.date }
+                        .firstOrNull()
+
+                    if (latestDoc != null && latestDoc.message.isNotEmpty()) {
+                        currentAnnouncement = latestDoc
+                        binding.tvStoreAnnouncement.text = latestDoc.message
+                        binding.cardStoreAnnouncement.visibility = View.VISIBLE
+                    } else {
+                        binding.cardStoreAnnouncement.visibility = View.GONE
+                    }
+                } else {
+                    binding.cardStoreAnnouncement.visibility = View.GONE
+                }
+            }
+            .addOnFailureListener {
+                binding.cardStoreAnnouncement.visibility = View.GONE
+            }
     }
 
     private fun setupFollowButton() {
@@ -125,92 +238,16 @@ class StoreDetailFragment : Fragment() {
         }
     }
 
-    private fun fetchStoreProducts() {
-        db.collection("products")
-            .whereEqualTo("storeId", storeId)
-            .get()
-            .addOnSuccessListener { documents ->
-                val allProducts = ArrayList<Product>()
-                for (doc in documents) {
-                    allProducts.add(doc.toObject(Product::class.java))
-                }
-
-                if (allProducts.isNotEmpty()) {
-                    groupProductsByCategory(allProducts)
-                    setupFeaturedProducts(allProducts)
-                }
-            }
-    }
-
-    private fun fetchLatestAnnouncement() {
-        db.collection("announcements")
-            .whereEqualTo("type", "store_update")
-            .whereEqualTo("relatedId", storeId.toString())
-            .get()
-            .addOnSuccessListener { docs ->
-                if (!docs.isEmpty) {
-                    val latestDoc = docs.map { it.toObject(NotificationItem::class.java) }
-                        .sortedByDescending { it.date }
-                        .firstOrNull()
-
-                    if (latestDoc != null && latestDoc.message.isNotEmpty()) {
-                        currentAnnouncement = latestDoc
-                        binding.tvStoreAnnouncement.text = latestDoc.message
-                        binding.cardStoreAnnouncement.visibility = View.VISIBLE
-                    } else {
-                        binding.cardStoreAnnouncement.visibility = View.GONE
-                    }
-                } else {
-                    binding.cardStoreAnnouncement.visibility = View.GONE
-                }
-            }
-            .addOnFailureListener {
-                binding.cardStoreAnnouncement.visibility = View.GONE
-            }
-    }
-
-    private fun setupFeaturedProducts(products: List<Product>) {
-        db.collection("stores").document(storeId.toString()).get().addOnSuccessListener { doc ->
-            val store = doc.toObject(Store::class.java)
-
-            var storeChoiceList: List<Product> = emptyList()
-
-            if (store != null && store.featuredProductIds.isNotEmpty()) {
-                storeChoiceList = products.filter { store.featuredProductIds.contains(it.id) }
-            }
-
-            if (storeChoiceList.size < 2) {
-                storeChoiceList = products.takeLast(4).take(2)
-            }
-
-            if (storeChoiceList.isNotEmpty()) {
-                binding.layoutStoreChoice.visibility = View.VISIBLE
-
-                // DÜZELTME: ProductAdapter kurulumu
-                storeChoiceAdapter = ProductAdapter { product -> openProductDetail(product) }
-                binding.rvStoreChoice.adapter = storeChoiceAdapter
-                storeChoiceAdapter.submitList(storeChoiceList)
-            }
-
-            val userChoiceList = products.sortedWith(compareByDescending<Product> { it.favoriteCount }.thenByDescending { it.clickCount }).take(2)
-
-            if (userChoiceList.isNotEmpty()) {
-                binding.layoutUserChoice.visibility = View.VISIBLE
-
-                // DÜZELTME: ProductAdapter kurulumu
-                userChoiceAdapter = ProductAdapter { product -> openProductDetail(product) }
-                binding.rvUserChoice.adapter = userChoiceAdapter
-                userChoiceAdapter.submitList(userChoiceList)
-            }
-        }
-    }
-
     private fun openProductDetail(product: Product) {
         val detailFragment = ProductDetailFragment()
         val bundle = Bundle()
         bundle.putParcelable("product_data", product)
         detailFragment.arguments = bundle
-        parentFragmentManager.beginTransaction().replace(R.id.fragmentContainer, detailFragment).addToBackStack(null).commit()
+        parentFragmentManager.beginTransaction()
+            .setCustomAnimations(android.R.anim.fade_in, android.R.anim.fade_out, android.R.anim.fade_in, android.R.anim.fade_out)
+            .replace(R.id.fragmentContainer, detailFragment)
+            .addToBackStack(null)
+            .commit()
     }
 
     private fun groupProductsByCategory(products: List<Product>) {
@@ -231,10 +268,10 @@ class StoreDetailFragment : Fragment() {
     }
 }
 
-// Helper Data Class
+// --- YARDIMCI ADAPTER (Aynı Dosyada Kalabilir) ---
+
 data class CategorySection(val categoryName: String, val products: List<Product>, var isExpanded: Boolean = false)
 
-// ADAPTER (ViewBinding'li)
 class CategoryAdapter(
     private val context: Context,
     private val categoryList: List<CategorySection>,
@@ -251,15 +288,17 @@ class CategoryAdapter(
     override fun onBindViewHolder(holder: CategoryViewHolder, position: Int) {
         val section = categoryList[position]
         holder.binding.tvCategoryTitle.text = "${section.categoryName} (${section.products.size})"
+
+        // Açılır/Kapanır Animasyon Mantığı
         holder.binding.rvInnerProducts.visibility = if (section.isExpanded) View.VISIBLE else View.GONE
         holder.binding.imgExpandIcon.rotation = if (section.isExpanded) 180f else 0f
 
         holder.binding.rvInnerProducts.layoutManager = GridLayoutManager(context, 2)
 
-        // DÜZELTME: İçerideki ProductAdapter kurulumu
+        // İç RecyclerView Adapter'ı
         val innerAdapter = ProductAdapter(onProductClick)
         holder.binding.rvInnerProducts.adapter = innerAdapter
-        innerAdapter.submitList(section.products)
+        innerAdapter.submitList(ArrayList(section.products))
 
         holder.binding.rvInnerProducts.isNestedScrollingEnabled = false
 

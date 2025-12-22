@@ -36,8 +36,6 @@ class ProductDetailFragment : Fragment() {
     private var currentProduct: Product? = null
     private var isDescriptionExpanded = false
     private var allReviewsList = listOf<Review>()
-
-    // Modern Adapter Tanımlaması
     private lateinit var reviewAdapter: ReviewAdapter
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -68,21 +66,18 @@ class ProductDetailFragment : Fragment() {
         incrementClickCount()
 
         binding.rvReviews.layoutManager = LinearLayoutManager(context)
-
-        // Adapter Başlatma (Boş constructor)
         reviewAdapter = ReviewAdapter()
         binding.rvReviews.adapter = reviewAdapter
 
-        // Verileri Yerleştir
-        binding.tvProductName.text = currentProduct!!.name
-        binding.tvProductPrice.text = PriceUtils.formatPriceStyled(currentProduct!!.price)
-        Glide.with(this).load(currentProduct!!.imageUrl).into(binding.imgProductDetail)
+        // UI Doldur
+        updateUI(currentProduct!!)
 
         binding.imgProductDetail.setOnClickListener { showZoomImageDialog(currentProduct!!.imageUrl) }
 
-        setupCategoryIcon(currentProduct!!.category)
-        setupDescription(currentProduct!!.description)
-        refreshProductData()
+        // SWIPE REFRESH: Sadece bu ürünü yenile (1 Read)
+        binding.swipeRefreshProduct.setOnRefreshListener {
+            refreshProductData()
+        }
 
         if (UserManager.canEditProduct(currentProduct!!)) {
             binding.btnAddToCart.text = "Ürünü Düzenle"
@@ -112,7 +107,6 @@ class ProductDetailFragment : Fragment() {
         binding.btnAddReview.setOnClickListener { handleReviewClick() }
 
         binding.btnSeeAllReviews.setOnClickListener {
-            // TÜMÜNÜ GÖSTER
             reviewAdapter.submitList(allReviewsList)
             binding.btnSeeAllReviews.visibility = View.GONE
             binding.btnHideReviews.visibility = View.VISIBLE
@@ -120,9 +114,46 @@ class ProductDetailFragment : Fragment() {
         }
 
         binding.btnHideReviews.setOnClickListener {
-            setupReviews() // ÖZET GÖSTER
+            setupReviews()
             binding.btnHideReviews.visibility = View.GONE
         }
+    }
+
+    private fun updateUI(product: Product) {
+        binding.tvProductName.text = product.name
+        binding.tvProductPrice.text = PriceUtils.formatPriceStyled(product.price)
+        Glide.with(this).load(product.imageUrl).into(binding.imgProductDetail)
+        setupCategoryIcon(product.category)
+        setupDescription(product.description)
+
+        binding.tvAvgRating.text = String.format("%.1f", product.rating)
+        binding.rbProductAvg.rating = product.rating
+        binding.tvRatingCount.text = "(${product.reviewCount} Değerlendirme)"
+
+        setupReviews()
+    }
+
+    // --- TEKİL ÜRÜN YENİLEME (Optimize Edildi) ---
+    private fun refreshProductData() {
+        val db = FirebaseFirestore.getInstance()
+        db.collection("products").document(currentProduct!!.id.toString()).get()
+            .addOnSuccessListener { document ->
+                val freshProduct = document.toObject(Product::class.java)
+                if (freshProduct != null) {
+                    currentProduct = freshProduct
+                    updateUI(freshProduct)
+
+                    if (context != null) {
+                        DataManager.updateProductInCache(requireContext(), freshProduct)
+                    }
+                    Toast.makeText(context, "Bilgiler güncellendi", Toast.LENGTH_SHORT).show()
+                }
+                binding.swipeRefreshProduct.isRefreshing = false
+            }
+            .addOnFailureListener {
+                Toast.makeText(context, "Güncelleme başarısız", Toast.LENGTH_SHORT).show()
+                binding.swipeRefreshProduct.isRefreshing = false
+            }
     }
 
     private fun setupDescription(desc: String?) {
@@ -168,24 +199,6 @@ class ProductDetailFragment : Fragment() {
         dialog.show()
     }
 
-    private fun refreshProductData() {
-        val db = FirebaseFirestore.getInstance()
-        db.collection("products").document(currentProduct!!.id.toString()).get()
-            .addOnSuccessListener { document ->
-                val freshProduct = document.toObject(Product::class.java)
-                if (freshProduct != null) {
-                    currentProduct = freshProduct
-                    setupDescription(freshProduct.description)
-                    val rating = freshProduct.rating
-                    val count = freshProduct.reviewCount
-                    binding.tvAvgRating.text = String.format("%.1f", rating)
-                    binding.rbProductAvg.rating = rating
-                    binding.tvRatingCount.text = "($count Değerlendirme)"
-                    setupReviews()
-                }
-            }
-    }
-
     private fun setupReviews() {
         ReviewManager.getReviews(currentProduct!!.id) { reviews ->
             allReviewsList = reviews
@@ -214,13 +227,11 @@ class ProductDetailFragment : Fragment() {
                         featuredList.add(reviews[0])
                         binding.tvBestReviewTitle.visibility = View.GONE
                     }
-                    // ÖZET GÖSTER
                     reviewAdapter.submitList(featuredList)
                 } else {
                     binding.btnSeeAllReviews.visibility = View.GONE
                     binding.btnHideReviews.visibility = View.GONE
                     binding.tvBestReviewTitle.visibility = View.GONE
-                    // HEPSİNİ GÖSTER
                     reviewAdapter.submitList(reviews)
                 }
             }
@@ -257,42 +268,26 @@ class ProductDetailFragment : Fragment() {
         val ratingBar = dialogView.findViewById<RatingBar>(R.id.rbUserRating)
         val etComment = dialogView.findViewById<TextInputEditText>(R.id.etUserComment)
 
-        AlertDialog.Builder(context)
-            .setView(dialogView)
-            .setPositiveButton("Yayınla") { _, _ ->
-                val rating = ratingBar.rating
-                val comment = etComment.text.toString()
-
-                if (rating > 0) {
-                    ReviewManager.addReview(currentProduct!!, rating, comment) { success ->
-                        if (success) {
-                            Toast.makeText(context, "Yorumunuz başarıyla yayınlandı!", Toast.LENGTH_SHORT).show()
-                            refreshProductData()
-                        } else {
-                            Toast.makeText(context, "Hata oluştu.", Toast.LENGTH_SHORT).show()
-                        }
-                    }
-                } else {
-                    Toast.makeText(context, "Lütfen puan veriniz.", Toast.LENGTH_SHORT).show()
+        AlertDialog.Builder(context).setView(dialogView).setPositiveButton("Yayınla") { _, _ ->
+            val rating = ratingBar.rating
+            val comment = etComment.text.toString()
+            if (rating > 0) {
+                ReviewManager.addReview(currentProduct!!, rating, comment) { success ->
+                    if (success) {
+                        Toast.makeText(context, "Yorumunuz yayınlandı!", Toast.LENGTH_SHORT).show()
+                        refreshProductData()
+                    } else Toast.makeText(context, "Hata oluştu.", Toast.LENGTH_SHORT).show()
                 }
-            }
-            .setNegativeButton("Vazgeç", null)
-            .show()
+            } else Toast.makeText(context, "Lütfen puan veriniz.", Toast.LENGTH_SHORT).show()
+        }.setNegativeButton("Vazgeç", null).show()
     }
 
     private fun showEditOptionsDialog() {
         val dialogView = LayoutInflater.from(context).inflate(R.layout.dialog_edit_options, null)
         val dialog = AlertDialog.Builder(context).setView(dialogView).create()
         dialog.window?.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
-
-        dialogView.findViewById<View>(R.id.cardOptionPrice).setOnClickListener {
-            dialog.dismiss()
-            showUpdatePriceDialog()
-        }
-        dialogView.findViewById<View>(R.id.cardOptionInfo).setOnClickListener {
-            dialog.dismiss()
-            showUpdateInfoDialog()
-        }
+        dialogView.findViewById<View>(R.id.cardOptionPrice).setOnClickListener { dialog.dismiss(); showUpdatePriceDialog() }
+        dialogView.findViewById<View>(R.id.cardOptionInfo).setOnClickListener { dialog.dismiss(); showUpdateInfoDialog() }
         dialog.show()
     }
 
@@ -318,43 +313,26 @@ class ProductDetailFragment : Fragment() {
         val updates = hashMapOf<String, Any>("price" to newPriceFormatted, "oldPrice" to currentProduct!!.price, "priceHistory" to historyMap)
         productRef.update(updates).addOnSuccessListener {
             Toast.makeText(context, "Fiyat güncellendi", Toast.LENGTH_SHORT).show()
-            parentFragmentManager.popBackStack()
+            refreshProductData()
         }
     }
 
     private fun showUpdateInfoDialog() {
         val context = requireContext()
-        val layout = LinearLayout(context).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(48, 48, 48, 48)
-        }
-        val etName = EditText(context).apply {
-            hint = "Ürün Adı"
-            setText(currentProduct?.name)
-            setPadding(0, 0, 0, 32)
-        }
-        val etDesc = EditText(context).apply {
-            hint = "Açıklama (Max 500 karakter)"
-            setText(currentProduct?.description)
-            minLines = 4
-            gravity = Gravity.TOP
-            filters = arrayOf(InputFilter.LengthFilter(500))
-        }
-        layout.addView(etName)
-        layout.addView(etDesc)
+        val layout = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL; setPadding(48, 48, 48, 48) }
+        val etName = EditText(context).apply { hint = "Ürün Adı"; setText(currentProduct?.name); setPadding(0, 0, 0, 32) }
+        val etDesc = EditText(context).apply { hint = "Açıklama"; setText(currentProduct?.description); minLines = 4; gravity = Gravity.TOP; filters = arrayOf(InputFilter.LengthFilter(500)) }
+        layout.addView(etName); layout.addView(etDesc)
 
         AlertDialog.Builder(context).setTitle("Bilgileri Güncelle").setView(layout).setPositiveButton("Kaydet") { _, _ ->
-            val newName = etName.text.toString()
-            val newDesc = etDesc.text.toString()
+            val newName = etName.text.toString(); val newDesc = etDesc.text.toString()
             if (newName.isNotEmpty()) {
                 val db = FirebaseFirestore.getInstance()
                 db.collection("products").document(currentProduct!!.id.toString())
                     .update(mapOf("name" to newName, "description" to newDesc))
                     .addOnSuccessListener {
                         Toast.makeText(context, "Güncellendi!", Toast.LENGTH_SHORT).show()
-                        binding.tvProductName.text = newName
-                        setupDescription(newDesc)
-                        currentProduct = currentProduct?.copy(name = newName, description = newDesc)
+                        refreshProductData()
                     }
             }
         }.setNegativeButton("İptal", null).show()
@@ -370,12 +348,16 @@ class ProductDetailFragment : Fragment() {
         }
     }
 
-    private fun openWebsite(url: String) {
-        try { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) } catch (e: Exception) { }
-    }
+    private fun openWebsite(url: String) { try { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) } catch (e: Exception) { } }
 
     private fun setupCategoryIcon(catName: String) {
         val lower = catName.lowercase()
+        // KATEGORİ YAZISINI GÜNCELLE
+        // Dikey yazdırmak istiyorsan her harften sonra \n koymalısın ama
+        // XML'deki "K\n A..." formatı sabitse sadece ikonu değiştiririz.
+        // Eğer kategori ismini dinamik olarak yazdırmak istiyorsan:
+        // binding.tvProductCategory.text = catName.toCharArray().joinToString("\n") { it.uppercase() }
+
         val iconRes = when {
             lower.contains("yatak odası") -> R.drawable.yatakodalogo
             lower.contains("yatak") -> R.drawable.yataklogo
@@ -387,35 +369,26 @@ class ProductDetailFragment : Fragment() {
             else -> android.R.drawable.ic_menu_sort_by_size
         }
         binding.imgCategoryIcon.setImageResource(iconRes)
+
+        // --- KRİTİK DÜZELTME: TINT'İ KALDIR ---
         binding.imgCategoryIcon.imageTintList = null
     }
 
-    override fun onDestroyView() {
-        super.onDestroyView()
-        _binding = null
-    }
+    override fun onDestroyView() { super.onDestroyView(); _binding = null }
 
-    // --- MODERN ADAPTER (ListAdapter + DiffUtil + ViewBinding) ---
     class ReviewAdapter : ListAdapter<Review, ReviewAdapter.VH>(ReviewDiffCallback()) {
-
         class ReviewDiffCallback : DiffUtil.ItemCallback<Review>() {
-            override fun areItemsTheSame(oldItem: Review, newItem: Review) = oldItem.id == newItem.id
-            override fun areContentsTheSame(oldItem: Review, newItem: Review) = oldItem == newItem
+            override fun areItemsTheSame(o: Review, n: Review) = o.id == n.id
+            override fun areContentsTheSame(o: Review, n: Review) = o == n
         }
-
         inner class VH(val binding: ItemReviewBinding) : RecyclerView.ViewHolder(binding.root)
-
-        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
-            val binding = ItemReviewBinding.inflate(LayoutInflater.from(parent.context), parent, false)
-            return VH(binding)
-        }
-
-        override fun onBindViewHolder(holder: VH, position: Int) {
-            val item = getItem(position)
-            holder.binding.tvReviewerName.text = item.userName
-            holder.binding.tvReviewComment.text = item.comment
-            holder.binding.rbReview.rating = item.rating
-            holder.binding.imgVerified.visibility = if(item.isVerified) View.VISIBLE else View.GONE
+        override fun onCreateViewHolder(p: ViewGroup, t: Int) = VH(ItemReviewBinding.inflate(LayoutInflater.from(p.context), p, false))
+        override fun onBindViewHolder(h: VH, pos: Int) {
+            val i = getItem(pos)
+            h.binding.tvReviewerName.text = i.userName
+            h.binding.tvReviewComment.text = i.comment
+            h.binding.rbReview.rating = i.rating
+            h.binding.imgVerified.visibility = if(i.isVerified) View.VISIBLE else View.GONE
         }
     }
 }

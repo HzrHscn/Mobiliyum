@@ -10,14 +10,14 @@ import java.io.File
 import java.io.FileReader
 import java.io.FileWriter
 
-// --- GÜNCELLENMİŞ REKLAM MODELİ ---
+// --- REKLAM MODELİ ---
 data class AdConfig(
     val isActive: Boolean = false,
     val imageUrl: String = "",
     val type: String = "STORE", // "STORE" veya "PRODUCT"
-    val orientation: String = "VERTICAL", // "VERTICAL" veya "HORIZONTAL" (YENİ)
+    val orientation: String = "VERTICAL", // "VERTICAL" veya "HORIZONTAL"
     val targetStoreId: String = "",
-    val targetProductId: String = "", // Yeni: Ürün ID'si
+    val targetProductId: String = "", // Ürün ID'si
     val title: String = "",
     val endDate: Long = 0L // Bitiş zamanı (Timestamp)
 )
@@ -32,16 +32,17 @@ object DataManager {
 
     private val db = FirebaseFirestore.getInstance()
     private val gson = Gson()
+    private const val TAG = "DATA_USAGE" // Log takibi için
 
     private const val FILE_PRODUCTS = "products_cache.json"
     private const val FILE_STORES = "stores_cache.json"
 
     // --- ANA SENKRONİZASYON (Uygulama Açılışında Çağrılır) ---
     fun syncDataSmart(context: Context, onComplete: (Boolean) -> Unit) {
-        // 1. Önce diskteki (telefondaki) veriyi RAM'e yükle
+        // 1. Önce diskteki veriyi RAM'e yükle (Hız için)
         loadFromDisk(context)
 
-        // 2. Metadata'yı kontrol et (Reklam ve Mağaza Versiyonu için)
+        // 2. Metadata'yı kontrol et (MALİYET: 1 READ)
         db.collection("system").document("metadata").get()
             .addOnSuccessListener { document ->
                 if (document.exists()) {
@@ -52,24 +53,42 @@ object DataManager {
                             isActive = adData["isActive"] as? Boolean ?: false,
                             imageUrl = adData["imageUrl"] as? String ?: "",
                             type = adData["type"] as? String ?: "STORE",
-                            orientation = adData["orientation"] as? String ?: "VERTICAL", // YENİ
+                            orientation = adData["orientation"] as? String ?: "VERTICAL",
                             targetStoreId = adData["targetStoreId"] as? String ?: "",
                             targetProductId = adData["targetProductId"] as? String ?: "",
                             title = adData["title"] as? String ?: "",
                             endDate = (adData["endDate"] as? Number)?.toLong() ?: 0L
                         )
                     }
-                    // --- B. MAĞAZA KONTROLÜ ---
+
+                    // --- B. VERSİYON KONTROLLERİ ---
+                    val serverProductsVer = document.getLong("productsVersion") ?: 0L
                     val serverStoresVer = document.getLong("storesVersion") ?: 0L
+
                     val prefs = context.getSharedPreferences("AppPrefs", Context.MODE_PRIVATE)
+                    val localProductsVer = prefs.getLong("localProductsVersion", -1L)
                     val localStoresVer = prefs.getLong("localStoresVersion", -1L)
-                    // --- C. ÜRÜN KONTROLÜ (DELTA SYNC) ---
-                    fetchProductsDelta(context) {
-                        // Ürünler bitince mağazaları kontrol et
+
+                    Log.d(TAG, "📦 Ürün Sürümü: Sunucu($serverProductsVer) vs Yerel($localProductsVer)")
+
+                    // --- C. ÜRÜN KONTROLÜ (ULTRA OPTİMİZE) ---
+                    // Eğer versiyonlar aynıysa ve elimizde veri varsa, SORGULAMA YAPMA! (0 Read)
+                    // Sadece versiyon farklıysa veya cache boşsa sorgu at.
+                    if (serverProductsVer > localProductsVer || cachedProducts.isNullOrEmpty()) {
+                        Log.d(TAG, "⚠️ Sürüm farkı var veya Cache boş. Güncelleme kontrol ediliyor... (Maliyet: 1 Read)")
+                        fetchProductsDelta(context, serverProductsVer) {
+                            // Ürünler bitince mağazalara bak
+                            checkStores(context, serverStoresVer, localStoresVer, onComplete)
+                        }
+                    } else {
+                        Log.d(TAG, "✅ Sürümler AYNI. Ürün sorgusu ATLANDI. (Maliyet: 0 Read)")
+                        // Ürünler güncel, şimdi mağazalara bak
                         checkStores(context, serverStoresVer, localStoresVer, onComplete)
                     }
+
                 } else {
                     // Metadata yoksa ilk kurulum (Full Sync)
+                    Log.d(TAG, "⚠️ Metadata bulunamadı, Tam Kurulum yapılıyor...")
                     fetchAllFirstTime(context, onComplete)
                 }
             }
@@ -80,11 +99,11 @@ object DataManager {
     }
 
     // --- DELTA SYNC: SADECE DEĞİŞEN ÜRÜNLERİ ÇEK ---
-    private fun fetchProductsDelta(context: Context, onDone: () -> Unit) {
+    private fun fetchProductsDelta(context: Context, newVersion: Long, onDone: () -> Unit) {
         val prefs = context.getSharedPreferences("AppPrefs", Context.MODE_PRIVATE)
         val lastSyncTime = prefs.getLong("lastProductSyncTime", 0L)
 
-        // "Bana son güncelleme tarihinden sonra değişenleri ver" sorgusu
+        // Sadece değişenleri iste
         db.collection("products")
             .whereGreaterThan("lastUpdated", lastSyncTime)
             .get()
@@ -92,20 +111,17 @@ object DataManager {
                 val newItems = documents.toObjects(Product::class.java)
 
                 if (newItems.isNotEmpty()) {
-                    Log.d("DataManager", "${newItems.size} yeni/güncel ürün bulundu. Birleştiriliyor...")
+                    Log.d(TAG, "🔥 ${newItems.size} yeni/güncel ürün indirildi.")
 
                     if (cachedProducts == null) cachedProducts = ArrayList()
 
                     // MERGE (BİRLEŞTİRME) ALGORİTMASI
                     for (newItem in newItems) {
-                        // RAM'deki listede bu ürün var mı?
                         val index = cachedProducts!!.indexOfFirst { it.id == newItem.id }
                         if (index != -1) {
-                            // Varsa güncelle
-                            cachedProducts!![index] = newItem
+                            cachedProducts!![index] = newItem // Güncelle
                         } else {
-                            // Yoksa yeni ekle
-                            cachedProducts!!.add(newItem)
+                            cachedProducts!!.add(newItem) // Ekle
                         }
                     }
 
@@ -115,12 +131,16 @@ object DataManager {
                     // Son güncelleme zamanını kaydet
                     prefs.edit().putLong("lastProductSyncTime", System.currentTimeMillis()).apply()
                 } else {
-                    Log.d("DataManager", "Ürünlerde değişiklik yok.")
+                    Log.d(TAG, "✅ Ürünlerde değişiklik yok.")
                 }
+
+                // Versiyonu eşitle ki bir dahaki sefere sorgu atmasın
+                prefs.edit().putLong("localProductsVersion", newVersion).apply()
+
                 onDone()
             }
             .addOnFailureListener {
-                Log.e("DataManager", "Delta Sync hatası: ${it.message}")
+                Log.e(TAG, "Delta Sync hatası: ${it.message}")
                 onDone()
             }
     }
@@ -128,6 +148,7 @@ object DataManager {
     // --- MAĞAZA KONTROLÜ (Versiyon Bazlı) ---
     private fun checkStores(context: Context, serverVer: Long, localVer: Long, onComplete: (Boolean) -> Unit) {
         if (serverVer > localVer || cachedStores.isNullOrEmpty()) {
+            Log.d(TAG, "🏪 Mağazalar güncelleniyor...")
             db.collection("stores").get().addOnSuccessListener { documents ->
                 cachedStores = ArrayList(documents.toObjects(Store::class.java))
                 saveToDisk(context, FILE_STORES, cachedStores!!)
@@ -138,13 +159,14 @@ object DataManager {
                 onComplete(true)
             }
         } else {
+            Log.d(TAG, "✅ Mağazalar güncel. (Maliyet: 0 Read)")
             onComplete(true)
         }
     }
 
     // --- UI TARAFINDAN KULLANILAN YARDIMCILAR ---
 
-    // Ürünleri UI'a güvenli şekilde verir
+    // Ürünleri UI'a güvenli şekilde verir (RAM -> Disk -> Firebase)
     fun fetchProductsSmart(context: Context, onSuccess: (ArrayList<Product>) -> Unit, onError: (String) -> Unit) {
         if (!cachedProducts.isNullOrEmpty()) {
             onSuccess(cachedProducts!!)
@@ -153,8 +175,8 @@ object DataManager {
             if (!cachedProducts.isNullOrEmpty()) {
                 onSuccess(cachedProducts!!)
             } else {
-                // Disk de boşsa (ilk kurulumda hata vb.) tekrar dene
-                fetchProductsDelta(context) {
+                // Disk de boşsa mecbur Firebase (Version 1 varsayımıyla)
+                fetchProductsDelta(context, 1) {
                     if (!cachedProducts.isNullOrEmpty()) onSuccess(cachedProducts!!) else onError("Ürün bulunamadı")
                 }
             }
@@ -181,7 +203,7 @@ object DataManager {
         }
     }
 
-    // Tek bir ürünü güncelle (Admin panelinden çağrılır)
+    // Tek bir ürünü güncelle (Admin panelinden veya Detay sayfasından çağrılır)
     fun updateProductInCache(context: Context, product: Product) {
         if (cachedProducts == null) cachedProducts = ArrayList()
 
@@ -207,23 +229,25 @@ object DataManager {
         saveToDisk(context, FILE_STORES, cachedStores!!)
     }
 
-    // Metadata versiyonunu artır
+    // Metadata versiyonunu artır (Admin işlem yapınca çağrılır)
     fun triggerServerVersionUpdate() {
-        // Mağazalar ve genel yapı için versiyonu artırıyoruz
-        db.collection("system").document("metadata")
-            .update("storesVersion", FieldValue.increment(1))
+        val updates = mapOf(
+            "storesVersion" to FieldValue.increment(1),
+            "productsVersion" to FieldValue.increment(1)
+        )
+        db.collection("system").document("metadata").update(updates)
             .addOnFailureListener {
-                // Belge yoksa oluştur
                 val initialData = hashMapOf(
                     "storesVersion" to 1,
-                    "productsVersion" to 1 // Legacy için tutuyoruz
+                    "productsVersion" to 1
                 )
                 db.collection("system").document("metadata").set(initialData)
             }
     }
 
     private fun fetchAllFirstTime(context: Context, onComplete: (Boolean) -> Unit) {
-        fetchProductsDelta(context) {
+        // İlk kurulumda her şeyi çek
+        fetchProductsDelta(context, 1) {
             checkStores(context, 1, 0, onComplete)
         }
     }
