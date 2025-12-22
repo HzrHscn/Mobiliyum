@@ -79,11 +79,13 @@ class ProductDetailFragment : Fragment() {
             refreshProductData()
         }
 
+        // --- YETKİ KONTROLÜ (Manager / Editor / Admin) ---
         if (UserManager.canEditProduct(currentProduct!!)) {
             binding.btnAddToCart.text = "Ürünü Düzenle"
             binding.btnAddToCart.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#D32F2F"))
             binding.btnAddToCart.setOnClickListener { showEditOptionsDialog() }
         } else {
+            binding.btnAddToCart.text = "Sepete Ekle"
             binding.btnAddToCart.setOnClickListener {
                 CartManager.addToCart(currentProduct!!)
                 Toast.makeText(context, "Sepete eklendi", Toast.LENGTH_SHORT).show()
@@ -100,8 +102,27 @@ class ProductDetailFragment : Fragment() {
         }
 
         binding.btnGoToStore.setOnClickListener {
-            val url = currentProduct!!.productUrl
-            if (url.isNotEmpty()) openWebsite(url)
+            // Mağazaya gitmek için cache'den mağazayı bul (Query atma)
+            val storeId = currentProduct!!.storeId
+            val store = DataManager.cachedStores?.find { it.id == storeId }
+
+            if (store != null) {
+                val fragment = StoreDetailFragment()
+                val bundle = Bundle()
+                // Tek tek gönderiyoruz (StoreDetailFragment yapısına uygun)
+                bundle.putInt("id", store.id)
+                bundle.putString("name", store.name)
+                bundle.putString("image", store.imageUrl)
+                bundle.putString("location", store.location)
+                fragment.arguments = bundle
+
+                parentFragmentManager.beginTransaction()
+                    .replace(R.id.fragmentContainer, fragment)
+                    .addToBackStack(null)
+                    .commit()
+            } else {
+                Toast.makeText(context, "Mağaza bilgisi bulunamadı", Toast.LENGTH_SHORT).show()
+            }
         }
 
         binding.btnAddReview.setOnClickListener { handleReviewClick() }
@@ -133,9 +154,9 @@ class ProductDetailFragment : Fragment() {
         setupReviews()
     }
 
-    // --- TEKİL ÜRÜN YENİLEME (Optimize Edildi) ---
     private fun refreshProductData() {
         val db = FirebaseFirestore.getInstance()
+        // Sadece 1 Belge Okuma
         db.collection("products").document(currentProduct!!.id.toString()).get()
             .addOnSuccessListener { document ->
                 val freshProduct = document.toObject(Product::class.java)
@@ -352,12 +373,6 @@ class ProductDetailFragment : Fragment() {
 
     private fun setupCategoryIcon(catName: String) {
         val lower = catName.lowercase()
-        // KATEGORİ YAZISINI GÜNCELLE
-        // Dikey yazdırmak istiyorsan her harften sonra \n koymalısın ama
-        // XML'deki "K\n A..." formatı sabitse sadece ikonu değiştiririz.
-        // Eğer kategori ismini dinamik olarak yazdırmak istiyorsan:
-        // binding.tvProductCategory.text = catName.toCharArray().joinToString("\n") { it.uppercase() }
-
         val iconRes = when {
             lower.contains("yatak odası") -> R.drawable.yatakodalogo
             lower.contains("yatak") -> R.drawable.yataklogo
@@ -369,9 +384,7 @@ class ProductDetailFragment : Fragment() {
             else -> android.R.drawable.ic_menu_sort_by_size
         }
         binding.imgCategoryIcon.setImageResource(iconRes)
-
-        // --- KRİTİK DÜZELTME: TINT'İ KALDIR ---
-        binding.imgCategoryIcon.imageTintList = null
+        binding.imgCategoryIcon.imageTintList = null // TINT SIFIRLAMA (ÖNEMLİ)
     }
 
     override fun onDestroyView() { super.onDestroyView(); _binding = null }

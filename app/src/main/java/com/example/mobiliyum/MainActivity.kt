@@ -6,11 +6,11 @@ import android.animation.ObjectAnimator
 import android.content.Context
 import android.os.Bundle
 import android.view.View
+import android.view.ViewGroup
 import android.widget.Button
 import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.TextView
-import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.fragment.app.Fragment
 import com.bumptech.glide.Glide
@@ -24,12 +24,12 @@ class MainActivity : AppCompatActivity() {
     lateinit var binding: ActivityMainBinding
     private var activeAnnouncementId: String = ""
 
-    // Fragmentlar
     private val storesFragment = StoresFragment()
     private val productsFragment = ProductsFragment()
     private val cartFragment = CartFragment()
     private val accountFragment = AccountFragment()
     private val welcomeFragment = WelcomeFragment()
+
     val webFragment = HomeFragment()
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -37,6 +37,7 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+        // Navbar başlangıçta gizli
         binding.bottomNavigationView.visibility = View.GONE
         binding.bottomNavigationView.itemIconTintList = null
 
@@ -45,13 +46,16 @@ class MainActivity : AppCompatActivity() {
         NotificationHelper.createNotificationChannel(this)
         listenForAnnouncements()
 
-        // --- AÇILIŞ AKIŞI ---
+        // --- GİRİŞ KONTROLÜ VE AÇILIŞ ---
         UserManager.checkSession { isLoggedIn ->
             if (isLoggedIn) {
                 FavoritesManager.loadUserFavorites {
+                    // Giriş varsa direkt Mağazalar'ı aç
                     loadFragment(storesFragment)
                     binding.bottomNavigationView.visibility = View.VISIBLE
                     binding.bottomNavigationView.selectedItemId = R.id.nav_stores
+
+                    // Fiyat bildirimlerini başlat (Arka planda dinler)
                     FavoritesManager.startRealTimePriceAlerts(this)
                 }
             } else {
@@ -64,8 +68,9 @@ class MainActivity : AppCompatActivity() {
             if (activeAnnouncementId.isNotEmpty()) saveDismissedAnnouncement(activeAnnouncementId)
         }
 
-        // --- REKLAM KONTROLÜ ---
+        // --- VERİ SENKRONİZASYONU (USAGE OPTİMİZASYONLU) ---
         DataManager.syncDataSmart(this) { success ->
+            // Reklam kontrolü
             val currentUser = FirebaseAuth.getInstance().currentUser
             if (success && currentUser != null) {
                 checkAndShowAd()
@@ -77,7 +82,6 @@ class MainActivity : AppCompatActivity() {
         val adConfig = DataManager.currentAdConfig
         val now = System.currentTimeMillis()
 
-        // Reklam aktif mi, resmi var mı ve süresi dolmamış mı?
         if (adConfig != null && adConfig.isActive && adConfig.imageUrl.isNotEmpty()) {
             if (now < adConfig.endDate) {
                 showAdDialog(adConfig)
@@ -88,9 +92,11 @@ class MainActivity : AppCompatActivity() {
     private fun showAdDialog(adConfig: AdConfig) {
         val dialog = android.app.Dialog(this)
         dialog.setContentView(R.layout.dialog_popup_ad)
-
-        // Şeffaf arka plan
         dialog.window?.setBackgroundDrawableResource(android.R.color.transparent)
+
+        // Genişlik ayarı: Ekranın %90'ı kadar olsun ama CardView'da max width var zaten.
+        // Yine de garanti olsun diye bırakabilirsin veya kaldırabilirsin.
+        dialog.window?.setLayout((resources.displayMetrics.widthPixels * 0.9).toInt(), ViewGroup.LayoutParams.WRAP_CONTENT)
 
         val imgAd = dialog.findViewById<ImageView>(R.id.imgAd)
         val txtTitle = dialog.findViewById<TextView>(R.id.txtAdTitle)
@@ -123,50 +129,34 @@ class MainActivity : AppCompatActivity() {
         Glide.with(this)
             .load(adConfig.imageUrl)
             .placeholder(android.R.drawable.ic_menu_gallery)
-            .error(android.R.drawable.stat_notify_error)
             .into(imgAd)
 
-        // BUTON VE NAVİGASYON MANTIĞI
+        // --- YÖNLENDİRME ---
         if (adConfig.type == "PRODUCT" && adConfig.targetProductId.isNotEmpty()) {
-            // --- ÜRÜN REKLAMI ---
             btnGo.text = "Ürüne Git"
             btnGo.visibility = View.VISIBLE
-
             btnGo.setOnClickListener {
                 dialog.dismiss()
-
-                // Cache'den ürünü bul
+                // Cache'den ürünü bul ve gönder
                 val product = DataManager.cachedProducts?.find { it.id.toString() == adConfig.targetProductId }
-
                 if (product != null) {
-                    // Ürün bulundu, detay sayfasına git
                     val fragment = ProductDetailFragment()
                     val bundle = Bundle()
                     bundle.putParcelable("product_data", product)
                     fragment.arguments = bundle
                     loadFragment(fragment)
                 } else {
-                    // Ürün bulunamadıysa Ürünler sayfasına git
                     switchToTab(R.id.nav_products)
                 }
             }
-
         } else if (adConfig.targetStoreId.isNotEmpty()) {
-            // --- MAĞAZA REKLAMI ---
             btnGo.text = "Mağazaya Git"
             btnGo.visibility = View.VISIBLE
-
             btnGo.setOnClickListener {
                 dialog.dismiss()
-
-                // 1. Hedef ID'yi sayıya çevir
                 val targetIdInt = adConfig.targetStoreId.toIntOrNull() ?: 0
-
-                // 2. Cache'den mağazayı bul
                 val store = DataManager.cachedStores?.find { it.id == targetIdInt }
-
                 if (store != null) {
-                    // 3. Mağaza bulunduysa verileri senin istediğin formatta (Tek tek) gönder
                     val fragment = StoreDetailFragment()
                     val bundle = Bundle()
                     bundle.putInt("id", store.id)
@@ -176,19 +166,24 @@ class MainActivity : AppCompatActivity() {
                     fragment.arguments = bundle
                     loadFragment(fragment)
                 } else {
-                    // Cache'de yoksa, mağazalar sayfasına git
                     switchToTab(R.id.nav_stores)
                 }
             }
+        } else {
+            btnGo.visibility = View.GONE
         }
 
         btnClose.setOnClickListener { dialog.dismiss() }
         dialog.show()
     }
+
     // --- STANDART FONKSİYONLAR ---
-    override fun onResume() {
-        super.onResume()
-        if (UserManager.isLoggedIn()) FavoritesManager.startRealTimePriceAlerts(this)
+    fun loadFragment(fragment: Fragment) {
+        supportFragmentManager.beginTransaction()
+            .setCustomAnimations(android.R.anim.fade_in, android.R.anim.fade_out)
+            .replace(R.id.fragmentContainer, fragment)
+            .addToBackStack(null)
+            .commit()
     }
 
     private fun setupNavigation() {
@@ -203,12 +198,9 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    fun loadFragment(fragment: Fragment) {
-        supportFragmentManager.beginTransaction()
-            .setCustomAnimations(android.R.anim.fade_in, android.R.anim.fade_out)
-            .replace(R.id.fragmentContainer, fragment)
-            .addToBackStack(null)
-            .commit()
+    override fun onResume() {
+        super.onResume()
+        if (UserManager.isLoggedIn()) FavoritesManager.startRealTimePriceAlerts(this)
     }
 
     private fun setupNotificationPermissions() {

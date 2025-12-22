@@ -73,7 +73,6 @@ object DataManager {
 
                     // --- C. ÜRÜN KONTROLÜ (ULTRA OPTİMİZE) ---
                     // Eğer versiyonlar aynıysa ve elimizde veri varsa, SORGULAMA YAPMA! (0 Read)
-                    // Sadece versiyon farklıysa veya cache boşsa sorgu at.
                     if (serverProductsVer > localProductsVer || cachedProducts.isNullOrEmpty()) {
                         Log.d(TAG, "⚠️ Sürüm farkı var veya Cache boş. Güncelleme kontrol ediliyor... (Maliyet: 1 Read)")
                         fetchProductsDelta(context, serverProductsVer) {
