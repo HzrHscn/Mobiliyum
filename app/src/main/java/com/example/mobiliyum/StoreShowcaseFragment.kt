@@ -7,23 +7,26 @@ import android.view.ViewGroup
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
+import androidx.appcompat.widget.SearchView
 import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
-import com.example.mobiliyum.databinding.ItemProductSelectionBinding // YENİ BINDING
+import com.example.mobiliyum.databinding.ItemProductSelectionBinding
 import com.google.android.material.button.MaterialButton
 import com.google.firebase.firestore.FirebaseFirestore
 
 class StoreShowcaseFragment : Fragment() {
 
     private lateinit var recyclerView: RecyclerView
+    private lateinit var searchView: SearchView
     private lateinit var btnSubmit: MaterialButton
     private val db = FirebaseFirestore.getInstance()
     private val selectedIds = ArrayList<Int>()
     private lateinit var adapter: ShowcaseSelectionAdapter
+    private var allProducts = listOf<Product>()
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
@@ -45,13 +48,13 @@ class StoreShowcaseFragment : Fragment() {
         }
         layout.addView(header)
 
-        val subHeader = TextView(context).apply {
-            text = "Mağaza sayfanızda 'Mağazanın Seçimi' alanında görünecek 2 ürünü seçiniz."
-            textSize = 14f
-            setTextColor(android.graphics.Color.parseColor("#757575"))
-            setPadding(32, 0, 32, 32)
+        // --- ARAMA ---
+        searchView = SearchView(context).apply {
+            queryHint = "Vitrinde Ürün Ara..."
+            setIconifiedByDefault(false)
+            setPadding(16, 0, 16, 8)
         }
-        layout.addView(subHeader)
+        layout.addView(searchView)
 
         recyclerView = RecyclerView(context).apply {
             layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f)
@@ -78,6 +81,15 @@ class StoreShowcaseFragment : Fragment() {
         }
         recyclerView.adapter = adapter
 
+        // Arama Dinleyicisi
+        searchView.setOnQueryTextListener(object : SearchView.OnQueryTextListener {
+            override fun onQueryTextSubmit(query: String?): Boolean = false
+            override fun onQueryTextChange(newText: String?): Boolean {
+                filterList(newText)
+                return true
+            }
+        })
+
         loadMyProducts()
 
         btnSubmit.setOnClickListener {
@@ -95,6 +107,15 @@ class StoreShowcaseFragment : Fragment() {
             }
         }
         return layout
+    }
+
+    private fun filterList(query: String?) {
+        val filtered = if (query.isNullOrEmpty()) {
+            allProducts
+        } else {
+            allProducts.filter { it.name.contains(query, ignoreCase = true) }
+        }
+        adapter.submitList(filtered)
     }
 
     private fun toggleSelection(id: Int, isChecked: Boolean) {
@@ -120,9 +141,9 @@ class StoreShowcaseFragment : Fragment() {
                 selectedIds.addAll(currentFeatured)
                 db.collection("products").whereEqualTo("storeId", storeId).get()
                     .addOnSuccessListener { docs ->
-                        val list = docs.toObjects(Product::class.java)
+                        allProducts = docs.toObjects(Product::class.java)
                         adapter.setSelections(selectedIds)
-                        adapter.submitList(list)
+                        adapter.submitList(allProducts)
                     }
             }
     }
@@ -133,21 +154,16 @@ class StoreShowcaseFragment : Fragment() {
         db.collection("stores").document(storeId.toString())
             .update("featuredProductIds", selectedIds)
             .addOnSuccessListener {
-                Toast.makeText(context, "Vitrin başarıyla güncellendi!", Toast.LENGTH_LONG).show()
+                Toast.makeText(context, "Vitrin güncellendi!", Toast.LENGTH_LONG).show()
                 parentFragmentManager.popBackStack()
-            }
-            .addOnFailureListener {
-                Toast.makeText(context, "Hata: ${it.message}", Toast.LENGTH_SHORT).show()
             }
     }
 
-    // Adapter - Güncellendi
     class ShowcaseSelectionAdapter(
         private val onCheckChanged: (Product, Boolean) -> Unit
     ) : ListAdapter<Product, ShowcaseSelectionAdapter.VH>(DiffCallback()) {
 
         private var selectedIds: List<Int> = emptyList()
-
         fun setSelections(ids: List<Int>) { this.selectedIds = ids }
 
         class DiffCallback : DiffUtil.ItemCallback<Product>() {
@@ -155,7 +171,6 @@ class StoreShowcaseFragment : Fragment() {
             override fun areContentsTheSame(oldItem: Product, newItem: Product) = oldItem == newItem
         }
 
-        // BINDING DEĞİŞTİ: ItemProductSelectionBinding
         inner class VH(val binding: ItemProductSelectionBinding) : RecyclerView.ViewHolder(binding.root)
 
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {

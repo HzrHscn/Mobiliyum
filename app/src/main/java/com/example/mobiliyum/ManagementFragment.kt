@@ -275,24 +275,98 @@ class ManagementFragment : Fragment() {
             .show()
     }
 
-    // --- DİĞER STANDART YÖNETİM FONKSİYONLARI ---
+    // --- EDİTÖR TALEPLERİ (DÜZELTİLDİ) ---
     private fun updateEditorRequestCount(storeId: Int) {
-        EditorManager.getPendingRequests(storeId) { list ->
-            if (_binding == null) return@getPendingRequests
-            if (list.isNotEmpty()) {
-                binding.tvEditorReqCount.text = "${list.size} Yeni Talep!"
-                binding.tvEditorReqCount.setTextColor(Color.RED)
-            } else {
-                binding.tvEditorReqCount.text = "Bekleyen yok."
-                binding.tvEditorReqCount.setTextColor(Color.GRAY)
+        db.collection("store_requests")
+            .whereEqualTo("storeId", storeId)
+            .whereEqualTo("status", "PENDING")
+            .get().addOnSuccessListener { docs ->
+                if (_binding != null) {
+                    if (!docs.isEmpty) {
+                        binding.tvEditorReqCount.text = "${docs.size()} Yeni Talep"
+                        binding.tvEditorReqCount.setTextColor(Color.RED)
+                    } else {
+                        binding.tvEditorReqCount.text = "Bekleyen yok"
+                        binding.tvEditorReqCount.setTextColor(Color.GRAY)
+                    }
+                }
             }
-        }
     }
 
     private fun showEditorRequestsDialog(storeId: Int) {
         val context = requireContext()
-        // (Basit liste gösterimi, önceki kodun aynısı)
-        Toast.makeText(context, "Editör istekleri...", Toast.LENGTH_SHORT).show()
+        val builder = AlertDialog.Builder(context)
+        builder.setTitle("Editör Talepleri")
+
+        val layout = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(32, 16, 32, 16)
+        }
+        val scrollView = ScrollView(context).apply { addView(layout) }
+
+        // Bekleyen talepleri çek
+        EditorManager.getPendingRequests(storeId) { requests ->
+            if (requests.isEmpty()) {
+                Toast.makeText(context, "Bekleyen talep yok.", Toast.LENGTH_SHORT).show()
+                return@getPendingRequests
+            }
+
+            for (req in requests) {
+                val card = LinearLayout(context).apply {
+                    orientation = LinearLayout.VERTICAL
+                    background = context.resources.getDrawable(android.R.drawable.dialog_holo_light_frame, null)
+                    setPadding(24, 24, 24, 24)
+                    layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                        setMargins(0, 0, 0, 16)
+                    }
+                }
+
+                val typeText = if (req.type == "ANNOUNCEMENT") "Duyuru Talebi" else "Vitrin Güncelleme"
+                val infoText = TextView(context).apply {
+                    text = "Tip: $typeText\nTalep Eden: ${req.requesterName}\n\nDetay:\n${req.title} ${req.message}"
+                    textSize = 14f
+                    setTextColor(Color.BLACK)
+                }
+                card.addView(infoText)
+
+                val btnLayout = LinearLayout(context).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = android.view.Gravity.END
+                }
+
+                val btnApprove = Button(context).apply {
+                    text = "Onayla"
+                    setTextColor(Color.GREEN)
+                    setOnClickListener {
+                        EditorManager.processRequest(req, true) {
+                            Toast.makeText(context, "Onaylandı", Toast.LENGTH_SHORT).show()
+                            layout.removeView(card)
+                            updateEditorRequestCount(storeId)
+                        }
+                    }
+                }
+
+                val btnReject = Button(context).apply {
+                    text = "Reddet"
+                    setTextColor(Color.RED)
+                    setOnClickListener {
+                        EditorManager.processRequest(req, false) {
+                            Toast.makeText(context, "Reddedildi", Toast.LENGTH_SHORT).show()
+                            layout.removeView(card)
+                            updateEditorRequestCount(storeId)
+                        }
+                    }
+                }
+
+                btnLayout.addView(btnReject)
+                btnLayout.addView(btnApprove)
+                card.addView(btnLayout)
+                layout.addView(card)
+            }
+            builder.setView(scrollView)
+            builder.setPositiveButton("Kapat", null)
+            builder.show()
+        }
     }
 
     private fun showAnnouncementDialog() {

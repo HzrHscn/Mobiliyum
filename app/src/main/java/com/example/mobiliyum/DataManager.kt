@@ -2,278 +2,293 @@ package com.example.mobiliyum
 
 import android.content.Context
 import android.util.Log
-import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.FieldValue
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import java.io.File
 import java.io.FileReader
 import java.io.FileWriter
 
-// --- REKLAM MODELİ ---
-data class AdConfig(
-    val isActive: Boolean = false,
-    val imageUrl: String = "",
-    val type: String = "STORE", // "STORE" veya "PRODUCT"
-    val orientation: String = "VERTICAL", // "VERTICAL" veya "HORIZONTAL"
-    val targetStoreId: String = "",
-    val targetProductId: String = "", // Ürün ID'si
-    val title: String = "",
-    val endDate: Long = 0L // Bitiş zamanı (Timestamp)
-)
-
 object DataManager {
-    // RAM Önbelleği
-    var cachedProducts: ArrayList<Product>? = null
-    var cachedStores: ArrayList<Store>? = null
 
-    // Anlık Reklam Verisi
-    var currentAdConfig: AdConfig? = null
-
-    private val db = FirebaseFirestore.getInstance()
-    private val gson = Gson()
-    private const val TAG = "DATA_USAGE" // Log takibi için
-
+    private const val TAG = "DataManager"
     private const val FILE_PRODUCTS = "products_cache.json"
     private const val FILE_STORES = "stores_cache.json"
 
-    // --- ANA SENKRONİZASYON (Uygulama Açılışında Çağrılır) ---
+    private val db = FirebaseFirestore.getInstance()
+    private val gson = Gson()
+
+    // 🔓 PUBLIC – NULL YOK
+    var cachedProducts: ArrayList<Product> = arrayListOf()
+        private set
+
+    var cachedStores: ArrayList<Store> = arrayListOf()
+        private set
+
+    // 🔥 REKLAM CONFIG
+    var currentAdConfig: AdConfig? = null
+        private set
+
+    // =====================================================
+    // 🔹 APP START SYNC
+    // =====================================================
     fun syncDataSmart(context: Context, onComplete: (Boolean) -> Unit) {
-        // 1. Önce diskteki veriyi RAM'e yükle (Hız için)
         loadFromDisk(context)
 
-        // 2. Metadata'yı kontrol et (MALİYET: 1 READ)
         db.collection("system").document("metadata").get()
-            .addOnSuccessListener { document ->
-                if (document.exists()) {
-                    // --- A. REKLAM BİLGİSİNİ AL ---
-                    val adData = document.get("popupAd") as? Map<String, Any>
-                    if (adData != null) {
-                        currentAdConfig = AdConfig(
-                            isActive = adData["isActive"] as? Boolean ?: false,
-                            imageUrl = adData["imageUrl"] as? String ?: "",
-                            type = adData["type"] as? String ?: "STORE",
-                            orientation = adData["orientation"] as? String ?: "VERTICAL",
-                            targetStoreId = adData["targetStoreId"] as? String ?: "",
-                            targetProductId = adData["targetProductId"] as? String ?: "",
-                            title = adData["title"] as? String ?: "",
-                            endDate = (adData["endDate"] as? Number)?.toLong() ?: 0L
-                        )
+            .addOnSuccessListener { doc ->
+                if (!doc.exists()) {
+                    firstInstall(context, onComplete)
+                    return@addOnSuccessListener
+                }
+
+                // ---- POPUP AD ----
+                parseAdConfig(doc)
+
+                val serverProductVer = doc.getLong("productsVersion") ?: 0L
+                val serverStoreVer = doc.getLong("storesVersion") ?: 0L
+
+                val updatedProductIds = (doc.get("updatedProductIds") as? List<*>)?.mapNotNull {
+                    (it as? String)?.takeIf { id -> id.isNotBlank() }
+                } ?: emptyList()
+
+                val updatedStoreIds = (doc.get("updatedStoreIds") as? List<*>)?.mapNotNull {
+                    (it as? String)?.takeIf { id -> id.isNotBlank() }
+                } ?: emptyList()
+
+                val prefs = context.getSharedPreferences("AppPrefs", Context.MODE_PRIVATE)
+                val localProductVer = prefs.getLong("productsVersion", -1)
+                val localStoreVer = prefs.getLong("storesVersion", -1)
+
+                syncProductsDelta(context, serverProductVer, localProductVer, updatedProductIds) {
+                    syncStoresDelta(context, serverStoreVer, localStoreVer, updatedStoreIds) {
+                        onComplete(true)
                     }
-
-                    // --- B. VERSİYON KONTROLLERİ ---
-                    val serverProductsVer = document.getLong("productsVersion") ?: 0L
-                    val serverStoresVer = document.getLong("storesVersion") ?: 0L
-
-                    val prefs = context.getSharedPreferences("AppPrefs", Context.MODE_PRIVATE)
-                    val localProductsVer = prefs.getLong("localProductsVersion", -1L)
-                    val localStoresVer = prefs.getLong("localStoresVersion", -1L)
-
-                    Log.d(TAG, "📦 Ürün Sürümü: Sunucu($serverProductsVer) vs Yerel($localProductsVer)")
-
-                    // --- C. ÜRÜN KONTROLÜ (ULTRA OPTİMİZE) ---
-                    // Eğer versiyonlar aynıysa ve elimizde veri varsa, SORGULAMA YAPMA! (0 Read)
-                    if (serverProductsVer > localProductsVer || cachedProducts.isNullOrEmpty()) {
-                        Log.d(TAG, "⚠️ Sürüm farkı var veya Cache boş. Güncelleme kontrol ediliyor... (Maliyet: 1 Read)")
-                        fetchProductsDelta(context, serverProductsVer) {
-                            // Ürünler bitince mağazalara bak
-                            checkStores(context, serverStoresVer, localStoresVer, onComplete)
-                        }
-                    } else {
-                        Log.d(TAG, "✅ Sürümler AYNI. Ürün sorgusu ATLANDI. (Maliyet: 0 Read)")
-                        // Ürünler güncel, şimdi mağazalara bak
-                        checkStores(context, serverStoresVer, localStoresVer, onComplete)
-                    }
-
-                } else {
-                    // Metadata yoksa ilk kurulum (Full Sync)
-                    Log.d(TAG, "⚠️ Metadata bulunamadı, Tam Kurulum yapılıyor...")
-                    fetchAllFirstTime(context, onComplete)
                 }
             }
             .addOnFailureListener {
-                // İnternet yoksa veya hata varsa eldeki verilerle devam et
+                Log.e(TAG, "Metadata error", it)
                 onComplete(true)
             }
     }
 
-    // --- DELTA SYNC: SADECE DEĞİŞEN ÜRÜNLERİ ÇEK ---
-    private fun fetchProductsDelta(context: Context, newVersion: Long, onDone: () -> Unit) {
-        val prefs = context.getSharedPreferences("AppPrefs", Context.MODE_PRIVATE)
-        val lastSyncTime = prefs.getLong("lastProductSyncTime", 0L)
+    // =====================================================
+    // 🔹 FETCH API
+    // =====================================================
+    fun fetchProductsSmart(
+        context: Context,
+        onSuccess: (ArrayList<Product>) -> Unit,
+        onError: (String) -> Unit
+    ) {
+        if (cachedProducts.isNotEmpty()) {
+            onSuccess(ArrayList(cachedProducts))
+            return
+        }
 
-        // Sadece değişenleri iste
-        db.collection("products")
-            .whereGreaterThan("lastUpdated", lastSyncTime)
-            .get()
-            .addOnSuccessListener { documents ->
-                val newItems = documents.toObjects(Product::class.java)
-
-                if (newItems.isNotEmpty()) {
-                    Log.d(TAG, "🔥 ${newItems.size} yeni/güncel ürün indirildi.")
-
-                    if (cachedProducts == null) cachedProducts = ArrayList()
-
-                    // MERGE (BİRLEŞTİRME) ALGORİTMASI
-                    for (newItem in newItems) {
-                        val index = cachedProducts!!.indexOfFirst { it.id == newItem.id }
-                        if (index != -1) {
-                            cachedProducts!![index] = newItem // Güncelle
-                        } else {
-                            cachedProducts!!.add(newItem) // Ekle
-                        }
-                    }
-
-                    // Güncel listeyi diske kaydet
-                    saveToDisk(context, FILE_PRODUCTS, cachedProducts!!)
-
-                    // Son güncelleme zamanını kaydet
-                    prefs.edit().putLong("lastProductSyncTime", System.currentTimeMillis()).apply()
-                } else {
-                    Log.d(TAG, "✅ Ürünlerde değişiklik yok.")
-                }
-
-                // Versiyonu eşitle ki bir dahaki sefere sorgu atmasın
-                prefs.edit().putLong("localProductsVersion", newVersion).apply()
-
-                onDone()
+        db.collection("products").get()
+            .addOnSuccessListener {
+                cachedProducts = ArrayList(it.toObjects(Product::class.java))
+                saveToDisk(context, FILE_PRODUCTS, cachedProducts)
+                onSuccess(ArrayList(cachedProducts))
             }
-            .addOnFailureListener {
-                Log.e(TAG, "Delta Sync hatası: ${it.message}")
-                onDone()
-            }
+            .addOnFailureListener { onError(it.localizedMessage ?: "Ürün alınamadı") }
     }
 
-    // --- MAĞAZA KONTROLÜ (Versiyon Bazlı) ---
-    private fun checkStores(context: Context, serverVer: Long, localVer: Long, onComplete: (Boolean) -> Unit) {
-        if (serverVer > localVer || cachedStores.isNullOrEmpty()) {
-            Log.d(TAG, "🏪 Mağazalar güncelleniyor...")
-            db.collection("stores").get().addOnSuccessListener { documents ->
-                cachedStores = ArrayList(documents.toObjects(Store::class.java))
-                saveToDisk(context, FILE_STORES, cachedStores!!)
+    fun fetchStoresSmart(
+        context: Context,
+        onSuccess: (ArrayList<Store>) -> Unit,
+        onError: (String) -> Unit
+    ) {
+        if (cachedStores.isNotEmpty()) {
+            onSuccess(ArrayList(cachedStores))
+            return
+        }
+
+        db.collection("stores").get()
+            .addOnSuccessListener {
+                cachedStores = ArrayList(it.toObjects(Store::class.java))
+                saveToDisk(context, FILE_STORES, cachedStores)
+                onSuccess(ArrayList(cachedStores))
+            }
+            .addOnFailureListener { onError(it.localizedMessage ?: "Mağaza alınamadı") }
+    }
+
+    // =====================================================
+    // 🔹 CACHE UPDATE (ADMIN / EDITOR)
+    // =====================================================
+    fun updateProductInCache(context: Context, product: Product) {
+        val index = cachedProducts.indexOfFirst { it.id == product.id }
+        if (index >= 0) cachedProducts[index] = product else cachedProducts.add(product)
+        saveToDisk(context, FILE_PRODUCTS, cachedProducts)
+    }
+
+    fun updateStoreInCache(context: Context, store: Store) {
+        val index = cachedStores.indexOfFirst { it.id == store.id }
+        if (index >= 0) cachedStores[index] = store else cachedStores.add(store)
+        saveToDisk(context, FILE_STORES, cachedStores)
+    }
+
+    // =====================================================
+    // 🔹 DELTA SYNC
+    // =====================================================
+    private fun syncProductsDelta(
+        context: Context,
+        serverVer: Long,
+        localVer: Long,
+        ids: List<String>,
+        onDone: () -> Unit
+    ) {
+        if (serverVer == localVer || ids.isEmpty()) {
+            onDone(); return
+        }
+
+        val prefs = context.getSharedPreferences("AppPrefs", Context.MODE_PRIVATE)
+        var remaining = ids.size
+
+        ids.distinct().forEach { id ->
+            db.collection("products").document(id).get()
+                .addOnSuccessListener {
+                    it.toObject(Product::class.java)?.let { p ->
+                        updateProductInCache(context, p)
+                    }
+                }
+                .addOnCompleteListener {
+                    remaining--
+                    if (remaining == 0) {
+                        prefs.edit().putLong("productsVersion", serverVer).apply()
+                        onDone()
+                    }
+                }
+        }
+    }
+
+    private fun syncStoresDelta(
+        context: Context,
+        serverVer: Long,
+        localVer: Long,
+        ids: List<String>,
+        onDone: () -> Unit
+    ) {
+        if (serverVer == localVer || ids.isEmpty()) {
+            onDone(); return
+        }
+
+        val prefs = context.getSharedPreferences("AppPrefs", Context.MODE_PRIVATE)
+        var remaining = ids.size
+
+        ids.distinct().forEach { id ->
+            db.collection("stores").document(id).get()
+                .addOnSuccessListener {
+                    it.toObject(Store::class.java)?.let { s ->
+                        updateStoreInCache(context, s)
+                    }
+                }
+                .addOnCompleteListener {
+                    remaining--
+                    if (remaining == 0) {
+                        prefs.edit().putLong("storesVersion", serverVer).apply()
+                        onDone()
+                    }
+                }
+        }
+    }
+
+    // =====================================================
+    // 🔹 POPUP AD PARSE
+    // =====================================================
+    private fun parseAdConfig(doc: com.google.firebase.firestore.DocumentSnapshot) {
+        val popup = doc.get("popupAd") as? Map<*, *> ?: return
+
+        currentAdConfig = AdConfig(
+            isActive = popup["isActive"] as? Boolean ?: false,
+            imageUrl = popup["imageUrl"] as? String ?: "",
+            title = popup["title"] as? String ?: "",
+            endDate = popup["endDate"] as? Long ?: 0L,
+            orientation = popup["orientation"] as? String ?: "VERTICAL",
+            type = popup["type"] as? String ?: "",
+            targetProductId = popup["targetProductId"] as? String ?: "",
+            targetStoreId = popup["targetStoreId"] as? String ?: ""
+        )
+    }
+
+    // =====================================================
+    // 🔹 FIRST INSTALL
+    // =====================================================
+    private fun firstInstall(context: Context, onComplete: (Boolean) -> Unit) {
+        db.collection("products").get().addOnSuccessListener {
+            cachedProducts = ArrayList(it.toObjects(Product::class.java))
+            saveToDisk(context, FILE_PRODUCTS, cachedProducts)
+
+            db.collection("stores").get().addOnSuccessListener { s ->
+                cachedStores = ArrayList(s.toObjects(Store::class.java))
+                saveToDisk(context, FILE_STORES, cachedStores)
 
                 context.getSharedPreferences("AppPrefs", Context.MODE_PRIVATE)
-                    .edit().putLong("localStoresVersion", serverVer).apply()
+                    .edit()
+                    .putLong("productsVersion", 1)
+                    .putLong("storesVersion", 1)
+                    .apply()
 
                 onComplete(true)
             }
-        } else {
-            Log.d(TAG, "✅ Mağazalar güncel. (Maliyet: 0 Read)")
-            onComplete(true)
         }
     }
 
-    // --- UI TARAFINDAN KULLANILAN YARDIMCILAR ---
-
-    // Ürünleri UI'a güvenli şekilde verir (RAM -> Disk -> Firebase)
-    fun fetchProductsSmart(context: Context, onSuccess: (ArrayList<Product>) -> Unit, onError: (String) -> Unit) {
-        if (!cachedProducts.isNullOrEmpty()) {
-            onSuccess(cachedProducts!!)
-        } else {
-            loadFromDisk(context)
-            if (!cachedProducts.isNullOrEmpty()) {
-                onSuccess(cachedProducts!!)
-            } else {
-                // Disk de boşsa mecbur Firebase (Version 1 varsayımıyla)
-                fetchProductsDelta(context, 1) {
-                    if (!cachedProducts.isNullOrEmpty()) onSuccess(cachedProducts!!) else onError("Ürün bulunamadı")
-                }
-            }
-        }
-    }
-
-    // Mağazaları UI'a güvenli şekilde verir
-    fun fetchStoresSmart(context: Context, onSuccess: (ArrayList<Store>) -> Unit, onError: (String) -> Unit) {
-        if (!cachedStores.isNullOrEmpty()) {
-            onSuccess(cachedStores!!)
-        } else {
-            loadFromDisk(context)
-            if (!cachedStores.isNullOrEmpty()) {
-                onSuccess(cachedStores!!)
-            } else {
-                db.collection("stores").get()
-                    .addOnSuccessListener {
-                        cachedStores = ArrayList(it.toObjects(Store::class.java))
-                        saveToDisk(context, FILE_STORES, cachedStores!!)
-                        onSuccess(cachedStores!!)
-                    }
-                    .addOnFailureListener { onError(it.message ?: "Hata") }
-            }
-        }
-    }
-
-    // Tek bir ürünü güncelle (Admin panelinden veya Detay sayfasından çağrılır)
-    fun updateProductInCache(context: Context, product: Product) {
-        if (cachedProducts == null) cachedProducts = ArrayList()
-
-        val index = cachedProducts!!.indexOfFirst { it.id == product.id }
-        if (index != -1) {
-            cachedProducts!![index] = product
-        } else {
-            cachedProducts!!.add(product)
-        }
-        saveToDisk(context, FILE_PRODUCTS, cachedProducts!!)
-    }
-
-    // Tek bir mağazayı güncelle
-    fun updateStoreInCache(context: Context, store: Store) {
-        if (cachedStores == null) cachedStores = ArrayList()
-
-        val index = cachedStores!!.indexOfFirst { it.id == store.id }
-        if (index != -1) {
-            cachedStores!![index] = store
-        } else {
-            cachedStores!!.add(store)
-        }
-        saveToDisk(context, FILE_STORES, cachedStores!!)
-    }
-
-    // Metadata versiyonunu artır (Admin işlem yapınca çağrılır)
-    fun triggerServerVersionUpdate() {
-        val updates = mapOf(
-            "storesVersion" to FieldValue.increment(1),
-            "productsVersion" to FieldValue.increment(1)
-        )
-        db.collection("system").document("metadata").update(updates)
-            .addOnFailureListener {
-                val initialData = hashMapOf(
-                    "storesVersion" to 1,
-                    "productsVersion" to 1
-                )
-                db.collection("system").document("metadata").set(initialData)
-            }
-    }
-
-    private fun fetchAllFirstTime(context: Context, onComplete: (Boolean) -> Unit) {
-        // İlk kurulumda her şeyi çek
-        fetchProductsDelta(context, 1) {
-            checkStores(context, 1, 0, onComplete)
-        }
-    }
-
-    // --- DİSK OKUMA/YAZMA ---
-    private fun saveToDisk(context: Context, fileName: String, data: Any) {
+    // =====================================================
+    // 🔹 DISK CACHE
+    // =====================================================
+    private fun saveToDisk(context: Context, file: String, data: Any) {
         try {
-            val file = File(context.filesDir, fileName)
-            val writer = FileWriter(file)
-            gson.toJson(data, writer)
-            writer.flush()
-            writer.close()
-        } catch (e: Exception) { Log.e("DataManager", "Save Error: $e") }
+            FileWriter(File(context.filesDir, file)).use {
+                gson.toJson(data, it)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Disk save error", e)
+        }
     }
 
     private fun loadFromDisk(context: Context) {
         try {
-            val pFile = File(context.filesDir, FILE_PRODUCTS)
-            if (pFile.exists()) {
+            val p = File(context.filesDir, FILE_PRODUCTS)
+            if (p.exists()) {
                 val type = object : TypeToken<ArrayList<Product>>() {}.type
-                cachedProducts = gson.fromJson(FileReader(pFile), type) ?: ArrayList()
+                cachedProducts = gson.fromJson(FileReader(p), type)
             }
-            val sFile = File(context.filesDir, FILE_STORES)
-            if (sFile.exists()) {
+
+            val s = File(context.filesDir, FILE_STORES)
+            if (s.exists()) {
                 val type = object : TypeToken<ArrayList<Store>>() {}.type
-                cachedStores = gson.fromJson(FileReader(sFile), type) ?: ArrayList()
+                cachedStores = gson.fromJson(FileReader(s), type)
             }
-        } catch (e: Exception) { Log.e("DataManager", "Load Error: $e") }
+        } catch (e: Exception) {
+            Log.e(TAG, "Disk load error", e)
+        }
+    }
+    // =====================================================
+// 🔹 ADMIN VERSION & DELTA TRIGGER
+// =====================================================
+    fun triggerServerVersionUpdate(
+        updatedProductId: String? = null,
+        updatedStoreId: String? = null
+    ) {
+        val updates = hashMapOf<String, Any>()
+
+        if (!updatedProductId.isNullOrBlank()) {
+            updates["productsVersion"] = FieldValue.increment(1)
+            updates["updatedProductIds"] = FieldValue.arrayUnion(updatedProductId)
+        }
+
+        if (!updatedStoreId.isNullOrBlank()) {
+            updates["storesVersion"] = FieldValue.increment(1)
+            updates["updatedStoreIds"] = FieldValue.arrayUnion(updatedStoreId)
+        }
+
+        if (updates.isEmpty()) return
+
+        FirebaseFirestore.getInstance()
+            .collection("system")
+            .document("metadata")
+            .update(updates)
     }
 }

@@ -2,7 +2,6 @@ package com.example.mobiliyum
 
 import android.content.Context
 import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
 import java.util.Date
@@ -11,70 +10,39 @@ object FavoritesManager {
     private val db = FirebaseFirestore.getInstance()
     private val auth = FirebaseAuth.getInstance()
     private val localFavorites = mutableSetOf<Int>()
+    private val followedStoreIds = HashSet<Int>()
     private val activeListeners = ArrayList<ListenerRegistration>()
 
+    // Favori ve Takip Yükleme
     fun loadUserFavorites(onComplete: () -> Unit) {
         val uid = auth.currentUser?.uid ?: return
         db.collection("users").document(uid).collection("favorites").get()
-            .addOnSuccessListener { documents ->
+            .addOnSuccessListener { docs ->
                 localFavorites.clear()
-                for (doc in documents) {
-                    doc.getString("productId")?.toIntOrNull()?.let { localFavorites.add(it) }
-                }
-                onComplete()
-            }
+                for (d in docs) { d.getString("productId")?.toIntOrNull()?.let { localFavorites.add(it) } }
+
+                // Mağaza Takiplerini de Yükle
+                db.collection("users").document(uid).collection("followed_stores").get()
+                    .addOnSuccessListener { storeDocs ->
+                        followedStoreIds.clear()
+                        for (s in storeDocs) { s.getLong("storeId")?.toInt()?.let { followedStoreIds.add(it) } }
+                        onComplete()
+                    }.addOnFailureListener { onComplete() }
+            }.addOnFailureListener { onComplete() }
     }
 
     fun isFavorite(productId: Int) = localFavorites.contains(productId)
+    fun isFollowing(storeId: Int) = followedStoreIds.contains(storeId)
 
-    fun toggleFavorite(product: Product, onResult: (Boolean) -> Unit) {
-        val uid = auth.currentUser?.uid ?: return
-        val productIdStr = product.id.toString()
-        val productRef = db.collection("products").document(productIdStr)
-        val userFavRef = db.collection("users").document(uid).collection("favorites").document(productIdStr)
-
-        if (isFavorite(product.id)) {
-            db.runBatch { batch ->
-                batch.delete(userFavRef)
-                batch.update(productRef, "favoriteCount", FieldValue.increment(-1))
-            }.addOnSuccessListener {
-                localFavorites.remove(product.id)
-                onResult(false)
-            }
-        } else {
-            val currentPriceDouble = PriceUtils.parsePrice(product.price)
-            val favData = hashMapOf(
-                "productId" to productIdStr,
-                "productName" to product.name,
-                "savedPrice" to currentPriceDouble,
-                "lastNotifiedPrice" to currentPriceDouble,
-                "priceAlert" to true,
-                "addedAt" to Date()
-            )
-            db.runBatch { batch ->
-                batch.set(userFavRef, favData)
-                batch.update(productRef, "favoriteCount", FieldValue.increment(1))
-            }.addOnSuccessListener {
-                localFavorites.add(product.id)
-                onResult(true)
-            }
-        }
-    }
-
-    fun updatePriceAlert(productId: Int, isEnabled: Boolean) {
-        val uid = auth.currentUser?.uid ?: return
-        db.collection("users").document(uid).collection("favorites")
-            .document(productId.toString())
-            .update("priceAlert", isEnabled)
-    }
-
-    // --- GERÇEK ZAMANLI FİYAT TAKİBİ ---
+    // Fiyat Takibi (Live Listener)
     fun startRealTimePriceAlerts(context: Context) {
         val uid = auth.currentUser?.uid ?: return
 
+        // Eski dinleyicileri temizle
         activeListeners.forEach { it.remove() }
         activeListeners.clear()
 
+        // Sadece alarmı açık olan favorileri dinle
         db.collection("users").document(uid).collection("favorites")
             .whereEqualTo("priceAlert", true)
             .get()
@@ -89,37 +57,36 @@ object FavoritesManager {
                             val currentPriceStr = snapshot.getString("price") ?: "0"
                             val currentPrice = PriceUtils.parsePrice(currentPriceStr)
 
+                            // Favori kaydındaki son bilinen fiyatı al
                             fav.reference.get().addOnSuccessListener { updatedFav ->
-                                if (!updatedFav.exists()) return@addOnSuccessListener
+                                val lastNotified = updatedFav.getDouble("lastNotifiedPrice") ?: currentPrice
 
-                                val savedPrice = updatedFav.getDouble("savedPrice") ?: 0.0
-                                val lastNotified = updatedFav.getDouble("lastNotifiedPrice") ?: savedPrice
-
+                                // FİYAT DÜŞTÜ MÜ?
                                 if (currentPrice < lastNotified) {
                                     val name = snapshot.getString("name") ?: "Ürün"
 
-                                    NotificationHelper.sendPriceDropNotification(context, name, lastNotified, currentPrice)
+                                    // BİLDİRİM GÖNDER
+                                    NotificationHelper.sendNotification(
+                                        context,
+                                        "İndirim Alarmı! \uD83D\uDD25",
+                                        "$name fiyatı düştü! ${PriceUtils.formatPriceStyled(currentPrice)}"
+                                    )
 
-                                    // DÜZELTME: HashMap yerine NotificationItem kullanımı
+                                    // Bildirimi Kaydet (Geçmiş için)
                                     val notifRef = db.collection("users").document(uid).collection("notifications").document()
-                                    val notifItem = NotificationItem(
+                                    val item = NotificationItem(
                                         id = notifRef.id,
-                                        title = "İndirim Yakaladın! 🎉",
-                                        message = "$name fiyatı düştü! ${lastNotified.toInt()}₺ -> ${currentPrice.toInt()}₺",
+                                        title = "İndirim Yakaladın!",
+                                        message = "$name fiyatı düştü! Eski: ${PriceUtils.formatPriceStyled(lastNotified)} -> Yeni: ${PriceUtils.formatPriceStyled(currentPrice)}",
                                         date = Date(),
                                         type = "price_alert",
                                         relatedId = pid,
                                         isRead = false
                                     )
-                                    notifRef.set(notifItem)
+                                    notifRef.set(item)
 
-                                    fav.reference.update(mapOf(
-                                        "savedPrice" to currentPrice,
-                                        "lastNotifiedPrice" to currentPrice
-                                    ))
-                                }
-                                else if (currentPrice > savedPrice) {
-                                    fav.reference.update("savedPrice", currentPrice)
+                                    // Tekrar bildirim atmaması için güncelle
+                                    fav.reference.update("lastNotifiedPrice", currentPrice)
                                 }
                             }
                         }
@@ -128,41 +95,43 @@ object FavoritesManager {
             }
     }
 
-    fun containsProfanity(text: String): Boolean {
-        val badWords = listOf("küfür1", "küfür2", "argo", "hakaret")
-        val lowerText = text.lowercase()
-        return badWords.any { lowerText.contains(it) }
+    fun toggleFavorite(product: Product, onResult: (Boolean) -> Unit) {
+        val uid = auth.currentUser?.uid ?: return
+        val pidStr = product.id.toString()
+        val ref = db.collection("users").document(uid).collection("favorites").document(pidStr)
+
+        if (isFavorite(product.id)) {
+            ref.delete().addOnSuccessListener { localFavorites.remove(product.id); onResult(false) }
+        } else {
+            val priceVal = PriceUtils.parsePrice(product.price)
+            val data = hashMapOf(
+                "productId" to pidStr,
+                "productName" to product.name,
+                "lastNotifiedPrice" to priceVal, // Başlangıç fiyatı
+                "priceAlert" to true,
+                "addedAt" to Date()
+            )
+            ref.set(data).addOnSuccessListener { localFavorites.add(product.id); onResult(true) }
+        }
     }
 
-    fun followStore(storeId: Int, onResult: (Boolean) -> Unit) {
-        val user = UserManager.getCurrentUser() ?: return
-        val uid = user.id
-        db.collection("users").document(uid)
-            .update("followedStores", FieldValue.arrayUnion(storeId))
-            .addOnSuccessListener {
-                user.followedStores.add(storeId)
-                onResult(true)
-            }
+    fun updatePriceAlert(productId: Int, isEnabled: Boolean) {
+        val uid = auth.currentUser?.uid ?: return
+        db.collection("users").document(uid).collection("favorites")
+            .document(productId.toString()).update("priceAlert", isEnabled)
     }
 
-    fun unfollowStore(storeId: Int, onResult: (Boolean) -> Unit) {
-        val user = UserManager.getCurrentUser() ?: return
-        val uid = user.id
-        db.collection("users").document(uid)
-            .update("followedStores", FieldValue.arrayRemove(storeId))
-            .addOnSuccessListener {
-                user.followedStores.remove(storeId)
-                onResult(true)
-            }
+    fun followStore(storeId: Int, onComplete: () -> Unit) {
+        val uid = auth.currentUser?.uid ?: return
+        db.collection("users").document(uid).collection("followed_stores")
+            .document(storeId.toString()).set(mapOf("storeId" to storeId))
+            .addOnSuccessListener { followedStoreIds.add(storeId); onComplete() }
     }
 
-    fun isFollowing(storeId: Int): Boolean {
-        val user = UserManager.getCurrentUser()
-        return user?.followedStores?.contains(storeId) == true
-    }
-
-    fun stopTracking() {
-        activeListeners.forEach { it.remove() }
-        activeListeners.clear()
+    fun unfollowStore(storeId: Int, onComplete: () -> Unit) {
+        val uid = auth.currentUser?.uid ?: return
+        db.collection("users").document(uid).collection("followed_stores")
+            .document(storeId.toString()).delete()
+            .addOnSuccessListener { followedStoreIds.remove(storeId); onComplete() }
     }
 }

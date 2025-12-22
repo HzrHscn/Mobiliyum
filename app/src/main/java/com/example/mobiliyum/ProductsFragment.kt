@@ -49,7 +49,7 @@ class ProductsFragment : Fragment() {
         super.onViewCreated(view, savedInstanceState)
 
         binding.swipeRefreshLayout.setOnRefreshListener {
-            DataManager.cachedProducts = null
+            //DataManager.cachedProducts = null
             val prefs = requireContext().getSharedPreferences("AppPrefs", android.content.Context.MODE_PRIVATE)
             prefs.edit().remove("productsVersion").apply()
             fetchProducts()

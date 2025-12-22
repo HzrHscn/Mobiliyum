@@ -6,20 +6,23 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.appcompat.widget.SearchView // Search View eklendi
 import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
-import com.example.mobiliyum.databinding.ItemProductSelectionBinding // YENİ BINDING
+import com.example.mobiliyum.databinding.ItemProductSelectionBinding
 import com.google.firebase.firestore.FirebaseFirestore
 
 class EditorProductsFragment : Fragment() {
 
     private lateinit var recyclerView: RecyclerView
+    private lateinit var searchView: SearchView
     private val db = FirebaseFirestore.getInstance()
     private lateinit var adapter: EditorProductAdapter
+    private var allProducts = listOf<Product>() // Filtreleme için tüm liste
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
@@ -41,13 +44,13 @@ class EditorProductsFragment : Fragment() {
         }
         layout.addView(title)
 
-        val subTitle = TextView(context).apply {
-            text = "Düzenlemek istediğiniz ürüne tıklayınız."
-            textSize = 14f
-            setTextColor(android.graphics.Color.GRAY)
-            setPadding(32, 0, 32, 32)
+        // --- ARAMA ÇUBUĞU ---
+        searchView = SearchView(context).apply {
+            queryHint = "Ürün Ara..."
+            setIconifiedByDefault(false)
+            setPadding(16, 0, 16, 16)
         }
-        layout.addView(subTitle)
+        layout.addView(searchView)
 
         recyclerView = RecyclerView(context).apply {
             layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
@@ -57,6 +60,15 @@ class EditorProductsFragment : Fragment() {
         recyclerView.layoutManager = LinearLayoutManager(context)
         adapter = EditorProductAdapter { product -> openEdit(product) }
         recyclerView.adapter = adapter
+
+        // Arama Dinleyicisi
+        searchView.setOnQueryTextListener(object : SearchView.OnQueryTextListener {
+            override fun onQueryTextSubmit(query: String?): Boolean = false
+            override fun onQueryTextChange(newText: String?): Boolean {
+                filterList(newText)
+                return true
+            }
+        })
 
         loadStoreProducts()
 
@@ -71,9 +83,18 @@ class EditorProductsFragment : Fragment() {
             .whereEqualTo("storeId", user.storeId)
             .get()
             .addOnSuccessListener { docs ->
-                val products = docs.toObjects(Product::class.java)
-                adapter.submitList(products)
+                allProducts = docs.toObjects(Product::class.java)
+                adapter.submitList(allProducts) // İlk başta hepsini göster
             }
+    }
+
+    private fun filterList(query: String?) {
+        val filtered = if (query.isNullOrEmpty()) {
+            allProducts
+        } else {
+            allProducts.filter { it.name.contains(query, ignoreCase = true) }
+        }
+        adapter.submitList(filtered)
     }
 
     private fun openEdit(product: Product) {
@@ -81,14 +102,9 @@ class EditorProductsFragment : Fragment() {
         val args = Bundle()
         args.putParcelable("product_data", product)
         fragment.arguments = args
-
-        parentFragmentManager.beginTransaction()
-            .replace(R.id.fragmentContainer, fragment)
-            .addToBackStack(null)
-            .commit()
+        parentFragmentManager.beginTransaction().replace(R.id.fragmentContainer, fragment).addToBackStack(null).commit()
     }
 
-    // Adapter - Güncellendi
     class EditorProductAdapter(private val onItemClick: (Product) -> Unit) :
         ListAdapter<Product, EditorProductAdapter.VH>(DiffCallback()) {
 
@@ -97,7 +113,6 @@ class EditorProductsFragment : Fragment() {
             override fun areContentsTheSame(oldItem: Product, newItem: Product) = oldItem == newItem
         }
 
-        // BINDING DEĞİŞTİ: ItemProductSelectionBinding
         inner class VH(val binding: ItemProductSelectionBinding) : RecyclerView.ViewHolder(binding.root)
 
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
@@ -111,10 +126,8 @@ class EditorProductsFragment : Fragment() {
             holder.binding.tvProductPrice.text = PriceUtils.formatPriceStyled(item.price)
             Glide.with(holder.itemView).load(item.imageUrl).into(holder.binding.imgProduct)
 
-            // Checkbox'ı Edit butonuna çevirme
-            holder.binding.cbSelectProduct.buttonDrawable = null // Kutuyu gizle
-            holder.binding.cbSelectProduct.setBackgroundResource(android.R.drawable.ic_menu_edit) // İkon ekle
-
+            holder.binding.cbSelectProduct.buttonDrawable = null
+            holder.binding.cbSelectProduct.setBackgroundResource(android.R.drawable.ic_menu_edit)
             holder.binding.cbSelectProduct.setOnClickListener { onItemClick(item) }
             holder.itemView.setOnClickListener { onItemClick(item) }
         }
