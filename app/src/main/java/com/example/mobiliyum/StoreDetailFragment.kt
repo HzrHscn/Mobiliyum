@@ -21,19 +21,15 @@ class StoreDetailFragment : Fragment() {
 
     private var _binding: FragmentStoreDetailBinding? = null
     private val binding get() = _binding!!
-
     private lateinit var categoryAdapter: CategoryAdapter
     private lateinit var userChoiceAdapter: ProductAdapter
     private lateinit var storeChoiceAdapter: ProductAdapter
-
     private var currentAnnouncement: NotificationItem? = null
     private var categorySectionList = ArrayList<CategorySection>()
-
     private var storeId: Int = 0
     private var storeName: String? = null
     private var storeImage: String? = null
     private var storeLocation: String? = null
-
     private val db = FirebaseFirestore.getInstance()
 
     override fun onCreate(savedInstanceState: Bundle?) {

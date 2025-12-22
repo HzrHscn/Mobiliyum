@@ -31,7 +31,6 @@ class AdminStoreEditFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-
         if (storeId != 0) {
             binding.tvTitle.text = "Mağazayı Düzenle"
             loadStoreData()
@@ -39,7 +38,6 @@ class AdminStoreEditFragment : Fragment() {
             binding.tvTitle.text = "Yeni Mağaza Ekle"
             binding.switchStoreActive.isChecked = true
         }
-
         binding.btnSaveStore.setOnClickListener { saveStore() }
     }
 
@@ -82,7 +80,6 @@ class AdminStoreEditFragment : Fragment() {
             imageUrl = imageUrl,
             etap = etap,
             isActive = isActive,
-            // Korunan veriler
             clickCount = currentStore?.clickCount ?: 0,
             clickHistory = currentStore?.clickHistory ?: hashMapOf(),
             featuredProductIds = currentStore?.featuredProductIds ?: listOf()
@@ -91,8 +88,10 @@ class AdminStoreEditFragment : Fragment() {
         db.collection("stores").document(idToSave.toString())
             .set(updatedStore, SetOptions.merge())
             .addOnSuccessListener {
-                DataManager.updateStoreInCache(updatedStore)
+                // HATA GİDERİLDİ: requireContext() eklendi
+                DataManager.updateStoreInCache(requireContext(), updatedStore)
                 DataManager.triggerServerVersionUpdate()
+
                 Toast.makeText(context, "Mağaza kaydedildi.", Toast.LENGTH_SHORT).show()
                 parentFragmentManager.popBackStack()
             }
@@ -101,8 +100,5 @@ class AdminStoreEditFragment : Fragment() {
             }
     }
 
-    override fun onDestroyView() {
-        super.onDestroyView()
-        _binding = null
-    }
+    override fun onDestroyView() { super.onDestroyView(); _binding = null }
 }

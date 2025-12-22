@@ -64,4 +64,8 @@ dependencies {
 
     implementation("com.google.firebase:firebase-auth") // Giriş işlemleri için
     implementation("com.google.firebase:firebase-firestore") // Veritabanı için
+
+    implementation("com.google.code.gson:gson:2.10.1")
+// Glide (Resim yüklemek için, reklamda lazım olacak)
+    implementation("com.github.bumptech.glide:glide:4.16.0")
 }

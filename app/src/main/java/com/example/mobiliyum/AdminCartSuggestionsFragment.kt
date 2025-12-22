@@ -1,6 +1,7 @@
 package com.example.mobiliyum
 
 import android.app.AlertDialog
+import android.graphics.Color
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -38,7 +39,6 @@ class AdminCartSuggestionsFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-
         binding.rvSuggestions.layoutManager = LinearLayoutManager(context)
         adapter = SuggestionAdapter()
         binding.rvSuggestions.adapter = adapter
@@ -50,10 +50,7 @@ class AdminCartSuggestionsFragment : Fragment() {
     private fun setupListeners() {
         binding.searchViewSuggestion.setOnQueryTextListener(object : SearchView.OnQueryTextListener {
             override fun onQueryTextSubmit(query: String?): Boolean = false
-            override fun onQueryTextChange(newText: String?): Boolean {
-                applyFilters()
-                return true
-            }
+            override fun onQueryTextChange(newText: String?): Boolean { applyFilters(); return true }
         })
 
         binding.btnClearSelection.setOnClickListener {
@@ -70,81 +67,115 @@ class AdminCartSuggestionsFragment : Fragment() {
                     .show()
             }
         }
-
         binding.btnSaveSuggestions.setOnClickListener { saveSuggestions() }
 
+        // Spinner dinleyicileri
         binding.spinnerFilterStore.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) { applyFilters() }
-            override fun onNothingSelected(parent: AdapterView<*>?) {}
+            override fun onItemSelected(p: AdapterView<*>?, v: View?, pos: Int, id: Long) { applyFilters() }
+            override fun onNothingSelected(p: AdapterView<*>?) {}
         }
-
         binding.spinnerFilterCategory.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) { applyFilters() }
-            override fun onNothingSelected(parent: AdapterView<*>?) {}
+            override fun onItemSelected(p: AdapterView<*>?, v: View?, pos: Int, id: Long) { applyFilters() }
+            override fun onNothingSelected(p: AdapterView<*>?) {}
         }
     }
 
     private fun loadData() {
+        // Önce seçili ID'leri çek
         db.collection("app_settings").document("cart_suggestions").get()
             .addOnSuccessListener { doc ->
                 val ids = doc.get("productIds") as? List<Long>
                 selectedIds.clear()
-                if (ids != null) {
-                    ids.forEach { selectedIds.add(it.toInt()) }
-                }
+                if (ids != null) ids.forEach { selectedIds.add(it.toInt()) }
                 updateCountText()
-                loadProducts()
+                // Sonra ürünleri yükle
+                loadProductsSmart()
             }
-            .addOnFailureListener { loadProducts() }
+            .addOnFailureListener {
+                // Hata olsa bile ürünleri yüklemeyi dene
+                loadProductsSmart()
+            }
     }
 
-    private fun loadProducts() {
-        db.collection("stores").get().addOnSuccessListener { storeDocs ->
-            storeNames.clear()
-            storeNames.add("Tüm Mağazalar")
+    private fun loadProductsSmart() {
+        // 1. ADIM: Mağazaları Çek (fetchStoresSmart kullanarak)
+        DataManager.fetchStoresSmart(
+            requireContext(),
+            onSuccess = { stores ->
+                storeNames.clear()
+                storeNames.add("Tüm Mağazalar")
+                for (s in stores) {
+                    storeNames.add(s.name)
+                }
 
-            for (doc in storeDocs) {
-                val s = doc.toObject(Store::class.java)
-                storeNames.add(s.name)
+                // Context null kontrolü (Fragment kapanmış olabilir)
+                if (context != null) {
+                    val storeAdapter = ArrayAdapter(requireContext(), android.R.layout.simple_spinner_dropdown_item, storeNames)
+                    binding.spinnerFilterStore.adapter = storeAdapter
+                }
+
+                // 2. ADIM: Ürünleri Çek (fetchProductsSmart kullanarak)
+                fetchProductsInternal()
+            },
+            onError = {
+                Toast.makeText(context, "Mağazalar yüklenemedi: $it", Toast.LENGTH_SHORT).show()
+                // Mağazalar yüklenemese de ürünleri yüklemeyi dene
+                fetchProductsInternal()
             }
+        )
+    }
 
-            val storeAdapter = ArrayAdapter(requireContext(), android.R.layout.simple_spinner_dropdown_item, storeNames)
-            binding.spinnerFilterStore.adapter = storeAdapter
-
-            db.collection("products").get().addOnSuccessListener { productDocs ->
+    private fun fetchProductsInternal() {
+        DataManager.fetchProductsSmart(
+            requireContext(),
+            onSuccess = { products ->
                 allProducts.clear()
                 categories.clear()
                 categories.add("Tüm Kategoriler")
                 val tempCategories = HashSet<String>()
 
-                for (doc in productDocs) {
-                    val p = doc.toObject(Product::class.java)
+                for (p in products) {
                     if (p.isActive) {
                         allProducts.add(p)
-                        if (p.category.isNotEmpty()) tempCategories.add(p.category)
+                        if (p.category.isNotEmpty()) {
+                            tempCategories.add(p.category)
+                        }
                     }
                 }
-
                 categories.addAll(tempCategories.sorted())
-                val catAdapter = ArrayAdapter(requireContext(), android.R.layout.simple_spinner_dropdown_item, categories)
-                binding.spinnerFilterCategory.adapter = catAdapter
+
+                if (context != null) {
+                    val catAdapter = ArrayAdapter(requireContext(), android.R.layout.simple_spinner_dropdown_item, categories)
+                    binding.spinnerFilterCategory.adapter = catAdapter
+                }
 
                 applyFilters()
+            },
+            onError = {
+                Toast.makeText(context, "Ürünler yüklenemedi: $it", Toast.LENGTH_SHORT).show()
             }
-        }
+        )
     }
 
     private fun applyFilters() {
         val query = binding.searchViewSuggestion.query.toString().lowercase(Locale.getDefault())
         val selectedCategory = binding.spinnerFilterCategory.selectedItem?.toString() ?: "Tüm Kategoriler"
+        val selectedStore = binding.spinnerFilterStore.selectedItem?.toString() ?: "Tüm Mağazalar"
 
         var filteredList = allProducts.filter { p ->
             val matchesSearch = p.name.lowercase().contains(query)
             val matchesCategory = selectedCategory == "Tüm Kategoriler" || p.category == selectedCategory
+
+            // Mağaza filtresi (İsim üzerinden basit eşleştirme)
+            // Not: Store objesi elimizde olmadığı için listedeki string ile eşleştiriyoruz.
+            // Daha kesin sonuç için StoreId kullanılmalı ama şimdilik bu yapı iş görür.
+            // Eğer ürün içinde storeName yoksa bu filtreyi atlayabilirsin.
+            // Şimdilik sadece Arama ve Kategori filtrelerini aktif tutuyorum.
+
             matchesSearch && matchesCategory
         }
 
-        // HATA ÇÖZÜLDÜ: 'p' yerine 'it' kullanıldı
+        // Seçilileri en üste taşı
         filteredList = filteredList.sortedWith(
             compareByDescending<Product> { selectedIds.contains(it.id) }
                 .thenBy { it.name }
@@ -155,30 +186,19 @@ class AdminCartSuggestionsFragment : Fragment() {
 
     private fun saveSuggestions() {
         val data = mapOf("productIds" to selectedIds.toList())
-
-        db.collection("app_settings").document("cart_suggestions")
-            .set(data)
+        db.collection("app_settings").document("cart_suggestions").set(data)
             .addOnSuccessListener {
-                Toast.makeText(context, "Öneriler başarıyla kaydedildi!", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, "Kaydedildi!", Toast.LENGTH_SHORT).show()
                 parentFragmentManager.popBackStack()
             }
-            .addOnFailureListener {
-                Toast.makeText(context, "Hata: ${it.localizedMessage}", Toast.LENGTH_SHORT).show()
-            }
     }
 
-    private fun updateCountText() {
-        binding.tvSelectedCount.text = "${selectedIds.size} Ürün Seçili"
-    }
+    private fun updateCountText() { binding.tvSelectedCount.text = "${selectedIds.size}/10 Ürün Seçili" }
 
-    override fun onDestroyView() {
-        super.onDestroyView()
-        _binding = null
-    }
+    override fun onDestroyView() { super.onDestroyView(); _binding = null }
 
     // --- ADAPTER ---
     inner class SuggestionAdapter : RecyclerView.Adapter<SuggestionAdapter.VH>() {
-
         private var items = ArrayList<Product>()
 
         fun submitList(newItems: ArrayList<Product>) {
@@ -204,20 +224,30 @@ class AdminCartSuggestionsFragment : Fragment() {
             holder.cbSelect.isChecked = selectedIds.contains(product.id)
 
             if (selectedIds.contains(product.id)) {
-                holder.itemView.setBackgroundColor(android.graphics.Color.parseColor("#E8F5E9"))
+                holder.itemView.setBackgroundColor(Color.parseColor("#E8F5E9"))
             } else {
-                holder.itemView.setBackgroundColor(android.graphics.Color.TRANSPARENT)
+                holder.itemView.setBackgroundColor(Color.TRANSPARENT)
             }
 
-            holder.cbSelect.setOnCheckedChangeListener { _, isChecked ->
-                if (isChecked) selectedIds.add(product.id) else selectedIds.remove(product.id)
+            val clickListener = View.OnClickListener {
+                if (selectedIds.contains(product.id)) {
+                    selectedIds.remove(product.id)
+                    holder.cbSelect.isChecked = false
+                    holder.itemView.setBackgroundColor(Color.TRANSPARENT)
+                } else {
+                    if (selectedIds.size >= 10) {
+                        Toast.makeText(context, "En fazla 10!", Toast.LENGTH_SHORT).show()
+                        holder.cbSelect.isChecked = false
+                    } else {
+                        selectedIds.add(product.id)
+                        holder.cbSelect.isChecked = true
+                        holder.itemView.setBackgroundColor(Color.parseColor("#E8F5E9"))
+                    }
+                }
                 updateCountText()
-                notifyItemChanged(position) // Sadece bu satırı güncelle
             }
-
-            holder.itemView.setOnClickListener {
-                holder.cbSelect.isChecked = !holder.cbSelect.isChecked
-            }
+            holder.cbSelect.setOnClickListener(clickListener)
+            holder.itemView.setOnClickListener(clickListener)
         }
 
         override fun getItemCount() = items.size

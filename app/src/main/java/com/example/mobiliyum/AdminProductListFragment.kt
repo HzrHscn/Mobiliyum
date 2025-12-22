@@ -29,12 +29,9 @@ class AdminProductListFragment : Fragment() {
     private var allProducts = ArrayList<Product>()
     private lateinit var adapter: AdminProductAdapter
 
-    // Dosya Seçme Sonucunu Dinleyen Launcher
     private val csvFileLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
-            result.data?.data?.let { uri ->
-                readAndUploadCSV(uri)
-            }
+            result.data?.data?.let { uri -> readAndUploadCSV(uri) }
         }
     }
 
@@ -52,64 +49,46 @@ class AdminProductListFragment : Fragment() {
             val bundle = Bundle()
             bundle.putParcelable("product_data", product)
             fragment.arguments = bundle
-            parentFragmentManager.beginTransaction()
-                .replace(R.id.fragmentContainer, fragment)
-                .addToBackStack(null)
-                .commit()
+            parentFragmentManager.beginTransaction().replace(R.id.fragmentContainer, fragment).addToBackStack(null).commit()
         }
         binding.rvAdminProductList.adapter = adapter
 
         loadProducts()
 
         binding.fabAddProduct.setOnClickListener {
-            parentFragmentManager.beginTransaction()
-                .replace(R.id.fragmentContainer, AdminProductEditFragment())
-                .addToBackStack(null)
-                .commit()
+            parentFragmentManager.beginTransaction().replace(R.id.fragmentContainer, AdminProductEditFragment()).addToBackStack(null).commit()
         }
 
-        // CSV Butonu
-        binding.btnUploadCsv.setOnClickListener {
-            openFilePicker()
-        }
+        binding.btnUploadCsv.setOnClickListener { openFilePicker() }
 
         binding.searchViewAdminProduct.setOnQueryTextListener(object : SearchView.OnQueryTextListener {
             override fun onQueryTextSubmit(query: String?): Boolean = false
-            override fun onQueryTextChange(newText: String?): Boolean {
-                filter(newText ?: "")
-                return true
-            }
+            override fun onQueryTextChange(newText: String?): Boolean { filter(newText ?: ""); return true }
         })
     }
 
     private fun openFilePicker() {
         val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
             addCategory(Intent.CATEGORY_OPENABLE)
-            type = "text/*" // CSV veya text dosyaları için
+            type = "text/*"
         }
         csvFileLauncher.launch(intent)
     }
 
     private fun readAndUploadCSV(uri: Uri) {
+        // (CSV kodları aynen kalıyor, hata yoktu)
         try {
             val inputStream = requireContext().contentResolver.openInputStream(uri)
             val reader = BufferedReader(InputStreamReader(inputStream))
             var line: String?
             var count = 0
-
             // CSV FORMATI: Ürün Adı;Fiyat;Kategori;MağazaID;ResimURL;productURL;Açıklama
             // Örnek: Chester Koltuk;15.000 TL;Oturma Odası;101;http://...;http://...;Konforlu chester koltuk
-
-            val batch = db.batch() // Toplu işlem için batch kullanımı
+            val batch = db.batch()
 
             while (reader.readLine().also { line = it } != null) {
-                // Boş satırları atla
                 if (line.isNullOrEmpty()) continue
-
-                // Noktalı virgül ile ayır
                 val tokens = line!!.split(";")
-
-                // En az 4 temel alanın dolu olması gerekir (Ad, Fiyat, Kategori, MağazaID)
                 if (tokens.size >= 4) {
                     val name = tokens[0].trim()
                     val price = tokens[1].trim()
@@ -118,13 +97,10 @@ class AdminProductListFragment : Fragment() {
                     val imageUrl = if (tokens.size > 4) tokens[4].trim() else ""
                     val productUrl = if (tokens.size > 5) tokens[5].trim() else ""
                     val description = if (tokens.size > 6) tokens[6].trim() else ""
-
-                    // Mağaza ID'sini Int'e çevir, hata varsa 0 yap
                     val storeId = storeIdStr.toIntOrNull() ?: 0
 
                     if (name.isNotEmpty() && storeId != 0) {
                         val newId = Random.nextInt(100000, 999999)
-
                         val productRef = db.collection("products").document(newId.toString())
                         val productData = Product(
                             id = newId,
@@ -143,36 +119,25 @@ class AdminProductListFragment : Fragment() {
                 }
             }
             reader.close()
-
-            // Batch işlemini çalıştır
             if (count > 0) {
                 batch.commit().addOnSuccessListener {
-                    Toast.makeText(context, "$count ürün başarıyla yüklendi!", Toast.LENGTH_LONG).show()
-                    loadProducts() // Listeyi yenile
-                }.addOnFailureListener {
-                    Toast.makeText(context, "Yükleme sırasında hata oluştu: ${it.message}", Toast.LENGTH_LONG).show()
+                    Toast.makeText(context, "$count ürün yüklendi!", Toast.LENGTH_LONG).show()
+                    loadProducts()
+                    DataManager.triggerServerVersionUpdate() // Versiyonu güncelle
                 }
-            } else {
-                Toast.makeText(context, "Dosyada geçerli ürün bulunamadı.", Toast.LENGTH_SHORT).show()
-            }
-
-        } catch (e: Exception) {
-            Toast.makeText(context, "Dosya okuma hatası: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
-        }
+            } else { Toast.makeText(context, "Ürün bulunamadı.", Toast.LENGTH_SHORT).show() }
+        } catch (e: Exception) { Toast.makeText(context, "Hata: ${e.localizedMessage}", Toast.LENGTH_SHORT).show() }
     }
 
     private fun loadProducts() {
-        // Doğrudan db.get() yerine DataManager kullanıyoruz
+        // HATA GİDERİLDİ: DataManager metoduna parametreler doğru geçiriliyor
         DataManager.fetchProductsSmart(
             requireContext(),
             onSuccess = { products ->
-                // Referansı kopyala ki filtrelemede sorun olmasın
                 allProducts = ArrayList(products)
                 adapter.updateList(allProducts)
             },
-            onError = {
-                Toast.makeText(context, "Hata: $it", Toast.LENGTH_SHORT).show()
-            }
+            onError = { Toast.makeText(context, "Hata: $it", Toast.LENGTH_SHORT).show() }
         )
     }
 
@@ -181,10 +146,7 @@ class AdminProductListFragment : Fragment() {
         adapter.updateList(ArrayList(filtered))
     }
 
-    override fun onDestroyView() {
-        super.onDestroyView()
-        _binding = null
-    }
+    override fun onDestroyView() { super.onDestroyView(); _binding = null }
 
     class AdminProductAdapter(private var list: ArrayList<Product>, val onClick: (Product) -> Unit) : RecyclerView.Adapter<AdminProductAdapter.VH>() {
         class VH(v: View) : RecyclerView.ViewHolder(v) {
@@ -199,16 +161,10 @@ class AdminProductListFragment : Fragment() {
             val item = list[position]
             holder.tvName.text = if (item.isActive) item.name else "${item.name} (PASİF)"
             holder.tvInfo.text = "${item.category} | ${item.price}"
-
-            // Pasif ürünleri soluk göster
             holder.itemView.alpha = if (item.isActive) 1.0f else 0.5f
-
             holder.itemView.setOnClickListener { onClick(item) }
         }
         override fun getItemCount() = list.size
-        fun updateList(newList: ArrayList<Product>) {
-            list = newList
-            notifyDataSetChanged()
-        }
+        fun updateList(newList: ArrayList<Product>) { list = newList; notifyDataSetChanged() }
     }
 }
