@@ -20,15 +20,18 @@ import com.example.mobiliyum.databinding.ActivityMainBinding
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.DocumentChange
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.firestore.Query
 
 class MainActivity : AppCompatActivity() {
 
     lateinit var binding: ActivityMainBinding
 
-    // Firebase Referansları (Sınıf seviyesinde tanımlı, hata almazsın)
     private val auth = FirebaseAuth.getInstance()
     private val db = FirebaseFirestore.getInstance()
+
+    // Listener'ları sakla (Memory leak önleme)
+    private val activeListeners = ArrayList<ListenerRegistration>()
 
     // Fragmentlar
     private val storesFragment = StoresFragment()
@@ -44,37 +47,33 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        // Navbar başlangıçta gizli
         binding.bottomNavigationView.visibility = View.GONE
         binding.bottomNavigationView.itemIconTintList = null
 
         setupNavigation()
 
-        // 1. KANAL OLUŞTUR (Çok Önemli, Android 8+ için)
-        NotificationHelper.createNotificationChannel(this)
+        // 1. FavoritesManager'ı başlat (Cache sistemi için)
+        FavoritesManager.initialize(this)
 
-        // 2. İZİN İSTE (Android 13+ İçin)
+        // 2. KANAL OLUŞTUR (Geliştirilmiş çoklu kanal)
+        NotificationHelper.createNotificationChannels(this)
+
+        // 3. İZİN İSTE (Android 13+)
         askNotificationPermission()
 
-        // 3. GİRİŞ VE VERİ YÜKLEME
+        // 4. GİRİŞ VE VERİ YÜKLEME
         UserManager.checkSession { isLoggedIn ->
             if (isLoggedIn) {
                 FavoritesManager.loadUserFavorites {
-                    // Giriş varsa direkt Mağazalar'ı aç
                     loadFragment(storesFragment)
                     binding.bottomNavigationView.visibility = View.VISIBLE
                     binding.bottomNavigationView.selectedItemId = R.id.nav_stores
 
-                    // --- BİLDİRİM DİNLEMELERİNİ BAŞLAT ---
-                    // 1. Fiyat Alarmları
-                    FavoritesManager.startRealTimePriceAlerts(this)
-                    // 2. Kişisel Bildirimler (Manager'dan gelen vb.)
-                    listenForUserNotifications()
-                    // 3. Genel Duyurular (Admin'den gelen) - Artık Popup değil, Bildirim
-                    listenForGlobalAnnouncements()
+                    // === BİLDİRİM DİNLEYİCİLERİNİ BAŞLAT ===
+                    startNotificationListeners()
                 }
 
-                // Bildirimden tıklandıysa Bildirimler sayfasına git
+                // Bildirimden tıklandıysa
                 if (intent.getStringExtra("open_fragment") == "notifications") {
                     loadFragment(notificationsFragment)
                 }
@@ -91,77 +90,125 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // --- BİLDİRİM İZNİ (ZORUNLU) ---
+    // === BİLDİRİM İZNİ ===
     private fun askNotificationPermission() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-                requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 101)
+            if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
+                != PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(
+                    arrayOf(android.Manifest.permission.POST_NOTIFICATIONS),
+                    101
+                )
             }
         }
     }
 
-    // --- 1. KİŞİSEL BİLDİRİMLERİ DİNLE (Manager Duyurusu / Fiyat Alarmı) ---
+    // === BİLDİRİM DİNLEYİCİLERİ (OPTİMİZE) ===
+
+    private fun startNotificationListeners() {
+        // Eski listener'ları temizle
+        stopAllListeners()
+
+        // 1. Fiyat alarmları
+        FavoritesManager.startRealTimePriceAlerts(this)
+
+        // 2. Kişisel bildirimler (Manager duyurusu vb.)
+        listenForUserNotifications()
+
+        // 3. Genel duyurular (THROTTLED - Son görülen kontrolü ile)
+        listenForGlobalAnnouncements()
+    }
+
     private fun listenForUserNotifications() {
         val uid = auth.currentUser?.uid ?: return
 
-        db.collection("users").document(uid).collection("notifications")
+        val listener = db.collection("users").document(uid)
+            .collection("notifications")
             .whereEqualTo("isRead", false)
+            .limit(20) // Son 20 okunmamış bildirim
             .addSnapshotListener { snapshots, e ->
                 if (e != null || snapshots == null) return@addSnapshotListener
 
                 for (doc in snapshots.documentChanges) {
-                    // Sadece YENİ eklenenleri bildir
                     if (doc.type == DocumentChange.Type.ADDED) {
                         val item = doc.document.toObject(NotificationItem::class.java)
-                        // Telefona Bildirim At
-                        NotificationHelper.sendNotification(this, item.title, item.message)
+
+                        // Bildirim gönder (tip'e göre farklı kanal)
+                        NotificationHelper.sendNotification(
+                            this,
+                            item.title,
+                            item.message,
+                            item.type,
+                            item.relatedId
+                        )
                     }
                 }
             }
+
+        activeListeners.add(listener)
     }
 
-    // --- 2. GENEL DUYURULARI DİNLE (Popup Yerine Bildirim) ---
     private fun listenForGlobalAnnouncements() {
-        // "announcements" koleksiyonunu dinle (general tipinde olanları)
-        db.collection("announcements")
+        val prefs = getSharedPreferences("AppPrefs", Context.MODE_PRIVATE)
+        val lastCheckedTimestamp = prefs.getLong("last_announcement_check", 0)
+
+        val listener = db.collection("announcements")
             .whereEqualTo("type", "general")
             .orderBy("date", Query.Direction.DESCENDING)
-            .limit(1) // Sadece en son atılanı takip et
+            .limit(5) // Son 5 duyuru
             .addSnapshotListener { snapshots, e ->
                 if (e != null || snapshots == null || snapshots.isEmpty) return@addSnapshotListener
 
-                // Değişiklik türüne bak (Sadece yeni eklenenler için bildirim at)
                 for (change in snapshots.documentChanges) {
                     if (change.type == DocumentChange.Type.ADDED) {
                         val doc = change.document
-                        val title = doc.getString("title") ?: "Duyuru"
-                        val message = doc.getString("message") ?: ""
-                        val id = doc.id
+                        val timestamp = doc.getDate("date")?.time ?: 0L
 
-                        // Daha önce bu bildirimi aldık mı kontrol et (Local)
-                        val prefs = getSharedPreferences("AppPrefs", Context.MODE_PRIVATE)
-                        val lastNotifiedId = prefs.getString("last_notified_announce_id", "")
+                        // Sadece son kontrolden sonraki duyuruları bildir
+                        if (timestamp > lastCheckedTimestamp) {
+                            val title = doc.getString("title") ?: "Duyuru"
+                            val message = doc.getString("message") ?: ""
 
-                        if (lastNotifiedId != id) {
-                            // Yeni duyuru -> Bildirim At
-                            NotificationHelper.sendNotification(this, title, message)
-
-                            // ID'yi kaydet ki tekrar atmasın
-                            prefs.edit().putString("last_notified_announce_id", id).apply()
+                            NotificationHelper.sendNotification(
+                                this,
+                                title,
+                                message,
+                                "general"
+                            )
                         }
                     }
                 }
+
+                // Son kontrol zamanını güncelle
+                prefs.edit()
+                    .putLong("last_announcement_check", System.currentTimeMillis())
+                    .apply()
             }
+
+        activeListeners.add(listener)
     }
 
-    // --- REKLAM MANTIĞI ---
+    private fun stopAllListeners() {
+        activeListeners.forEach { it.remove() }
+        activeListeners.clear()
+    }
+
+    // === REKLAM MANTIGI ===
     private fun checkAndShowAd() {
         val adConfig = DataManager.currentAdConfig
         val now = System.currentTimeMillis()
 
         if (adConfig != null && adConfig.isActive && adConfig.imageUrl.isNotEmpty()) {
             if (now < adConfig.endDate) {
-                showAdDialog(adConfig)
+                // Son gösterim zamanını kontrol et (günde 1 kez göster)
+                val prefs = getSharedPreferences("AppPrefs", Context.MODE_PRIVATE)
+                val lastShown = prefs.getLong("last_ad_shown", 0)
+                val oneDayMs = 24 * 60 * 60 * 1000L
+
+                if (now - lastShown > oneDayMs) {
+                    showAdDialog(adConfig)
+                    prefs.edit().putLong("last_ad_shown", now).apply()
+                }
             }
         }
     }
@@ -170,9 +217,10 @@ class MainActivity : AppCompatActivity() {
         val dialog = android.app.Dialog(this)
         dialog.setContentView(R.layout.dialog_popup_ad)
         dialog.window?.setBackgroundDrawableResource(android.R.color.transparent)
-
-        // Genişlik: Ekranın %90'ı
-        dialog.window?.setLayout((resources.displayMetrics.widthPixels * 0.9).toInt(), ViewGroup.LayoutParams.WRAP_CONTENT)
+        dialog.window?.setLayout(
+            (resources.displayMetrics.widthPixels * 0.9).toInt(),
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        )
 
         val imgAd = dialog.findViewById<ImageView>(R.id.imgAd)
         val txtTitle = dialog.findViewById<TextView>(R.id.txtAdTitle)
@@ -181,14 +229,11 @@ class MainActivity : AppCompatActivity() {
 
         txtTitle.text = adConfig.title
 
-        // XML'de "fitXY" olduğu için kodla müdahale etmeye gerek yok, sadece yükseklik ayarı yapabiliriz
         val params = imgAd.layoutParams
-
-        // Dikey/Yatay moduna göre yükseklik (dpToPx kullanarak)
-        if (adConfig.orientation == "VERTICAL") {
-            params.height = (450 * resources.displayMetrics.density).toInt()
+        params.height = if (adConfig.orientation == "VERTICAL") {
+            (450 * resources.displayMetrics.density).toInt()
         } else {
-            params.height = (200 * resources.displayMetrics.density).toInt()
+            (200 * resources.displayMetrics.density).toInt()
         }
         imgAd.layoutParams = params
 
@@ -203,7 +248,9 @@ class MainActivity : AppCompatActivity() {
             btnGo.visibility = View.VISIBLE
             btnGo.setOnClickListener {
                 dialog.dismiss()
-                val product = DataManager.cachedProducts?.find { it.id.toString() == adConfig.targetProductId }
+                val product = DataManager.cachedProducts.find {
+                    it.id.toString() == adConfig.targetProductId
+                }
                 if (product != null) {
                     val fragment = ProductDetailFragment()
                     val bundle = Bundle()
@@ -220,7 +267,7 @@ class MainActivity : AppCompatActivity() {
             btnGo.setOnClickListener {
                 dialog.dismiss()
                 val targetIdInt = adConfig.targetStoreId.toIntOrNull() ?: 0
-                val store = DataManager.cachedStores?.find { it.id == targetIdInt }
+                val store = DataManager.cachedStores.find { it.id == targetIdInt }
                 if (store != null) {
                     val fragment = StoreDetailFragment()
                     val bundle = Bundle()
@@ -242,7 +289,7 @@ class MainActivity : AppCompatActivity() {
         dialog.show()
     }
 
-    // --- STANDART FONKSİYONLAR ---
+    // === STANDART FONKSİYONLAR ===
 
     fun loadFragment(fragment: Fragment) {
         supportFragmentManager.beginTransaction()
@@ -266,24 +313,45 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        if (UserManager.isLoggedIn()) FavoritesManager.startRealTimePriceAlerts(this)
+        if (UserManager.isLoggedIn()) {
+            FavoritesManager.startRealTimePriceAlerts(this)
+        }
     }
 
-    // Uygulama içi (In-App) bildirim kartı için
+    override fun onPause() {
+        super.onPause()
+        // Arka plana geçerken listener'ları durdur (batarya tasarrufu)
+        FavoritesManager.stopAllListeners()
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        stopAllListeners()
+        FavoritesManager.stopAllListeners()
+    }
+
+    // Uygulama içi bildirim kartı
     private fun showNotification(title: String, message: String) {
         if (binding.notificationCard.visibility == View.VISIBLE) return
         binding.tvNotifTitle.text = title
         binding.tvNotifBody.text = message
         binding.notificationCard.visibility = View.VISIBLE
         binding.notificationCard.translationY = -300f
-        ObjectAnimator.ofFloat(binding.notificationCard, "translationY", 0f).apply { duration = 500; start() }
+        ObjectAnimator.ofFloat(binding.notificationCard, "translationY", 0f).apply {
+            duration = 500
+            start()
+        }
     }
 
     private fun hideNotification() {
-        ObjectAnimator.ofFloat(binding.notificationCard, "translationY", -300f).apply { duration = 300; start() }
-            .addListener(object : AnimatorListenerAdapter() {
-                override fun onAnimationEnd(animation: Animator) { binding.notificationCard.visibility = View.GONE }
-            })
+        ObjectAnimator.ofFloat(binding.notificationCard, "translationY", -300f).apply {
+            duration = 300
+            start()
+        }.addListener(object : AnimatorListenerAdapter() {
+            override fun onAnimationEnd(animation: Animator) {
+                binding.notificationCard.visibility = View.GONE
+            }
+        })
     }
 
     fun showBottomNav() { binding.bottomNavigationView.visibility = View.VISIBLE }
@@ -296,5 +364,7 @@ class MainActivity : AppCompatActivity() {
         badge.number = count
     }
 
-    fun switchToTab(tabId: Int) { binding.bottomNavigationView.selectedItemId = tabId }
+    fun switchToTab(tabId: Int) {
+        binding.bottomNavigationView.selectedItemId = tabId
+    }
 }
