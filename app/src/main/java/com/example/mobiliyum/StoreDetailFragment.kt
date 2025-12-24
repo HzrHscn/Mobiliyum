@@ -33,8 +33,8 @@ class StoreDetailFragment : Fragment() {
     private var storeName: String? = null
     private var storeImage: String? = null
     private var storeLocation: String? = null
-
-    private val db = FirebaseFirestore.getInstance()
+    //private val db = FirebaseFirestore.getInstance()
+    private val db by lazy { DataManager.getDb() }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

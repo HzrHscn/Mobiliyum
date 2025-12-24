@@ -21,7 +21,8 @@ class AdminStoreListFragment : Fragment() {
 
     private lateinit var recyclerView: RecyclerView
     private lateinit var searchView: SearchView // Arama Çubuğu
-    private val db = FirebaseFirestore.getInstance()
+    //private val db = FirebaseFirestore.getInstance()
+    private val db by lazy { DataManager.getDb() }
     private lateinit var adapter: AdminStoreAdapter
     private var allStores = ArrayList<Store>() // Tüm mağazaları burada tutuyoruz
 

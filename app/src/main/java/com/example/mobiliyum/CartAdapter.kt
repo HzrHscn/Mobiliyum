@@ -11,19 +11,17 @@ import com.example.mobiliyum.databinding.ItemCartProductBinding
 class CartAdapter(
     private val onItemClick: (Product) -> Unit,
     private val onDeleteClick: (Product) -> Unit,
-    private val onQuantityChange: (Product, Int) -> Unit // Yeni adet döner
+    private val onQuantityChange: (Product, Int) -> Unit
 ) : ListAdapter<Product, CartAdapter.CartViewHolder>(CartDiffCallback()) {
 
     class CartDiffCallback : DiffUtil.ItemCallback<Product>() {
-
         override fun areItemsTheSame(oldItem: Product, newItem: Product): Boolean {
             return oldItem.id == newItem.id
         }
 
         override fun areContentsTheSame(oldItem: Product, newItem: Product): Boolean {
-            return oldItem.quantity == newItem.quantity &&
-                    oldItem.price == newItem.price &&
-                    oldItem.name == newItem.name
+            // İçerik (adet, fiyat vb.) değişti mi?
+            return oldItem == newItem
         }
     }
 
@@ -38,43 +36,34 @@ class CartAdapter(
         val product = getItem(position)
 
         holder.binding.tvProductName.text = product.name
-        // Birim fiyatı gösteriyoruz
         holder.binding.tvProductPrice.text = PriceUtils.formatPriceStyled(product.price)
         holder.binding.tvQuantity.text = product.quantity.toString()
 
-        holder.binding.tvProductUrl.text = product.productUrl
-            .replace("https://", "")
-            .replace("http://", "")
-            .replace("www.", "")
-            .substringBefore("/") // Sadece ana domaini göster
+        val displayUrl = try {
+            product.productUrl
+                .replace("https://", "")
+                .replace("http://", "")
+                .replace("www.", "")
+                .substringBefore("/")
+        } catch (e: Exception) { product.productUrl }
+
+        holder.binding.tvProductUrl.text = displayUrl
 
         Glide.with(holder.itemView.context)
             .load(product.imageUrl)
+            .placeholder(android.R.drawable.ic_menu_gallery)
             .into(holder.binding.imgProduct)
 
-        // SİLME
-        holder.binding.imgDelete.setOnClickListener {
-            onDeleteClick(product)
-        }
+        holder.binding.imgDelete.setOnClickListener { onDeleteClick(product) }
 
-        // AZALT (-)
-        // Eğer drawable ikonlarınız yoksa, XML'de ImageView src kısmını
-        // @android:drawable/ic_media_rew (veya benzeri) yapın.
-        // Kod içinde resim kaynağını değiştirmiyoruz, XML'e güveniyoruz.
         holder.binding.btnDecrease.setOnClickListener {
-            if (product.quantity > 1) {
-                onQuantityChange(product, -1) // -1: Azalt
-            }
+            if (product.quantity > 1) onQuantityChange(product, -1)
         }
 
-        // ARTIR (+)
         holder.binding.btnIncrease.setOnClickListener {
-            onQuantityChange(product, 1) // 1: Artır
+            onQuantityChange(product, 1)
         }
 
-        // Detay açma
-        holder.itemView.setOnClickListener {
-            onItemClick(product)
-        }
+        holder.itemView.setOnClickListener { onItemClick(product) }
     }
 }

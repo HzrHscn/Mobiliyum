@@ -20,7 +20,8 @@ class EditorProductsFragment : Fragment() {
 
     private lateinit var recyclerView: RecyclerView
     private lateinit var searchView: SearchView
-    private val db = FirebaseFirestore.getInstance()
+    //private val db = FirebaseFirestore.getInstance()
+    private val db by lazy { DataManager.getDb() }
     private lateinit var adapter: EditorProductAdapter
     private var allProducts = listOf<Product>() // Filtreleme için tüm liste
 

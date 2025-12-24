@@ -25,9 +25,8 @@ class StoresFragment : Fragment() {
 
     private lateinit var storeAdapter: StoreAdapter
     private var allStores = ArrayList<Store>()
-    //private val db = FirebaseFirestore.getInstance()
-    private val db by lazy { FirebaseFirestore.getInstance() }
-
+    //private val db by lazy { FirebaseFirestore.getInstance() }
+    private val db by lazy { DataManager.getDb() }
     // Adminin belirlediği özel sıralama listesi (Store ID'leri)
     private var customSortOrder = ArrayList<Long>()
 

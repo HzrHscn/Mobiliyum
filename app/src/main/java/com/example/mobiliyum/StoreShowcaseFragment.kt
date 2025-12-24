@@ -23,7 +23,8 @@ class StoreShowcaseFragment : Fragment() {
     private lateinit var recyclerView: RecyclerView
     private lateinit var searchView: SearchView
     private lateinit var btnSubmit: MaterialButton
-    private val db = FirebaseFirestore.getInstance()
+    //private val db = FirebaseFirestore.getInstance()
+    private val db by lazy { DataManager.getDb() }
     private val selectedIds = ArrayList<Int>()
     private lateinit var adapter: ShowcaseSelectionAdapter
     private var allProducts = listOf<Product>()

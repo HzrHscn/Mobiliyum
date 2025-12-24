@@ -5,8 +5,8 @@ import com.google.firebase.firestore.FirebaseFirestore
 import java.util.Date
 
 object EditorManager {
-    private val db = FirebaseFirestore.getInstance()
-
+    //private val db = FirebaseFirestore.getInstance()
+    private val db by lazy { DataManager.getDb() }
     // 1. EDİTÖR: Duyuru Talebi Gönder
     fun submitAnnouncementRequest(title: String, message: String, onSuccess: () -> Unit) {
         val user = UserManager.getCurrentUser() ?: return

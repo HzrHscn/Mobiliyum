@@ -21,8 +21,8 @@ class StoreAnnouncementsFragment : Fragment() {
 
     private var _binding: FragmentStoreAnnouncementsBinding? = null
     private val binding get() = _binding!!
-
-    private val db = FirebaseFirestore.getInstance()
+    //private val db = FirebaseFirestore.getInstance()
+    private val db by lazy { DataManager.getDb() }
     private val allList = ArrayList<NotificationItem>()
     private lateinit var adapter: AnnouncementAdapter
 

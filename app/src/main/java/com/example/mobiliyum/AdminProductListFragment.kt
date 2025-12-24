@@ -25,7 +25,8 @@ class AdminProductListFragment : Fragment() {
 
     private var _binding: FragmentAdminProductListBinding? = null
     private val binding get() = _binding!!
-    private val db = FirebaseFirestore.getInstance()
+    //private val db = FirebaseFirestore.getInstance()
+    private val db by lazy { DataManager.getDb() }
     private var allProducts = ArrayList<Product>()
     private lateinit var adapter: AdminProductAdapter
 

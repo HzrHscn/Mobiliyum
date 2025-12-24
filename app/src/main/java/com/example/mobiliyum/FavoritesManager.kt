@@ -11,25 +11,21 @@ import java.util.Date
 import java.util.concurrent.TimeUnit
 
 object FavoritesManager {
-    private val db = FirebaseFirestore.getInstance()
+    //private val db = FirebaseFirestore.getInstance()
+    private val db by lazy { DataManager.getDb() }
     private val auth = FirebaseAuth.getInstance()
-
     // Memory cache
     private val localFavorites = mutableSetOf<Int>()
     private val followedStoreIds = HashSet<Int>()
     private val activeListeners = ArrayList<ListenerRegistration>()
-
     // Fiyat takip cache (Son bilinen fiyatlar - Firestore okuma azaltmak için)
     private val priceCache = HashMap<String, Double>()
-
     // Bildirim throttling (5 dakikada bir aynı üründen bildirim)
     private val lastNotificationTime = HashMap<String, Long>()
     private const val NOTIFICATION_COOLDOWN_MS = 5 * 60 * 1000L // 5 dakika
-
     // SharedPreferences cache
     private lateinit var prefs: SharedPreferences
     private const val CACHE_EXPIRY_MS = 30 * 60 * 1000L // 30 dakika
-
     fun initialize(context: Context) {
         prefs = context.getSharedPreferences("FavoritesCache", Context.MODE_PRIVATE)
         loadFromLocalCache()

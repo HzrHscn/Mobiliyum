@@ -37,8 +37,8 @@ class ProductDetailFragment : Fragment() {
     private var isDescriptionExpanded = false
     private var allReviewsList = listOf<Review>()
     private lateinit var reviewAdapter: ReviewAdapter
-    private val db by lazy { FirebaseFirestore.getInstance() }
-
+    //private val db by lazy { FirebaseFirestore.getInstance() }
+    private val db by lazy { DataManager.getDb() }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         arguments?.let {
@@ -163,8 +163,6 @@ class ProductDetailFragment : Fragment() {
     }
 
     private fun refreshProductData() {
-        //val db = FirebaseFirestore.getInstance()
-
         // Sadece 1 Belge Okuma
         db.collection("products").document(currentProduct!!.id.toString()).get()
             .addOnSuccessListener { document ->
@@ -214,7 +212,6 @@ class ProductDetailFragment : Fragment() {
     }
 
     private fun incrementClickCount() {
-        //val db = FirebaseFirestore.getInstance()
         db.collection("products").document(currentProduct!!.id.toString())
             .update("clickCount", FieldValue.increment(1))
     }
@@ -332,7 +329,6 @@ class ProductDetailFragment : Fragment() {
     }
 
     private fun updateProductPriceInFirebase(newPriceRaw: String) {
-        //val db = FirebaseFirestore.getInstance()
         val productRef = db.collection("products").document(currentProduct!!.id.toString())
         val newPriceFormatted = PriceUtils.formatPriceStyled(newPriceRaw.toDoubleOrNull() ?: 0.0).toString()
         val currentPriceDouble = PriceUtils.parsePrice(currentProduct!!.price)
@@ -357,7 +353,6 @@ class ProductDetailFragment : Fragment() {
         AlertDialog.Builder(context).setTitle("Bilgileri Güncelle").setView(layout).setPositiveButton("Kaydet") { _, _ ->
             val newName = etName.text.toString(); val newDesc = etDesc.text.toString()
             if (newName.isNotEmpty()) {
-                //val db = FirebaseFirestore.getInstance()
                 db.collection("products").document(currentProduct!!.id.toString())
                     .update(mapOf("name" to newName, "description" to newDesc))
                     .addOnSuccessListener {

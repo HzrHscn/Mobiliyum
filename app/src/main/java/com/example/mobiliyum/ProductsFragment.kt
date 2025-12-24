@@ -27,7 +27,7 @@ class ProductsFragment : Fragment() {
 
     private lateinit var productAdapter: ProductAdapter
     private var allProducts = listOf<Product>() // List olarak değiştirdim
-
+    private val db by lazy { DataManager.getDb() }
     private var searchQuery = ""
     private var selectedCategories = ArrayList<String>()
     private var selectedStoreIds = ArrayList<Int>()
@@ -214,9 +214,10 @@ class ProductsFragment : Fragment() {
         val allStoreCheckBoxes = ArrayList<CheckBox>()
 
         progress?.visibility = View.VISIBLE
-        FirebaseFirestore.getInstance().collection("stores").get()
+        db.collection("stores").get()
             .addOnSuccessListener { documents ->
                 progress?.visibility = View.GONE
+
                 val stores = documents.map { it.toObject(Store::class.java) }
                 val sortedStores = stores.sortedBy { it.id }
 
@@ -229,11 +230,19 @@ class ProductsFragment : Fragment() {
                     cb.tag = store
 
                     cb.setOnCheckedChangeListener { _, isChecked ->
-                        if (isChecked) tempSelectedStores.add(store.id) else tempSelectedStores.remove(store.id)
+                        if (isChecked) {
+                            tempSelectedStores.add(store.id)
+                        } else {
+                            tempSelectedStores.remove(store.id)
+                        }
                     }
+
                     containerStores?.addView(cb)
                     allStoreCheckBoxes.add(cb)
                 }
+            }
+            .addOnFailureListener {
+                progress?.visibility = View.GONE
             }
 
         etSearchStore?.addTextChangedListener(object : android.text.TextWatcher {

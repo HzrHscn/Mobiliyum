@@ -51,7 +51,8 @@ class ReportsFragment : Fragment() {
     private val productAdapterFav = ReportProductAdapter(true) // BU ADAPTER'I KULLANACAĞIZ
     private val topProductsAdapter = ReportProductAdapter(false)
 
-    private val db = FirebaseFirestore.getInstance()
+    //private val db = FirebaseFirestore.getInstance()
+    private val db by lazy { DataManager.getDb() }
     private var currentTab = 0
     private var sortMode = 0
     private var targetStoreId: Int = -1

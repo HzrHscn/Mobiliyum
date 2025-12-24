@@ -15,7 +15,8 @@ class AdminStoreEditFragment : Fragment() {
 
     private var _binding: FragmentAdminStoreEditBinding? = null
     private val binding get() = _binding!!
-    private val db = FirebaseFirestore.getInstance()
+    //private val db = FirebaseFirestore.getInstance()
+    private val db by lazy { DataManager.getDb() }
     private var storeId: Int = 0
     private var currentStore: Store? = null
 

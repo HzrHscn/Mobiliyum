@@ -18,7 +18,8 @@ class AdminStoreSortingFragment : Fragment() {
 
     private lateinit var recyclerView: RecyclerView
     private lateinit var btnSave: MaterialButton
-    private val db = FirebaseFirestore.getInstance()
+    //private val db = FirebaseFirestore.getInstance()
+    private val db by lazy { DataManager.getDb() }
     private val storeList = ArrayList<Store>()
     private lateinit var adapter: SortingAdapter
 

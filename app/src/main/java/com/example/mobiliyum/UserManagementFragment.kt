@@ -24,12 +24,10 @@ class UserManagementFragment : Fragment() {
 
     private var _binding: FragmentUserManagementBinding? = null
     private val binding get() = _binding!!
-
-    private val db = FirebaseFirestore.getInstance()
+    //private val db = FirebaseFirestore.getInstance()
+    private val db by lazy { DataManager.getDb() }
     private val allUsers = ArrayList<User>()
-
     private lateinit var adapter: UserManagementAdapter
-
     private var currentRoleFilter: UserRole? = null
     private var currentSearchText: String = ""
 

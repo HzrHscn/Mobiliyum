@@ -19,7 +19,20 @@ object DataManager {
     private const val PRODUCT_RESET_THRESHOLD = 1000
     private const val STORE_RESET_THRESHOLD = 500
 
-    private val db by lazy { FirebaseFirestore.getInstance() }
+    /*private val firestore: FirebaseFirestore by lazy {
+        FirebaseFirestore.getInstance()
+    }
+
+    fun getDb(): FirebaseFirestore {
+        return firestore
+    }*/
+
+    val firestore: FirebaseFirestore by lazy {
+        FirebaseFirestore.getInstance()
+    }
+
+    fun getDb(): FirebaseFirestore = firestore
+
     private val gson = Gson()
 
     var cachedProducts = arrayListOf<Product>()
@@ -32,23 +45,23 @@ object DataManager {
 
     // ===================== INIT =====================
 
-    init {
+    /*init {
         try {
-            db.firestoreSettings = FirebaseFirestoreSettings.Builder()
+            firestore.firestoreSettings = FirebaseFirestoreSettings.Builder()
                 .setPersistenceEnabled(true)
                 .setCacheSizeBytes(50L * 1024 * 1024)
                 .build()
         } catch (e: Exception) {
             Log.e(TAG, "Firestore init error", e)
         }
-    }
+    }*/
 
     // ===================== SMART SYNC ENTRY =====================
 
     fun syncDataSmart(context: Context, onComplete: (Boolean) -> Unit) {
         loadFromDisk(context)
 
-        db.collection("system").document("metadata")
+        firestore.collection("system").document("metadata")
             .get(Source.SERVER)
             .addOnSuccessListener { doc ->
                 if (!doc.exists()) {
@@ -106,21 +119,25 @@ object DataManager {
         ids: List<String>,
         onDone: () -> Unit
     ) {
-        if (serverVer == localVer && ids.isEmpty()) {
-            onDone(); return
-        }
-
-        if (ids.isEmpty()) {
-            fullProductSync(context, serverVer, onDone)
-            return
-        }
-
         val chunks = ids.distinct().chunked(10)
         var finished = 0
 
         chunks.forEach { chunk ->
-            db.collection("products")
-                .whereIn("id", chunk.mapNotNull { it.toIntOrNull() })
+
+            val safeIds = chunk.mapNotNull { it.toIntOrNull() }
+
+            // 🔴 KRİTİK SATIR
+            if (safeIds.isEmpty()) {
+                if (++finished == chunks.size) {
+                    saveVersion(context, "productsVersion", serverVer)
+                    clearUpdatedProductIds()
+                    onDone()
+                }
+                return@forEach
+            }
+
+            firestore.collection("products")
+                .whereIn("id", safeIds)
                 .get()
                 .addOnSuccessListener { snap ->
                     snap.documents.forEach {
@@ -142,7 +159,7 @@ object DataManager {
     }
 
     private fun fullProductSync(context: Context, version: Long, onDone: () -> Unit) {
-        db.collection("products").get()
+        firestore.collection("products").get()
             .addOnSuccessListener {
                 cachedProducts = ArrayList(it.toObjects(Product::class.java))
                 saveToDisk(context, FILE_PRODUCTS, cachedProducts)
@@ -164,21 +181,25 @@ object DataManager {
         ids: List<String>,
         onDone: () -> Unit
     ) {
-        if (serverVer == localVer && ids.isEmpty()) {
-            onDone(); return
-        }
-
-        if (ids.isEmpty()) {
-            fullStoreSync(context, serverVer, onDone)
-            return
-        }
-
         val chunks = ids.distinct().chunked(10)
         var finished = 0
 
         chunks.forEach { chunk ->
-            db.collection("stores")
-                .whereIn("id", chunk.mapNotNull { it.toIntOrNull() })
+
+            val safeIds = chunk.mapNotNull { it.toIntOrNull() }
+
+            // 🔴 KRİTİK SATIR
+            if (safeIds.isEmpty()) {
+                if (++finished == chunks.size) {
+                    saveVersion(context, "storesVersion", serverVer)
+                    clearUpdatedStoreIds()
+                    onDone()
+                }
+                return@forEach
+            }
+
+            firestore.collection("stores")
+                .whereIn("id", safeIds)
                 .get()
                 .addOnSuccessListener { snap ->
                     snap.documents.forEach {
@@ -200,7 +221,7 @@ object DataManager {
     }
 
     private fun fullStoreSync(context: Context, version: Long, onDone: () -> Unit) {
-        db.collection("stores").get()
+        firestore.collection("stores").get()
             .addOnSuccessListener {
                 cachedStores = ArrayList(it.toObjects(Store::class.java))
                 saveToDisk(context, FILE_STORES, cachedStores)
@@ -219,9 +240,9 @@ object DataManager {
         updatedProductId: String? = null,
         updatedStoreId: String? = null
     ) {
-        val ref = db.collection("system").document("metadata")
+        val ref = firestore.collection("system").document("metadata")
 
-        db.runTransaction { tx ->
+        firestore.runTransaction { tx ->
             val snap = tx.get(ref)
             val updates = mutableMapOf<String, Any>()
 
@@ -330,12 +351,12 @@ object DataManager {
     }
 
     private fun clearUpdatedProductIds() {
-        db.collection("system").document("metadata")
+        firestore.collection("system").document("metadata")
             .update("updatedProductIds", emptyList<String>())
     }
 
     private fun clearUpdatedStoreIds() {
-        db.collection("system").document("metadata")
+        firestore.collection("system").document("metadata")
             .update("updatedStoreIds", emptyList<String>())
     }
 
@@ -351,7 +372,7 @@ object DataManager {
             return
         }
 
-        db.collection("products")
+        firestore.collection("products")
             .get(Source.CACHE) // Önce cache
             .addOnSuccessListener { cached ->
                 if (!cached.isEmpty) {
@@ -371,7 +392,7 @@ object DataManager {
         onSuccess: (ArrayList<Product>) -> Unit,
         onError: (String) -> Unit
     ) {
-        db.collection("products").get()
+        firestore.collection("products").get()
             .addOnSuccessListener { docs ->
                 cachedProducts = ArrayList(docs.toObjects(Product::class.java))
                 saveToDisk(context, FILE_PRODUCTS, cachedProducts)
@@ -390,7 +411,7 @@ object DataManager {
             onSuccess(ArrayList(cachedStores))
             return
         }
-        db.collection("stores")
+        firestore.collection("stores")
             .get(Source.CACHE)
             .addOnSuccessListener { cached ->
                 if (!cached.isEmpty) {
@@ -409,7 +430,7 @@ object DataManager {
         onSuccess: (ArrayList<Store>) -> Unit,
         onError: (String) -> Unit
     ) {
-        db.collection("stores").get()
+        firestore.collection("stores").get()
             .addOnSuccessListener { docs ->
                 cachedStores = ArrayList(docs.toObjects(Store::class.java))
                 saveToDisk(context, FILE_STORES, cachedStores)

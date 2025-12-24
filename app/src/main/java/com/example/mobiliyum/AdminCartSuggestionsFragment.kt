@@ -23,8 +23,8 @@ class AdminCartSuggestionsFragment : Fragment() {
 
     private var _binding: FragmentAdminCartSuggestionsBinding? = null
     private val binding get() = _binding!!
-    private val db = FirebaseFirestore.getInstance()
-
+    //private val db = FirebaseFirestore.getInstance()
+    private val db by lazy { DataManager.getDb() }
     private var allProducts = ArrayList<Product>()
     private val selectedIds = HashSet<Int>()
     private lateinit var adapter: SuggestionAdapter

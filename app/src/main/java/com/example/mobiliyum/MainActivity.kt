@@ -28,8 +28,8 @@ class MainActivity : AppCompatActivity() {
     lateinit var binding: ActivityMainBinding
 
     private val auth = FirebaseAuth.getInstance()
-    private val db = FirebaseFirestore.getInstance()
-
+    //private val db = FirebaseFirestore.getInstance()
+    private val db by lazy { DataManager.getDb() }
     // Listener'ları sakla (Memory leak önleme)
     private val activeListeners = ArrayList<ListenerRegistration>()
 

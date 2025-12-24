@@ -6,7 +6,8 @@ import com.google.firebase.firestore.Query
 import java.util.Date
 
 object ReviewManager {
-    private val db = FirebaseFirestore.getInstance()
+    //private val db = FirebaseFirestore.getInstance()
+    private val db by lazy { DataManager.getDb() }
     private val auth = FirebaseAuth.getInstance()
 
     // 1. KULLANICI: SATIN ALMA ONAYI İSTE

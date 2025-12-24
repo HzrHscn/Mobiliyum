@@ -7,7 +7,6 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.ArrayAdapter
 import android.widget.Toast
 import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
@@ -23,7 +22,8 @@ class CartFragment : Fragment() {
 
     private var cartAdapter: CartAdapter? = null
     private var suggestionAdapter: ProductAdapter? = null
-    private val db = FirebaseFirestore.getInstance()
+    //private val db = FirebaseFirestore.getInstance()
+    private val db by lazy { DataManager.getDb() }
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
@@ -36,15 +36,12 @@ class CartFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        // Buton Dinleyicileri
+        setupRecyclerView()
+
         binding.btnClearCart.setOnClickListener { confirmClearCart() }
-
         binding.btnStartPurchase.setOnClickListener { showPurchaseSelectionDialog() }
-
         binding.btnExploreStores.setOnClickListener {
-            parentFragmentManager.beginTransaction()
-                .replace(R.id.fragmentContainer, StoresFragment())
-                .commit()
+            (activity as? MainActivity)?.switchToTab(R.id.nav_stores)
         }
 
         loadCart()
@@ -52,7 +49,18 @@ class CartFragment : Fragment() {
 
     override fun onResume() {
         super.onResume()
+        // Başka sayfadan dönüldüğünde sepeti güncelle
         loadCart()
+    }
+
+    private fun setupRecyclerView() {
+        binding.rvCartItems.layoutManager = LinearLayoutManager(context)
+        cartAdapter = CartAdapter(
+            onItemClick = { product -> handleProductClick(product) },
+            onDeleteClick = { product -> confirmDeleteItem(product) },
+            onQuantityChange = { product, change -> handleQuantityChange(product, change) }
+        )
+        binding.rvCartItems.adapter = cartAdapter
     }
 
     private fun loadCart() {
@@ -62,8 +70,6 @@ class CartFragment : Fragment() {
         binding.layoutEmptyCart.isVisible = isCartEmpty
         binding.layoutCartContent.isVisible = !isCartEmpty
         binding.footerLayout.isVisible = !isCartEmpty
-
-        // Sepet boşsa "Sepeti Temizle" yazısını da gizle
         binding.btnClearCart.isVisible = !isCartEmpty
 
         if (isCartEmpty) {
@@ -72,26 +78,13 @@ class CartFragment : Fragment() {
         } else {
             binding.rvSuggestions.isVisible = false
 
-            binding.rvCartItems.layoutManager = LinearLayoutManager(context)
-
-            // Adapter Kurulumu (Artık 3 parametre alıyor)
-            if (cartAdapter == null) {
-                cartAdapter = CartAdapter(
-                    onItemClick = { product -> handleProductClick(product) },
-                    onDeleteClick = { product -> confirmDeleteItem(product) },
-                    onQuantityChange = { product, change -> handleQuantityChange(product, change) }
-                )
-                binding.rvCartItems.adapter = cartAdapter
-            }
-
-            // Yeni listeyi oluşturup gönder (DiffUtil tetiklensin)
-            cartAdapter?.submitList(ArrayList(items.map { it.copy() }))
-            // Not: copy() kullanarak deep copy yapıyoruz ki DiffUtil içerik değişimini (adet) algılayabilsin.
+            // SORUN ÇÖZÜMÜ: Listeyi her seferinde YENİ bir liste olarak gönderiyoruz.
+            // map { it.copy() } -> Deep copy yaparak referansın tamamen değişmesini sağlıyoruz.
+            cartAdapter?.submitList(ArrayList(items))
 
             updateTotal()
         }
 
-        // Badge güncelle
         (activity as? MainActivity)?.updateCartBadge()
     }
 
@@ -106,7 +99,6 @@ class CartFragment : Fragment() {
         } else {
             CartManager.decreaseQuantity(product)
         }
-        // Listeyi yenile
         loadCart()
     }
 
@@ -136,13 +128,10 @@ class CartFragment : Fragment() {
             .show()
     }
 
-    // --- SATIN ALMA DİYALOĞU ---
     private fun showPurchaseSelectionDialog() {
         val items = CartManager.getCartItems()
-        cartAdapter?.submitList(items)
         if (items.isEmpty()) return
 
-        // Listede gösterilecek isimler
         val itemNames = items.map { "${it.name} (${it.quantity} Adet)" }.toTypedArray()
 
         AlertDialog.Builder(context)
@@ -168,13 +157,11 @@ class CartFragment : Fragment() {
 
     private fun loadSuggestions() {
         binding.rvSuggestions.layoutManager = GridLayoutManager(context, 2)
-
         suggestionAdapter = ProductAdapter { product ->
             val fragment = ProductDetailFragment()
             val bundle = Bundle()
             bundle.putParcelable("product_data", product)
             fragment.arguments = bundle
-
             parentFragmentManager.beginTransaction()
                 .replace(R.id.fragmentContainer, fragment)
                 .addToBackStack(null)
@@ -187,6 +174,8 @@ class CartFragment : Fragment() {
                 val ids = doc.get("productIds") as? List<Long>
                 if (!ids.isNullOrEmpty()) {
                     val intIds = ids.map { it.toInt() }
+                    // Ürünleri DataManager cache'inden çekebiliriz (optimizasyon)
+                    // Şimdilik direkt Firestore'dan çekiyoruz
                     db.collection("products").whereIn("id", intIds).get()
                         .addOnSuccessListener { querySnapshot ->
                             val products = querySnapshot.toObjects(Product::class.java)

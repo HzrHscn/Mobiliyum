@@ -22,11 +22,10 @@ import java.text.SimpleDateFormat
 import java.util.Locale
 
 class NotificationsFragment : Fragment() {
-
     private var _binding: FragmentNotificationsBinding? = null
     private val binding get() = _binding!!
-
-    private val db = FirebaseFirestore.getInstance()
+    //private val db = FirebaseFirestore.getInstance()
+    private val db by lazy { DataManager.getDb() }
     private val allNotifications = ArrayList<NotificationItem>()
     private lateinit var adapter: NotifAdapter
 

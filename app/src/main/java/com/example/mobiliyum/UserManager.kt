@@ -12,7 +12,9 @@ object UserManager {
 
     private const val TAG = "UserManager"
     private val auth: FirebaseAuth = FirebaseAuth.getInstance()
-    private val db: FirebaseFirestore = FirebaseFirestore.getInstance()
+    //private val db: FirebaseFirestore = FirebaseFirestore.getInstance()
+    private val db by lazy { DataManager.getDb() }
+
 
     // Uygulama boyunca kullanılacak oturum bilgisi
     private var currentUserData: User? = null

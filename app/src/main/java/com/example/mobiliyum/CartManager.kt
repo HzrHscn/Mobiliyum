@@ -1,22 +1,20 @@
 package com.example.mobiliyum
 
-import com.google.firebase.firestore.FirebaseFirestore
-
 object CartManager {
 
     private val cartItems = ArrayList<Product>()
-    private val db = FirebaseFirestore.getInstance()
 
     // Sepete Ekle
     fun addToCart(product: Product) {
         val existingItem = cartItems.find { it.id == product.id }
         if (existingItem != null) {
-            if (existingItem.quantity < 99) { // Ekleme yaparken de sınır kontrolü
+            if (existingItem.quantity < 99) {
                 existingItem.quantity += 1
             }
         } else {
-            product.quantity = 1
-            cartItems.add(product)
+            // Sepete eklerken de kopya oluşturuyoruz ki orijinal ürün etkilenmesin
+            val newProduct = product.copy(quantity = 1)
+            cartItems.add(newProduct)
         }
     }
 
@@ -32,11 +30,11 @@ object CartManager {
         }
     }
 
-    // Adet Artır (+) -> SINIR EKLENDİ
+    // Adet Artır (+)
     fun increaseQuantity(product: Product) {
         val item = cartItems.find { it.id == product.id }
         item?.let {
-            if (it.quantity < 99) { // Maksimum 99 adet
+            if (it.quantity < 99) {
                 it.quantity += 1
             }
         }
@@ -52,9 +50,11 @@ object CartManager {
         }
     }
 
-    // Sepeti Getir
+    // Sepeti Getir (Deep Copy)
+    // Bu sayede UI tarafında yapılan değişiklikler veya DiffUtil kontrolleri
+    // bellekteki asıl listeyi bozmaz ve her seferinde "yeni" veri gibi algılanır.
     fun getCartItems(): List<Product> {
-        return cartItems.map { it.copy() } // HER SEFERİNDE YENİ NESNE
+        return cartItems.map { it.copy() }
     }
 
     // Toplam Tutarı Hesapla
@@ -72,5 +72,10 @@ object CartManager {
 
     fun clearCart() {
         cartItems.clear()
+    }
+
+    // Tek bir ürünü tamamen silmek için (Çöp kutusu butonu)
+    fun clearProduct(product: Product) {
+        removeFromCart(product)
     }
 }
