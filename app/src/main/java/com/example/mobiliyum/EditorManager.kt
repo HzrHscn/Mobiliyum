@@ -1,5 +1,6 @@
 package com.example.mobiliyum
 
+import android.util.Log
 import com.google.firebase.firestore.FirebaseFirestore
 import java.util.Date
 
@@ -84,6 +85,9 @@ object EditorManager {
         )
         // 1. Duyurular koleksiyonuna ekle (Herkese açık liste burayı dinler)
         db.collection("announcements").add(data)
+            .addOnFailureListener {
+                Log.e("EditorManager", "Announcement failed", it)
+            }
 
         // 2. Eğer mağaza duyurusu ise takipçilere özel bildirim gönder
         // Sistem duyurusu zaten "announcements" koleksiyonundan NotificationsFragment içinde çekiliyor.

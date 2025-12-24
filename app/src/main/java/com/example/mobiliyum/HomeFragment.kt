@@ -66,6 +66,9 @@ class HomeFragment : Fragment() {
         webSettings.domStorageEnabled = true
         webSettings.loadWithOverviewMode = true
         webSettings.useWideViewPort = true
+        webSettings.javaScriptCanOpenWindowsAutomatically = false //silebiliriz
+        webSettings.allowFileAccess = false //silebiliriz
+        webSettings.allowContentAccess = false //silebiliriz
         binding.webViewHome.webViewClient = object : WebViewClient() {}
     }
 

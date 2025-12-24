@@ -90,7 +90,9 @@ class AdminStoreEditFragment : Fragment() {
             .addOnSuccessListener {
                 // HATA GİDERİLDİ: requireContext() eklendi
                 DataManager.updateStoreInCache(requireContext(), updatedStore)
-                DataManager.triggerServerVersionUpdate()
+                DataManager.triggerServerVersionUpdate(
+                    updatedStoreId = idToSave.toString()
+                )
 
                 Toast.makeText(context, "Mağaza kaydedildi.", Toast.LENGTH_SHORT).show()
                 parentFragmentManager.popBackStack()

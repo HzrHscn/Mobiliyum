@@ -31,8 +31,13 @@ object StoreSortHelper {
             // string içindeki son sayıyı alabiliriz.
             // Burada basitlik adına metindeki sayıları extract edip mantıklı bir ekleme yapıyoruz.
 
-            val numbers = Regex("[0-9]+").findAll(location)
+            /**val numbers = Regex("[0-9]+").findAll(location)
                 .map { it.value.toInt() }
+                .toList()*/
+
+            val numbers = Regex("[0-9]+")
+                .findAll(location)
+                .mapNotNull { it.value.toIntOrNull() }
                 .toList()
 
             // Eğer metinde sayı varsa, son bulunan sayı genelde kapı numarasıdır.

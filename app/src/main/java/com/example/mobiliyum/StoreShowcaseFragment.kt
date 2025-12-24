@@ -122,7 +122,9 @@ class StoreShowcaseFragment : Fragment() {
         if (isChecked) {
             if (selectedIds.size >= 2) {
                 Toast.makeText(context, "En fazla 2 ürün seçebilirsiniz.", Toast.LENGTH_SHORT).show()
-                adapter.notifyDataSetChanged()
+                // adapter.notifyDataSetChanged() yerine submitList kullanıyoruz.
+                // Bu, listenin mevcut halini tekrar yükleyerek, checkbox'ın işaretlenmesini engeller (UI güncellemesi).
+                adapter.submitList(adapter.currentList.toList())
             } else {
                 if (!selectedIds.contains(id)) selectedIds.add(id)
             }

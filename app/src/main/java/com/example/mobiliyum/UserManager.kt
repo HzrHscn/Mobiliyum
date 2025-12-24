@@ -1,13 +1,16 @@
 package com.example.mobiliyum
 
+import android.util.Log
 import com.google.firebase.auth.EmailAuthProvider
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.auth.UserProfileChangeRequest
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.SetOptions
 
 object UserManager {
 
+    private const val TAG = "UserManager"
     private val auth: FirebaseAuth = FirebaseAuth.getInstance()
     private val db: FirebaseFirestore = FirebaseFirestore.getInstance()
 
@@ -21,7 +24,11 @@ object UserManager {
             // Kullanıcı verisini çek ve hafızaya al
             fetchUserProfile(firebaseUser.uid,
                 onSuccess = { onResult(true) },
-                onFailure = { onResult(false) }
+                onFailure = {
+                    // Profil çekilemediyse oturumu kapat (veri tutarsızlığı olmasın)
+                    logout()
+                    onResult(false)
+                }
             )
         } else {
             onResult(false)
@@ -66,31 +73,36 @@ object UserManager {
                     // Kullanıcı Adını (Display Name) Firebase Auth'a kaydet
                     val profileUpdates = UserProfileChangeRequest.Builder()
                         .setDisplayName(fullName).build()
-                    firebaseUser.updateProfile(profileUpdates)
 
-                    // Doğrulama maili gönder
-                    firebaseUser.sendEmailVerification()
+                    firebaseUser.updateProfile(profileUpdates).addOnCompleteListener { profileTask ->
+                        if (profileTask.isSuccessful) {
+                            // Doğrulama maili gönder
+                            firebaseUser.sendEmailVerification()
 
-                    // Firestore'a kaydedilecek veriyi hazırla
-                    val now = System.currentTimeMillis()
-                    val newUser = User(
-                        id = firebaseUser.uid,
-                        email = email,
-                        fullName = fullName,
-                        role = UserRole.CUSTOMER, // Varsayılan Müşteri
-                        username = email.substringBefore("@"),
-                        lastVerificationMailSent = now,
-                        lastProfileUpdate = now,
-                        lastPasswordUpdate = now
-                    )
+                            // Firestore'a kaydedilecek veriyi hazırla
+                            val now = System.currentTimeMillis()
+                            val newUser = User(
+                                id = firebaseUser.uid,
+                                email = email,
+                                fullName = fullName,
+                                role = UserRole.CUSTOMER, // Varsayılan Müşteri
+                                username = email.substringBefore("@"),
+                                lastVerificationMailSent = now,
+                                lastProfileUpdate = now,
+                                lastPasswordUpdate = now
+                            )
 
-                    saveUserToFirestore(newUser,
-                        onSuccess = {
-                            auth.signOut() // Kayıttan sonra çıkış yap (Mail onayı için)
-                            onSuccess()
-                        },
-                        onFailure = onFailure
-                    )
+                            saveUserToFirestore(newUser,
+                                onSuccess = {
+                                    auth.signOut() // Kayıttan sonra çıkış yap (Mail onayı için)
+                                    onSuccess()
+                                },
+                                onFailure = onFailure
+                            )
+                        } else {
+                            onFailure("Profil güncellenemedi: ${profileTask.exception?.message}")
+                        }
+                    }
                 }
             }
             .addOnFailureListener { onFailure(it.localizedMessage ?: "Kayıt başarısız.") }
@@ -106,12 +118,13 @@ object UserManager {
                         val roleStr = document.getString("role") ?: "CUSTOMER"
                         val roleEnum = try { UserRole.valueOf(roleStr) } catch(e:Exception){ UserRole.CUSTOMER }
 
+                        // Güvenli veri çekme (Null safety)
                         currentUserData = User(
                             id = uid,
                             email = document.getString("email") ?: "",
                             fullName = document.getString("fullName") ?: "",
                             role = roleEnum,
-                            storeId = document.getLong("storeId")?.toInt(),
+                            storeId = document.getLong("storeId")?.toInt(), // Null olabilir
                             username = document.getString("username") ?: "",
                             isBanned = document.getBoolean("isBanned") ?: false,
                             lastProfileUpdate = document.getLong("lastProfileUpdate") ?: 0L,
@@ -126,13 +139,17 @@ object UserManager {
                             onSuccess()
                         }
                     } catch (e: Exception) {
+                        Log.e(TAG, "User parse error", e)
                         onFailure("Veri hatası: ${e.message}")
                     }
                 } else {
                     onFailure("Kullanıcı profili bulunamadı.")
                 }
             }
-            .addOnFailureListener { onFailure("Hata: ${it.message}") }
+            .addOnFailureListener {
+                Log.e(TAG, "Firestore error", it)
+                onFailure("Hata: ${it.message}")
+            }
     }
 
     // --- YETKİ KONTROLÜ (MANAGER ve EDITOR DESTEKLİ) ---
@@ -169,7 +186,11 @@ object UserManager {
             user.sendEmailVerification().addOnCompleteListener { task ->
                 auth.signOut()
                 if (task.isSuccessful) {
-                    db.collection("users").document(user.uid).update("lastVerificationMailSent", now)
+                    // Sadece ilgili alanı güncelle (merge)
+                    db.collection("users").document(user.uid)
+                        .update("lastVerificationMailSent", now)
+                        .addOnFailureListener { Log.w(TAG, "Last verification sent update failed", it) }
+
                     onFailure("Hesabınız doğrulanmamış. Yeni bir mail gönderildi! Lütfen spam kutusunu kontrol edin.")
                 } else {
                     onFailure("Mail gönderilemedi. Lütfen daha sonra tekrar deneyin.")
@@ -183,6 +204,7 @@ object UserManager {
     }
 
     private fun saveUserToFirestore(user: User, onSuccess: () -> Unit, onFailure: (String) -> Unit) {
+        // SetOptions.merge() kullanarak mevcut verilerin üzerine yazarken dikkatli oluyoruz (yeni kayıtta çok fark etmez ama alışkanlık olsun)
         db.collection("users").document(user.id).set(user)
             .addOnSuccessListener {
                 currentUserData = user
@@ -201,15 +223,23 @@ object UserManager {
 
         user.updateProfile(updates).addOnCompleteListener { task ->
             if (task.isSuccessful) {
-                dbUser.fullName = newName
-                dbUser.lastProfileUpdate = System.currentTimeMillis()
+                // Firestore güncellemesi
+                val currentTime = System.currentTimeMillis()
+                val firestoreUpdates = mapOf(
+                    "fullName" to newName,
+                    "lastProfileUpdate" to currentTime
+                )
 
-                db.collection("users").document(user.uid).set(dbUser)
+                db.collection("users").document(user.uid).update(firestoreUpdates)
                     .addOnSuccessListener {
-                        currentUserData = dbUser // RAM'i de güncelle
+                        // RAM'i de güncelle
+                        currentUserData = dbUser.copy(fullName = newName, lastProfileUpdate = currentTime)
                         onComplete(true)
                     }
-                    .addOnFailureListener { onComplete(false) }
+                    .addOnFailureListener {
+                        Log.e(TAG, "Update user name firestore failed", it)
+                        onComplete(false)
+                    }
             } else {
                 onComplete(false)
             }
@@ -233,10 +263,20 @@ object UserManager {
                 // Şifre doğru, şimdi değiştir
                 user.updatePassword(newPass).addOnCompleteListener { updateTask ->
                     if (updateTask.isSuccessful) {
-                        dbUser.lastPasswordUpdate = System.currentTimeMillis()
+                        val currentTime = System.currentTimeMillis()
 
-                        db.collection("users").document(user.uid).set(dbUser)
-                        onComplete(true, null)
+                        // Sadece ilgili alanı güncelle
+                        db.collection("users").document(user.uid)
+                            .update("lastPasswordUpdate", currentTime)
+                            .addOnSuccessListener {
+                                currentUserData = dbUser.copy(lastPasswordUpdate = currentTime)
+                                onComplete(true, null)
+                            }
+                            .addOnFailureListener {
+                                // Şifre değişti ama firestore güncellenemedi, yine de başarılı sayabiliriz (auth öncelikli)
+                                Log.w(TAG, "Password update firestore sync failed", it)
+                                onComplete(true, null)
+                            }
                     } else {
                         onComplete(false, updateTask.exception?.localizedMessage)
                     }

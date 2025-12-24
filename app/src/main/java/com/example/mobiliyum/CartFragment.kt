@@ -139,6 +139,7 @@ class CartFragment : Fragment() {
     // --- SATIN ALMA DİYALOĞU ---
     private fun showPurchaseSelectionDialog() {
         val items = CartManager.getCartItems()
+        cartAdapter?.submitList(items)
         if (items.isEmpty()) return
 
         // Listede gösterilecek isimler

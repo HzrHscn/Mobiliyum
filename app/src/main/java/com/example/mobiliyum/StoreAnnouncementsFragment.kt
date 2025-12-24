@@ -113,8 +113,10 @@ class StoreAnnouncementsFragment : Fragment() {
             }
         }
 
-        filteredList.sortByDescending { it.date }
-        adapter.submitList(ArrayList(filteredList))
+        /*filteredList.sortByDescending { it.date }
+        adapter.submitList(ArrayList(filteredList))*/
+
+        adapter.submitList(filteredList.sortedByDescending { it.date })
 
         // Filtre sonucu boşsa da boş ekranı gösterelim mi?
         // Genelde filtre sonucu boşsa sadece liste boş görünür, ama burada genel boş state'i kullanabiliriz.

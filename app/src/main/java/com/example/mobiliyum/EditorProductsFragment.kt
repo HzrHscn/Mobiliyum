@@ -88,14 +88,27 @@ class EditorProductsFragment : Fragment() {
             }
     }
 
-    private fun filterList(query: String?) {
+    /**private fun filterList(query: String?) {
         val filtered = if (query.isNullOrEmpty()) {
             allProducts
         } else {
             allProducts.filter { it.name.contains(query, ignoreCase = true) }
         }
+        adapter.submitList(filtered) sorunsuz çalışıyor sil
+    }*/
+
+    private var lastQuery = ""
+
+    private fun filterList(query: String?) {
+        if (query == lastQuery) return
+        lastQuery = query.orEmpty()
+
+        val filtered = if (query.isNullOrBlank()) allProducts
+        else allProducts.filter { it.name.contains(query, true) }
+
         adapter.submitList(filtered)
     }
+
 
     private fun openEdit(product: Product) {
         val fragment = ProductDetailFragment()

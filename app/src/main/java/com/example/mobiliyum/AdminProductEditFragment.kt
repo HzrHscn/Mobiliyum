@@ -129,7 +129,9 @@ class AdminProductEditFragment : Fragment() {
             .addOnSuccessListener {
                 // HATA BURADAYDI: requireContext() eklendi
                 DataManager.updateProductInCache(requireContext(), updatedProduct)
-                DataManager.triggerServerVersionUpdate()
+                DataManager.triggerServerVersionUpdate(
+                    updatedProductId = productIdInt.toString()
+                )
 
                 Toast.makeText(context, "Ürün kaydedildi.", Toast.LENGTH_SHORT).show()
                 parentFragmentManager.popBackStack()

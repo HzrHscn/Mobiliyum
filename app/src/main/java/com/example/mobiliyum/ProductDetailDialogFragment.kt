@@ -9,7 +9,7 @@ import android.view.ViewGroup
 import android.widget.Toast
 import androidx.fragment.app.DialogFragment
 import com.bumptech.glide.Glide
-import com.example.mobiliyum.databinding.DialogProductDetailBinding // ViewBinding
+import com.example.mobiliyum.databinding.DialogProductDetailBinding
 
 class ProductDetailDialogFragment : DialogFragment() {
 
@@ -39,7 +39,6 @@ class ProductDetailDialogFragment : DialogFragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        // API seviyesine göre güvenli Parcelable alma
         val product = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
             arguments?.getParcelable(ARG_PRODUCT, Product::class.java)
         } else {
@@ -52,11 +51,12 @@ class ProductDetailDialogFragment : DialogFragment() {
             return
         }
 
-        // ViewBinding ile verilere erişim
         binding.tvDialogName.text = product.name
         binding.tvDialogCategory.text = product.category
-        binding.tvDialogPrice.text = product.price
+        //binding.tvDialogPrice.text = product.price aşağıdaki şekilde güncellendi sil
+        binding.tvDialogPrice.text = PriceUtils.formatPriceStyled(product.price)
 
+        // HATA GİDERİLDİ: 'this' kullanımı Glide için uygundur (Fragment'ı referans alır)
         Glide.with(this)
             .load(product.imageUrl)
             .placeholder(android.R.drawable.ic_menu_gallery)

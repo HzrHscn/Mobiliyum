@@ -11,6 +11,14 @@ import com.example.mobiliyum.databinding.ItemProductBinding
 class ProductAdapter(
     private val onProductClick: (Product) -> Unit
 ) : ListAdapter<Product, ProductAdapter.ProductViewHolder>(ProductDiffCallback()) {
+    //2 satır sonradan ekledim 14-21 arasi
+    init {
+        setHasStableIds(true)
+    }
+
+    override fun getItemId(position: Int): Long {
+        return getItem(position).id.toLong()
+    }
 
     class ProductDiffCallback : DiffUtil.ItemCallback<Product>() {
         override fun areItemsTheSame(oldItem: Product, newItem: Product): Boolean {
@@ -35,8 +43,15 @@ class ProductAdapter(
         holder.binding.tvProductName.text = product.name
         holder.binding.tvProductPrice.text = PriceUtils.formatPriceStyled(product.price)
 
+        /*Glide.with(holder.itemView.context) bu çalışıyordu aşağıdaki gibi değiştirdim sil
+            .load(product.imageUrl)
+            .placeholder(android.R.drawable.ic_menu_gallery)
+            .error(android.R.drawable.ic_menu_report_image)
+            .into(holder.binding.imgProduct)*/
+
         Glide.with(holder.itemView.context)
             .load(product.imageUrl)
+            .centerCrop()
             .placeholder(android.R.drawable.ic_menu_gallery)
             .error(android.R.drawable.ic_menu_report_image)
             .into(holder.binding.imgProduct)

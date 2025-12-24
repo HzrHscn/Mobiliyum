@@ -298,44 +298,55 @@ object FavoritesManager {
 
     private const val MAX_FAVORITE_LIMIT = 50
 
-    fun toggleFavorite(product: Product, onResult: (Boolean) -> Unit, context: Context) {
+    fun toggleFavorite(
+        product: Product,
+        context: Context? = null,
+        onResult: (Boolean) -> Unit
+    ) {
         val uid = auth.currentUser?.uid ?: return
         val pidStr = product.id.toString()
-        val ref = db.collection("users").document(uid).collection("favorites").document(pidStr)
+        val ref = db.collection("users").document(uid)
+            .collection("favorites").document(pidStr)
 
-        if (isFavorite(product.id)) {
-            // Çıkarma işlemi her zaman serbest
+        if (localFavorites.contains(product.id)) {
+            // FAVORİDEN ÇIKAR
             ref.delete().addOnSuccessListener {
                 localFavorites.remove(product.id)
                 priceCache.remove(pidStr)
                 saveToLocalCache()
                 onResult(false)
             }
-        } else {
-            // EKLEME İŞLEMİNDE SINIR KONTROLÜ
-            if (localFavorites.size >= MAX_FAVORITE_LIMIT) {
-                // Sınır aşıldı, kullanıcıya false dön (UI'da uyarı gösterilecek)
-                // "Favori sınırına ulaştınız (Maks: 50)" gibi bir Toast mesajı fragment tarafında göster
-                Toast.makeText(context, "Favori sınırına ulaştınız (Maks: 50)", Toast.LENGTH_SHORT).show()
-                onResult(false)
-                return
-            }
+            return
+        }
 
-            // Limit aşılmadıysa ekle
-            val priceVal = PriceUtils.parsePrice(product.price)
-            val data = hashMapOf(
-                "productId" to pidStr,
-                "productName" to product.name,
-                "lastNotifiedPrice" to priceVal,
-                "priceAlert" to true,
-                "addedAt" to Date()
-            )
-            ref.set(data).addOnSuccessListener {
-                localFavorites.add(product.id)
-                priceCache[pidStr] = priceVal
-                saveToLocalCache()
-                onResult(true)
+        // === FAVORİ EKLEME ===
+        if (localFavorites.size >= MAX_FAVORITE_LIMIT) {
+            context?.let {
+                Toast.makeText(
+                    it,
+                    "En fazla $MAX_FAVORITE_LIMIT favori ekleyebilirsiniz.",
+                    Toast.LENGTH_SHORT
+                ).show()
             }
+            onResult(false)
+            return
+        }
+
+        val priceVal = PriceUtils.parsePrice(product.price)
+
+        val data = hashMapOf(
+            "productId" to pidStr,
+            "productName" to product.name,
+            "lastNotifiedPrice" to priceVal,
+            "priceAlert" to true,
+            "addedAt" to Date()
+        )
+
+        ref.set(data).addOnSuccessListener {
+            localFavorites.add(product.id)
+            priceCache[pidStr] = priceVal
+            saveToLocalCache()
+            onResult(true)
         }
     }
 

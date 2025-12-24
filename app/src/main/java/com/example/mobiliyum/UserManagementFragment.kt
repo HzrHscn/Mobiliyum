@@ -28,7 +28,6 @@ class UserManagementFragment : Fragment() {
     private val db = FirebaseFirestore.getInstance()
     private val allUsers = ArrayList<User>()
 
-    // Adapter Tanımlaması
     private lateinit var adapter: UserManagementAdapter
 
     private var currentRoleFilter: UserRole? = null
@@ -47,7 +46,6 @@ class UserManagementFragment : Fragment() {
 
         binding.rvUserList.layoutManager = LinearLayoutManager(context)
 
-        // Adapter Başlatma
         adapter = UserManagementAdapter(
             onBanClick = { user -> toggleBan(user) },
             onRoleClick = { user -> showRoleDialog(user) }
@@ -69,6 +67,10 @@ class UserManagementFragment : Fragment() {
                     else -> null
                 }
                 applyFilters()
+            } else {
+                // Eğer seçim kaldırıldıysa filtreyi temizle (Opsiyonel, genelde ToggleGroup tek seçimli olur)
+                // currentRoleFilter = null
+                // applyFilters()
             }
         }
 
@@ -76,6 +78,7 @@ class UserManagementFragment : Fragment() {
     }
 
     private fun loadUsers() {
+        // Sadece ilk açılışta veya refresh istendiğinde çalışmalı
         db.collection("users").get().addOnSuccessListener { docs ->
             allUsers.clear()
             for (doc in docs) {
@@ -90,17 +93,19 @@ class UserManagementFragment : Fragment() {
         val filtered = allUsers.filter { user ->
             val roleMatch = currentRoleFilter == null || user.role == currentRoleFilter
             val searchLower = currentSearchText.lowercase(Locale.getDefault())
+
             val searchMatch = if (currentSearchText.isEmpty()) true else {
+                val storeIdStr = user.storeId?.toString() ?: ""
                 user.fullName.lowercase().contains(searchLower) ||
                         user.email.lowercase().contains(searchLower) ||
-                        (user.storeId?.toString() ?: "").contains(searchLower)
+                        storeIdStr.contains(searchLower)
             }
             roleMatch && searchMatch
         }
 
         binding.tvUserCount.text = "Listelenen: ${filtered.size} Kullanıcı"
 
-        // DÜZELTME: Veriyi submitList ile gönder
+        // ListAdapter'a YENİ bir liste referansı gönderiyoruz
         adapter.submitList(ArrayList(filtered))
     }
 
@@ -146,6 +151,7 @@ class UserManagementFragment : Fragment() {
             "role" to role,
             "storeId" to (storeId ?: 0)
         )
+        // Eğer müşteri veya admin ise storeId sıfırlanmalı
         if (role == UserRole.CUSTOMER || role == UserRole.ADMIN) {
             updates["storeId"] = 0
         }
@@ -153,7 +159,21 @@ class UserManagementFragment : Fragment() {
         db.collection("users").document(user.id).update(updates)
             .addOnSuccessListener {
                 Toast.makeText(context, "Rol Güncellendi", Toast.LENGTH_SHORT).show()
-                loadUsers()
+
+                // OPTİMİZASYON: Tekrar loadUsers() yapma, yerel listeyi güncelle
+                val index = allUsers.indexOfFirst { it.id == user.id }
+                if (index != -1) {
+                    // Kullanıcının kopyasını oluşturup güncelle (Immutable yapı için)
+                    val updatedUser = user.copy(
+                        role = role,
+                        storeId = if (role == UserRole.CUSTOMER || role == UserRole.ADMIN) 0 else (storeId ?: 0)
+                    )
+                    allUsers[index] = updatedUser
+                    applyFilters() // Listeyi yenile
+                }
+            }
+            .addOnFailureListener {
+                Toast.makeText(context, "Hata: ${it.message}", Toast.LENGTH_SHORT).show()
             }
     }
 
@@ -163,7 +183,17 @@ class UserManagementFragment : Fragment() {
             .addOnSuccessListener {
                 val msg = if (newState) "Kullanıcı Banlandı" else "Ban Kaldırıldı"
                 Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
-                loadUsers()
+
+                // OPTİMİZASYON: Tekrar loadUsers() yapma, yerel listeyi güncelle
+                val index = allUsers.indexOfFirst { it.id == user.id }
+                if (index != -1) {
+                    val updatedUser = user.copy(isBanned = newState)
+                    allUsers[index] = updatedUser
+                    applyFilters()
+                }
+            }
+            .addOnFailureListener {
+                Toast.makeText(context, "Hata: ${it.message}", Toast.LENGTH_SHORT).show()
             }
     }
 
@@ -172,7 +202,6 @@ class UserManagementFragment : Fragment() {
         _binding = null
     }
 
-    // --- MODERN ADAPTER (ListAdapter + DiffUtil) ---
     class UserManagementAdapter(
         private val onBanClick: (User) -> Unit,
         private val onRoleClick: (User) -> Unit
@@ -180,7 +209,6 @@ class UserManagementFragment : Fragment() {
 
         class UserDiffCallback : DiffUtil.ItemCallback<User>() {
             override fun areItemsTheSame(oldItem: User, newItem: User) = oldItem.id == newItem.id
-            // İçerik değişmiş mi? (Örn: Rolü veya Ban durumu değişti mi)
             override fun areContentsTheSame(oldItem: User, newItem: User) = oldItem == newItem
         }
 
@@ -195,7 +223,11 @@ class UserManagementFragment : Fragment() {
             val user = getItem(position)
 
             holder.binding.tvUserName.text = user.fullName
-            holder.binding.tvUserEmail.text = "${user.email} ${if(user.storeId != 0 && user.storeId != null) "(Mağaza: ${user.storeId})" else ""}"
+
+            // Mağaza bilgisini gösterirken null kontrolü
+            val storeText = if (user.storeId != null && user.storeId != 0) "(Mağaza: ${user.storeId})" else ""
+            holder.binding.tvUserEmail.text = "${user.email} $storeText"
+
             holder.binding.tvUserRole.text = user.role.name
 
             if (user.isBanned) {

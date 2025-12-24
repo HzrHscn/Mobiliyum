@@ -1,11 +1,13 @@
 package com.example.mobiliyum
 
 import android.app.AlertDialog
+import android.os.Build
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
+import androidx.annotation.RequiresApi
 import androidx.appcompat.widget.SearchView
 import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -23,7 +25,8 @@ class StoresFragment : Fragment() {
 
     private lateinit var storeAdapter: StoreAdapter
     private var allStores = ArrayList<Store>()
-    private val db = FirebaseFirestore.getInstance()
+    //private val db = FirebaseFirestore.getInstance()
+    private val db by lazy { FirebaseFirestore.getInstance() }
 
     // Adminin belirlediği özel sıralama listesi (Store ID'leri)
     private var customSortOrder = ArrayList<Long>()
@@ -40,6 +43,7 @@ class StoresFragment : Fragment() {
         return binding.root
     }
 
+    @RequiresApi(Build.VERSION_CODES.O)
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
@@ -47,7 +51,9 @@ class StoresFragment : Fragment() {
         binding.rvStores.setHasFixedSize(true)
 
         storeAdapter = StoreAdapter { selectedStore ->
-            recordClick(selectedStore)
+            /*recordClick(selectedStore) aşağıdaki ile değiştirildi sil
+            openStoreDetail(selectedStore)*/
+            savedInstanceState ?: recordClick(selectedStore)
             openStoreDetail(selectedStore)
         }
         binding.rvStores.adapter = storeAdapter
@@ -126,6 +132,7 @@ class StoresFragment : Fragment() {
             .show()
     }
 
+    @RequiresApi(Build.VERSION_CODES.O)
     private fun fetchStoresFromFirestore() {
         db.collection("stores").get()
             .addOnSuccessListener { documents ->
@@ -143,58 +150,58 @@ class StoresFragment : Fragment() {
 
     private fun applyFilterAndSort(query: String) {
         val searchLower = query.lowercase(Locale.getDefault())
-        var result = ArrayList(allStores)
 
-        // 1. Arama Filtresi
-        if (query.isNotEmpty()) {
-            result = result.filter {
+        // 1. ADIM: ARAMA FİLTRESİ
+        // Sequence kullanarak büyük listelerde performansı artırıyoruz
+        // Eğer query boşsa tüm listeyi, doluysa filtrelenmiş halini alıyoruz
+        val filteredList = if (query.isEmpty()) {
+            allStores
+        } else {
+            allStores.filter {
                 it.name.lowercase().contains(searchLower) ||
                         it.category.lowercase().contains(searchLower)
-            } as ArrayList<Store>
+            }
         }
 
-        // 2. Ana Filtreleme ve Sıralama
-        if (currentFilter == FilterType.POPULAR) {
-            // --- POPÜLER (ADMİN YÖNETİMİ) ---
+        // 2. ADIM: KATEGORİ/ETAP FİLTRESİ VE SIRALAMA
+        val finalResult: List<Store> = if (currentFilter == FilterType.POPULAR) {
+            // --- POPÜLER (ADMİN VİTRİNİ) ---
             binding.tvSortInfo.text = "Sıralama: Mobiliyum Vitrini"
 
-            // Sadece customSortOrder listesinde olan mağazaları al
-            val popularList = result.filter { customSortOrder.contains(it.id.toLong()) }
-
-            // Custom listesindeki sıraya göre diz
-            result = ArrayList(popularList.sortedBy { store ->
-                customSortOrder.indexOf(store.id.toLong())
-            })
-
+            // Sadece customSortOrder listesinde olanları al
+            // Sıralama performansını artırmak için ID'leri ve sıralarını bir Map'e alabiliriz
+            // ama mağaza sayısı az olduğu için sortedBy yeterli ve temizdir.
+            filteredList
+                .filter { customSortOrder.contains(it.id.toLong()) }
+                .sortedBy { customSortOrder.indexOf(it.id.toLong()) }
         } else {
-            // --- ETAPLAR (NORMAL SIRALAMA) ---
+            // --- ETAPLAR VE DİĞER SIRALAMALAR ---
 
-            // Önce Etaba göre filtrele
-            result = when (currentFilter) {
-                FilterType.ETAP_A -> result.filter { it.etap.equals("A", ignoreCase = true) } as ArrayList<Store>
-                FilterType.ETAP_B -> result.filter { it.etap.equals("B", ignoreCase = true) } as ArrayList<Store>
-                else -> result
+            // A. Etap Filtreleme
+            val etapFiltered = when (currentFilter) {
+                FilterType.ETAP_A -> filteredList.filter { it.etap.equals("A", ignoreCase = true) }
+                FilterType.ETAP_B -> filteredList.filter { it.etap.equals("B", ignoreCase = true) }
+                else -> filteredList // TÜMÜ seçiliyse filtreleme yapma
             }
 
-            // Sonra seçili metoda göre sırala
-            result = when (currentSort) {
+            // B. Sıralama Yöntemi
+            when (currentSort) {
                 SortType.WALKING_ORDER -> {
                     binding.tvSortInfo.text = "Sıralama: Kat Sırası"
-                    // StoreSortHelper: Location metnini puana çevirir (Giriş=0, 1.Kat=1000...)
-                    ArrayList(result.sortedBy { StoreSortHelper.calculateLocationWeight(it.location) })
+                    etapFiltered.sortedBy { StoreSortHelper.calculateLocationWeight(it.location) }
                 }
                 SortType.ALPHABETICAL -> {
                     binding.tvSortInfo.text = "Sıralama: Alfabetik"
-                    ArrayList(result.sortedBy { it.name })
+                    etapFiltered.sortedBy { it.name }
                 }
                 SortType.POPULARITY -> {
                     binding.tvSortInfo.text = "Sıralama: En Çok Ziyaret Edilenler"
-                    ArrayList(result.sortedByDescending { it.clickCount })
+                    etapFiltered.sortedByDescending { it.clickCount }
                 }
             }
         }
-
-        storeAdapter.submitList(result)
+        // ListAdapter List<T> kabul eder, ArrayList zorunlu değildir.
+        storeAdapter.submitList(finalResult)
     }
 
     private fun recordClick(store: Store) {

@@ -15,13 +15,15 @@ class CartAdapter(
 ) : ListAdapter<Product, CartAdapter.CartViewHolder>(CartDiffCallback()) {
 
     class CartDiffCallback : DiffUtil.ItemCallback<Product>() {
+
         override fun areItemsTheSame(oldItem: Product, newItem: Product): Boolean {
             return oldItem.id == newItem.id
         }
 
         override fun areContentsTheSame(oldItem: Product, newItem: Product): Boolean {
-            // Adet değişirse içerik değişmiş sayılır ve UI güncellenir
-            return oldItem == newItem && oldItem.quantity == newItem.quantity
+            return oldItem.quantity == newItem.quantity &&
+                    oldItem.price == newItem.price &&
+                    oldItem.name == newItem.name
         }
     }
 

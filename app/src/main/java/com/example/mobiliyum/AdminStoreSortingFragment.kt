@@ -131,6 +131,9 @@ class AdminStoreSortingFragment : Fragment() {
             .set(mapOf("sortedIds" to idList))
             .addOnSuccessListener {
                 Toast.makeText(context, "Sıralama Kaydedildi!", Toast.LENGTH_SHORT).show()
+                DataManager.triggerServerVersionUpdate(
+                    updatedStoreId = "SORTING"
+                )  //silebiliriz çalışmazsa
                 parentFragmentManager.popBackStack()
             }
     }

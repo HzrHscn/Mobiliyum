@@ -26,7 +26,7 @@ class ProductsFragment : Fragment() {
     private val binding get() = _binding!!
 
     private lateinit var productAdapter: ProductAdapter
-    private var allProducts = ArrayList<Product>()
+    private var allProducts = listOf<Product>() // List olarak değiştirdim
 
     private var searchQuery = ""
     private var selectedCategories = ArrayList<String>()
@@ -49,7 +49,6 @@ class ProductsFragment : Fragment() {
         super.onViewCreated(view, savedInstanceState)
 
         binding.swipeRefreshLayout.setOnRefreshListener {
-            //DataManager.cachedProducts = null
             val prefs = requireContext().getSharedPreferences("AppPrefs", android.content.Context.MODE_PRIVATE)
             prefs.edit().remove("productsVersion").apply()
             fetchProducts()
@@ -85,11 +84,10 @@ class ProductsFragment : Fragment() {
     private fun fetchProducts() {
         binding.progressBarProducts.visibility = View.VISIBLE
 
-        // HATA GİDERİLDİ: Null safety için fetchProductsSmart kullanıldı
         DataManager.fetchProductsSmart(
             requireContext(),
             onSuccess = { products ->
-                allProducts = products
+                allProducts = products // ArrayList, List'e atanabilir
                 applyFiltersAndSort()
                 binding.progressBarProducts.visibility = View.GONE
             },
@@ -101,42 +99,46 @@ class ProductsFragment : Fragment() {
     }
 
     private fun applyFiltersAndSort() {
-        var result = ArrayList(allProducts)
+        // HATA GİDERİLDİ: List kullanımı ve gereksiz cast işlemleri kaldırıldı
+        var result: List<Product> = ArrayList(allProducts)
 
         if (searchQuery.isNotEmpty()) {
             val q = searchQuery.lowercase(Locale.getDefault())
-            result = result.filter { it.name.lowercase().contains(q) || it.category.lowercase().contains(q) } as ArrayList<Product>
+            result = result.filter {
+                it.name.lowercase().contains(q) || it.category.lowercase().contains(q)
+            }
         }
         if (selectedCategories.isNotEmpty()) {
-            result = result.filter { selectedCategories.contains(it.category) } as ArrayList<Product>
+            result = result.filter { selectedCategories.contains(it.category) }
         }
         if (selectedStoreIds.isNotEmpty()) {
-            result = result.filter { selectedStoreIds.contains(it.storeId) } as ArrayList<Product>
+            result = result.filter { selectedStoreIds.contains(it.storeId) }
         }
         if (minPriceFilter != null) {
-            result = result.filter { PriceUtils.parsePrice(it.price) >= minPriceFilter!! } as ArrayList<Product>
+            result = result.filter { PriceUtils.parsePrice(it.price) >= minPriceFilter!! }
         }
         if (maxPriceFilter != null) {
-            result = result.filter { PriceUtils.parsePrice(it.price) <= maxPriceFilter!! } as ArrayList<Product>
+            result = result.filter { PriceUtils.parsePrice(it.price) <= maxPriceFilter!! }
         }
         if (minRatingFilter > 0) {
-            result = result.filter { it.rating >= minRatingFilter.toFloat() } as ArrayList<Product>
+            result = result.filter { it.rating >= minRatingFilter.toFloat() }
         }
 
         result = when (currentSortMode) {
-            SortMode.PRICE_LOW_HIGH -> ArrayList(result.sortedBy { PriceUtils.parsePrice(it.price) })
-            SortMode.PRICE_HIGH_LOW -> ArrayList(result.sortedByDescending { PriceUtils.parsePrice(it.price) })
-            SortMode.MOST_CLICKED -> ArrayList(result.sortedByDescending { it.clickCount })
-            SortMode.MOST_FAVORITED -> ArrayList(result.sortedByDescending { it.favoriteCount })
+            SortMode.PRICE_LOW_HIGH -> result.sortedBy { PriceUtils.parsePrice(it.price) }
+            SortMode.PRICE_HIGH_LOW -> result.sortedByDescending { PriceUtils.parsePrice(it.price) }
+            SortMode.MOST_CLICKED -> result.sortedByDescending { it.clickCount }
+            SortMode.MOST_FAVORITED -> result.sortedByDescending { it.favoriteCount }
             else -> result
         }
 
+        // ListAdapter List<T> kabul eder
         productAdapter.submitList(result)
         checkResetButtonVisibility()
     }
 
-    // --- UI DIALOGLARI (Öncekilerin aynısı, kısalttım yer kaplamasın diye) ---
-    private fun showSortDialog() { /* ... Önceki kodla aynı ... */
+    // --- UI DIALOGLARI ---
+    private fun showSortDialog() {
         val options = arrayOf("Varsayılan", "Fiyat Artan", "Fiyat Azalan", "Çok Tıklanan", "Çok Beğenilen")
         AlertDialog.Builder(context).setItems(options) { _, w ->
             currentSortMode = when (w) { 1 -> SortMode.PRICE_LOW_HIGH; 2 -> SortMode.PRICE_HIGH_LOW; 3 -> SortMode.MOST_CLICKED; 4 -> SortMode.MOST_FAVORITED; else -> SortMode.DEFAULT }
@@ -177,7 +179,6 @@ class ProductsFragment : Fragment() {
         val btnApply = dialog.findViewById<MaterialButton>(R.id.btnApplyFilters)
         val progress = dialog.findViewById<android.widget.ProgressBar>(R.id.progressStores)
 
-        // Yıldızlar
         val stars = listOf(
             dialog.findViewById<ImageView>(R.id.star1), dialog.findViewById<ImageView>(R.id.star2),
             dialog.findViewById<ImageView>(R.id.star3), dialog.findViewById<ImageView>(R.id.star4),
@@ -209,7 +210,6 @@ class ProductsFragment : Fragment() {
         stars.forEachIndexed { index, imageView -> imageView?.setOnClickListener { updateStars(index + 1) } }
         btnResetRating?.setOnClickListener { updateStars(0) }
 
-        // Mağazalar
         val tempSelectedStores = ArrayList<Int>(selectedStoreIds)
         val allStoreCheckBoxes = ArrayList<CheckBox>()
 

@@ -31,7 +31,8 @@ class WelcomeFragment : Fragment() {
         }
 
         binding.btnGuest.setOnClickListener {
-            (activity as? MainActivity)?.hideBottomNav()
+            //(activity as? MainActivity)?.hideBottomNav() alttaki güncel sil
+            (requireActivity() as MainActivity).hideBottomNav()
 
             parentFragmentManager.beginTransaction()
                 .replace(R.id.fragmentContainer, HomeFragment())

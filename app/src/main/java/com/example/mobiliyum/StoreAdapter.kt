@@ -39,6 +39,7 @@ class StoreAdapter(
 
         Glide.with(holder.itemView.context)
             .load(currentStore.imageUrl)
+            .centerCrop() //sonradan ekledim sil
             .placeholder(android.R.drawable.ic_menu_gallery)
             .error(android.R.drawable.stat_notify_error)
             .into(holder.binding.imgStoreLogo)

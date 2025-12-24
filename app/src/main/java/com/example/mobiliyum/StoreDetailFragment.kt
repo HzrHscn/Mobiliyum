@@ -29,7 +29,6 @@ class StoreDetailFragment : Fragment() {
     private var currentAnnouncement: NotificationItem? = null
     private var categorySectionList = ArrayList<CategorySection>()
 
-    // Mağaza Bilgileri
     private var storeId: Int = 0
     private var storeName: String? = null
     private var storeImage: String? = null
@@ -40,7 +39,6 @@ class StoreDetailFragment : Fragment() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         arguments?.let {
-            // MainActivity'den gelen parça parça verileri alıyoruz
             storeId = it.getInt("id", 0)
             storeName = it.getString("name")
             storeImage = it.getString("image")
@@ -59,20 +57,19 @@ class StoreDetailFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        // UI Yerleşimi
         binding.tvDetailName.text = storeName
         binding.tvDetailLocation.text = storeLocation
 
         if (!storeImage.isNullOrEmpty()) {
-            Glide.with(this).load(storeImage).into(binding.imgDetailLogo)
+            Glide.with(this)
+                .load(storeImage)
+                .into(binding.imgDetailLogo)
         }
 
-        // RecyclerView Ayarları
         binding.rvProducts.layoutManager = LinearLayoutManager(context)
         binding.rvUserChoice.layoutManager = GridLayoutManager(context, 2)
         binding.rvStoreChoice.layoutManager = GridLayoutManager(context, 2)
 
-        // NestedScroll Sorununu Önlemek İçin
         binding.rvProducts.isNestedScrollingEnabled = false
         binding.rvUserChoice.isNestedScrollingEnabled = false
         binding.rvStoreChoice.isNestedScrollingEnabled = false
@@ -80,14 +77,10 @@ class StoreDetailFragment : Fragment() {
         setupFollowButton()
 
         if (storeId != 0) {
-            // --- KRİTİK NOKTA: ARTIK VERİTABANI YOK, CACHE VAR ---
             loadStoreProductsFromCache()
-
-            // Duyurular anlık olduğu için sorgulanabilir (Maliyet: 1 Read)
             fetchLatestAnnouncement()
         }
 
-        // Duyuru Tıklama
         binding.cardStoreAnnouncement.setOnClickListener {
             if (currentAnnouncement != null) {
                 AlertDialog.Builder(context)
@@ -98,7 +91,6 @@ class StoreDetailFragment : Fragment() {
             }
         }
 
-        // Tüm Duyurular
         binding.btnSeeAllAnnouncements.setOnClickListener {
             val fragment = StoreAnnouncementsFragment()
             val bundle = Bundle()
@@ -112,20 +104,17 @@ class StoreDetailFragment : Fragment() {
         }
     }
 
-    // --- OPTİMİZE EDİLMİŞ VERİ ÇEKME ---
     private fun loadStoreProductsFromCache() {
-        // DataManager bize RAM'deki veya Disk'teki ürünleri verir (İnternet harcamaz)
+        // HATA GİDERİLDİ: Lambda parametresi 'allProducts' olarak isimlendirildi
         DataManager.fetchProductsSmart(
             requireContext(),
             onSuccess = { allProducts ->
-                // Filtreleme işlemini telefonda yapıyoruz (0 Maliyet)
+                // allProducts bir ArrayList<Product>, filter bize List<Product> döner
                 val storeProducts = allProducts.filter { it.storeId == storeId }
 
                 if (storeProducts.isNotEmpty()) {
                     groupProductsByCategory(storeProducts)
                     setupFeaturedProducts(storeProducts)
-                } else {
-                    // Mağazanın ürünü yoksa boş kalır
                 }
             },
             onError = {
@@ -135,21 +124,21 @@ class StoreDetailFragment : Fragment() {
     }
 
     private fun setupFeaturedProducts(storeProducts: List<Product>) {
-        // Mağaza detaylarını (öne çıkan ID'leri) da Cache'den alalım
+        // HATA GİDERİLDİ: Lambda parametresi 'allStores' olarak isimlendirildi
         DataManager.fetchStoresSmart(
             requireContext(),
-            onSuccess = { stores ->
-                val thisStore = stores.find { it.id == storeId }
+            onSuccess = { allStores ->
+                // find, List üzerinde çalışır ve Store? döner
+                val thisStore = allStores.find { it.id == storeId }
 
                 if (thisStore != null) {
                     var storeChoiceList = emptyList<Product>()
 
-                    // 1. Mağazanın Seçtikleri (Featured)
+                    // featuredProductIds bir List<Int>? olabilir, null check veya empty check
                     if (thisStore.featuredProductIds.isNotEmpty()) {
                         storeChoiceList = storeProducts.filter { thisStore.featuredProductIds.contains(it.id) }
                     }
 
-                    // Eğer seçili yoksa son eklenenlerden koy
                     if (storeChoiceList.size < 2) {
                         storeChoiceList = storeProducts.takeLast(4).take(2)
                     }
@@ -158,12 +147,11 @@ class StoreDetailFragment : Fragment() {
                         binding.layoutStoreChoice.visibility = View.VISIBLE
                         storeChoiceAdapter = ProductAdapter { product -> openProductDetail(product) }
                         binding.rvStoreChoice.adapter = storeChoiceAdapter
-                        storeChoiceAdapter.submitList(ArrayList(storeChoiceList))
+                        storeChoiceAdapter.submitList(storeChoiceList) // List kabul eder
                     } else {
                         binding.layoutStoreChoice.visibility = View.GONE
                     }
 
-                    // 2. Kullanıcıların Seçtikleri (Popüler)
                     val userChoiceList = storeProducts.sortedWith(
                         compareByDescending<Product> { it.favoriteCount }
                             .thenByDescending { it.clickCount }
@@ -173,13 +161,13 @@ class StoreDetailFragment : Fragment() {
                         binding.layoutUserChoice.visibility = View.VISIBLE
                         userChoiceAdapter = ProductAdapter { product -> openProductDetail(product) }
                         binding.rvUserChoice.adapter = userChoiceAdapter
-                        userChoiceAdapter.submitList(ArrayList(userChoiceList))
+                        userChoiceAdapter.submitList(userChoiceList) // List kabul eder
                     } else {
                         binding.layoutUserChoice.visibility = View.GONE
                     }
                 }
             },
-            onError = { /* Hata olsa da akışı bozma */ }
+            onError = { }
         )
     }
 
@@ -268,7 +256,7 @@ class StoreDetailFragment : Fragment() {
     }
 }
 
-// --- YARDIMCI ADAPTER (Aynı Dosyada Kalabilir) ---
+// --- YARDIMCI ADAPTER ---
 
 data class CategorySection(val categoryName: String, val products: List<Product>, var isExpanded: Boolean = false)
 
@@ -278,7 +266,10 @@ class CategoryAdapter(
     private val onProductClick: (Product) -> Unit
 ) : RecyclerView.Adapter<CategoryAdapter.CategoryViewHolder>() {
 
-    inner class CategoryViewHolder(val binding: ItemCategoryGroupBinding) : RecyclerView.ViewHolder(binding.root)
+    inner class CategoryViewHolder(val binding: ItemCategoryGroupBinding)
+        : RecyclerView.ViewHolder(binding.root) {
+        val innerAdapter = ProductAdapter(onProductClick)
+    }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): CategoryViewHolder {
         val binding = ItemCategoryGroupBinding.inflate(LayoutInflater.from(parent.context), parent, false)
@@ -289,16 +280,13 @@ class CategoryAdapter(
         val section = categoryList[position]
         holder.binding.tvCategoryTitle.text = "${section.categoryName} (${section.products.size})"
 
-        // Açılır/Kapanır Animasyon Mantığı
         holder.binding.rvInnerProducts.visibility = if (section.isExpanded) View.VISIBLE else View.GONE
         holder.binding.imgExpandIcon.rotation = if (section.isExpanded) 180f else 0f
 
         holder.binding.rvInnerProducts.layoutManager = GridLayoutManager(context, 2)
-
-        // İç RecyclerView Adapter'ı
-        val innerAdapter = ProductAdapter(onProductClick)
-        holder.binding.rvInnerProducts.adapter = innerAdapter
-        innerAdapter.submitList(ArrayList(section.products))
+        holder.binding.rvInnerProducts.adapter = holder.innerAdapter
+        // HATA GİDERİLDİ: List kullanımı
+        holder.innerAdapter.submitList(section.products)
 
         holder.binding.rvInnerProducts.isNestedScrollingEnabled = false
 

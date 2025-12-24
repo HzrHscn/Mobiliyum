@@ -54,7 +54,7 @@ object CartManager {
 
     // Sepeti Getir
     fun getCartItems(): List<Product> {
-        return cartItems
+        return cartItems.map { it.copy() } // HER SEFERİNDE YENİ NESNE
     }
 
     // Toplam Tutarı Hesapla

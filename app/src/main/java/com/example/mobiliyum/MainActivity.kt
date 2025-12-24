@@ -291,21 +291,30 @@ class MainActivity : AppCompatActivity() {
 
     // === STANDART FONKSİYONLAR ===
 
-    fun loadFragment(fragment: Fragment) {
+    /*fun loadFragment(fragment: Fragment) {
         supportFragmentManager.beginTransaction()
             .setCustomAnimations(android.R.anim.fade_in, android.R.anim.fade_out)
             .replace(R.id.fragmentContainer, fragment)
             .addToBackStack(null)
             .commit()
+    }*/
+
+    fun loadFragment(fragment: Fragment, addToBackStack: Boolean = true) {
+        val tx = supportFragmentManager.beginTransaction()
+            .setCustomAnimations(android.R.anim.fade_in, android.R.anim.fade_out)
+            .replace(R.id.fragmentContainer, fragment)
+
+        if (addToBackStack) tx.addToBackStack(null)
+        tx.commit()
     }
 
     private fun setupNavigation() {
         binding.bottomNavigationView.setOnItemSelectedListener { item ->
             when (item.itemId) {
-                R.id.nav_stores -> { loadFragment(storesFragment); true }
-                R.id.nav_products -> { loadFragment(productsFragment); true }
-                R.id.nav_cart -> { loadFragment(cartFragment); true }
-                R.id.nav_profile -> { loadFragment(accountFragment); true }
+                R.id.nav_stores -> { loadFragment(storesFragment); false } //false yaptım sil
+                R.id.nav_products -> { loadFragment(productsFragment); false } //false yaptım sil
+                R.id.nav_cart -> { loadFragment(cartFragment); false } //false yaptım sil
+                R.id.nav_profile -> { loadFragment(accountFragment); false } //false yaptım sil
                 else -> false
             }
         }
@@ -313,9 +322,9 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        if (UserManager.isLoggedIn()) {
+        /*if (UserManager.isLoggedIn()) { tek yerden çalışsın sil
             FavoritesManager.startRealTimePriceAlerts(this)
-        }
+        }*/
     }
 
     override fun onPause() {

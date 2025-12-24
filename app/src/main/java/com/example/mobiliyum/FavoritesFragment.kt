@@ -136,15 +136,16 @@ class FavoritesFragment : Fragment() {
         AlertDialog.Builder(context).setTitle("Favorilerden Çıkar")
             .setMessage("${item.product.name} silinecek.")
             .setPositiveButton("Çıkar") { _, _ ->
-                FavoritesManager.toggleFavorite(item.product, { isFav, _ ->
-                    if (!isFav) { // Başarıyla çıkarıldıysa
+                FavoritesManager.toggleFavorite(
+                    product = item.product,
+                    context = requireContext()
+                ) { isFav ->
+                    if (!isFav) {
                         favoriteUiList.remove(item)
                         adapter.submitList(ArrayList(favoriteUiList))
-                        if (favoriteUiList.isEmpty()) {
-                            showEmptyState(true)
-                        }
+                        if (favoriteUiList.isEmpty()) showEmptyState(true)
                     }
-                }, requireContext())
+                }
             }.setNegativeButton("İptal", null).show()
     }
 
