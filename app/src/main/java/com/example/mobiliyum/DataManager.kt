@@ -15,17 +15,8 @@ object DataManager {
 
     private const val FILE_PRODUCTS = "products_cache.json"
     private const val FILE_STORES = "stores_cache.json"
-
     private const val PRODUCT_RESET_THRESHOLD = 1000
     private const val STORE_RESET_THRESHOLD = 500
-
-    /*private val firestore: FirebaseFirestore by lazy {
-        FirebaseFirestore.getInstance()
-    }
-
-    fun getDb(): FirebaseFirestore {
-        return firestore
-    }*/
 
     val firestore: FirebaseFirestore by lazy {
         FirebaseFirestore.getInstance()

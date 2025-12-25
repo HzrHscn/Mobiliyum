@@ -19,7 +19,6 @@ class CartFragment : Fragment() {
 
     private var _binding: FragmentCartBinding? = null
     private val binding get() = _binding!!
-
     private var cartAdapter: CartAdapter? = null
     private var suggestionAdapter: ProductAdapter? = null
     //private val db = FirebaseFirestore.getInstance()

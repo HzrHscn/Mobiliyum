@@ -28,7 +28,6 @@ class AdminCartSuggestionsFragment : Fragment() {
     private var allProducts = ArrayList<Product>()
     private val selectedIds = HashSet<Int>()
     private lateinit var adapter: SuggestionAdapter
-
     private val storeNames = ArrayList<String>()
     private val categories = ArrayList<String>()
 
