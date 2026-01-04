@@ -15,7 +15,6 @@ import java.util.concurrent.atomic.AtomicInteger
 
 object NotificationHelper {
 
-    // Kanal ID'leri
     private const val CHANNEL_PRICE = "price_alerts"
     private const val CHANNEL_STORE = "store_updates"
     private const val CHANNEL_GENERAL = "general_notifications"
@@ -25,13 +24,15 @@ object NotificationHelper {
 
     fun createNotificationChannels(context: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            android.util.Log.d("NotificationHelper", "📺 Bildirim kanalları oluşturuluyor...")
+
             val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
             // Grup Oluştur
             val group = NotificationChannelGroup(GROUP_ID, "Mobiliyum Bildirimleri")
             manager.createNotificationChannelGroup(group)
 
-            // 1. Fiyat Bildirimleri (Yüksek Önem)
+            // 1. Fiyat Bildirimleri
             val priceChannel = NotificationChannel(
                 CHANNEL_PRICE,
                 "Fiyat Uyarıları",
@@ -43,10 +44,18 @@ object NotificationHelper {
                 enableVibration(true)
                 vibrationPattern = longArrayOf(0, 300, 200, 300)
                 setShowBadge(true)
+                lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
+                setSound(
+                    android.provider.Settings.System.DEFAULT_NOTIFICATION_URI,
+                    android.media.AudioAttributes.Builder()
+                        .setUsage(android.media.AudioAttributes.USAGE_NOTIFICATION)
+                        .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                        .build()
+                )
                 setGroup(GROUP_ID)
             }
 
-            // 2. Mağaza Duyuruları (Orta Önem)
+            // 2. Mağaza Duyuruları
             val storeChannel = NotificationChannel(
                 CHANNEL_STORE,
                 "Mağaza Duyuruları",
@@ -55,11 +64,20 @@ object NotificationHelper {
                 description = "Takip ettiğiniz mağazaların duyuruları"
                 enableLights(true)
                 lightColor = Color.BLUE
+                enableVibration(true)
                 setShowBadge(true)
+                lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
+                setSound(
+                    android.provider.Settings.System.DEFAULT_NOTIFICATION_URI,
+                    android.media.AudioAttributes.Builder()
+                        .setUsage(android.media.AudioAttributes.USAGE_NOTIFICATION)
+                        .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                        .build()
+                )
                 setGroup(GROUP_ID)
             }
 
-            // 3. Genel Bildirimler (Düşük Önem)
+            // 3. Genel Bildirimler
             val generalChannel = NotificationChannel(
                 CHANNEL_GENERAL,
                 "Genel Bildirimler",
@@ -67,10 +85,19 @@ object NotificationHelper {
             ).apply {
                 description = "Sistem bildirimleri ve duyurular"
                 setShowBadge(false)
+                lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
                 setGroup(GROUP_ID)
             }
 
             manager.createNotificationChannels(listOf(priceChannel, storeChannel, generalChannel))
+
+            android.util.Log.d("NotificationHelper", "✅ 3 Kanal oluşturuldu")
+
+            // Kanal durumlarını kontrol et
+            listOf(CHANNEL_PRICE, CHANNEL_STORE, CHANNEL_GENERAL).forEach { channelId ->
+                val channel = manager.getNotificationChannel(channelId)
+                android.util.Log.d("NotificationHelper", "  📺 $channelId - Önem: ${channel?.importance}")
+            }
         }
     }
 
@@ -81,12 +108,23 @@ object NotificationHelper {
         type: String = "general",
         relatedId: String? = null
     ) {
-        // İzin Kontrolü (Android 13+)
+        android.util.Log.d("NotificationHelper", "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        android.util.Log.d("NotificationHelper", "🔔 sendNotification ÇAĞRILDI")
+        android.util.Log.d("NotificationHelper", "  📝 Başlık: $title")
+        android.util.Log.d("NotificationHelper", "  📝 Mesaj: $message")
+        android.util.Log.d("NotificationHelper", "  📝 Tip: $type")
+        android.util.Log.d("NotificationHelper", "  📝 İlişkili ID: $relatedId")
+
+        // İzin Kontrolü
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
-                != PackageManager.PERMISSION_GRANTED
-            ) {
+            val permission = context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
+
+            if (permission != PackageManager.PERMISSION_GRANTED) {
+                android.util.Log.e("NotificationHelper", "❌ BİLDİRİM İZNİ YOK!")
+                android.util.Log.e("NotificationHelper", "   Ayarlar → Uygulamalar → Mobiliyum → Bildirimler")
                 return
+            } else {
+                android.util.Log.d("NotificationHelper", "✅ Bildirim izni VAR")
             }
         }
 
@@ -96,7 +134,9 @@ object NotificationHelper {
             else -> CHANNEL_GENERAL
         }
 
-        // Tıklanınca Açılacak Ekran
+        android.util.Log.d("NotificationHelper", "  📺 Kanal: $channelId")
+
+        // Intent
         val intent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             putExtra("open_fragment", "notifications")
@@ -111,13 +151,14 @@ object NotificationHelper {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        // İkon Seçimi
+        // İkon
         val icon = when (type) {
             "price_alert" -> android.R.drawable.star_big_on
             "store_update" -> android.R.drawable.ic_dialog_map
             else -> android.R.drawable.ic_dialog_info
         }
 
+        // Bildirim
         val builder = NotificationCompat.Builder(context, channelId)
             .setSmallIcon(icon)
             .setContentTitle(title)
@@ -130,33 +171,30 @@ object NotificationHelper {
             .setAutoCancel(true)
             .setContentIntent(pendingIntent)
             .setGroup(GROUP_ID)
+            .setDefaults(NotificationCompat.DEFAULT_ALL)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+
+        if (type == "price_alert") {
+            builder.setVibrate(longArrayOf(0, 300, 200, 300))
+            builder.setLights(Color.GREEN, 1000, 1000)
+        }
 
         try {
             val manager = NotificationManagerCompat.from(context)
-            manager.notify(notificationId.get(), builder.build())
+            val notifId = notificationId.get()
 
-            // Gruplama (4 bildirimde bir özet göster)
-            if (notificationId.get() % 4 == 0) {
-                sendSummaryNotification(context, channelId)
-            }
+            android.util.Log.d("NotificationHelper", "  🚀 Bildirim gönderiliyor (ID: $notifId)")
+
+            manager.notify(notifId, builder.build())
+
+            android.util.Log.d("NotificationHelper", "  ✅ BİLDİRİM GÖNDERİLDİ!")
+            android.util.Log.d("NotificationHelper", "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
         } catch (e: SecurityException) {
-            // İzin yoksa sessizce geç
+            android.util.Log.e("NotificationHelper", "❌ SecurityException: ${e.message}")
+        } catch (e: Exception) {
+            android.util.Log.e("NotificationHelper", "❌ Genel Hata: ${e.message}")
+            e.printStackTrace()
         }
-    }
-
-    private fun sendSummaryNotification(context: Context, channelId: String) {
-        val summary = NotificationCompat.Builder(context, channelId)
-            .setSmallIcon(android.R.drawable.ic_dialog_info)
-            .setContentTitle("Mobiliyum")
-            .setContentText("Yeni bildirimleriniz var")
-            .setGroup(GROUP_ID)
-            .setGroupSummary(true)
-            .setAutoCancel(true)
-            .build()
-
-        try {
-            NotificationManagerCompat.from(context).notify(0, summary)
-        } catch (e: SecurityException) {}
     }
 
     fun clearAllNotifications(context: Context) {

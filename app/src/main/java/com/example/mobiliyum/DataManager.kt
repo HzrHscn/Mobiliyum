@@ -110,25 +110,27 @@ object DataManager {
         ids: List<String>,
         onDone: () -> Unit
     ) {
-        val chunks = ids.distinct().chunked(10)
+        // Boş liste kontrolü EN BAŞTA yap
+        val distinctIds = ids.distinct().mapNotNull { it.toIntOrNull() }
+
+        if (distinctIds.isEmpty()) {
+            // Güncelleme yok, sadece versiyonu kaydet
+            saveVersion(context, "productsVersion", serverVer)
+            clearUpdatedProductIds()
+            android.util.Log.d(TAG, "Ürün güncellemesi yok")
+            onDone()
+            return
+        }
+
+        val chunks = distinctIds.chunked(10)
         var finished = 0
+        val totalChunks = chunks.size
+
+        android.util.Log.d(TAG, "Ürün senkronizasyonu: ${distinctIds.size} ürün, $totalChunks chunk")
 
         chunks.forEach { chunk ->
-
-            val safeIds = chunk.mapNotNull { it.toIntOrNull() }
-
-            // 🔴 KRİTİK SATIR
-            if (safeIds.isEmpty()) {
-                if (++finished == chunks.size) {
-                    saveVersion(context, "productsVersion", serverVer)
-                    clearUpdatedProductIds()
-                    onDone()
-                }
-                return@forEach
-            }
-
             firestore.collection("products")
-                .whereIn("id", safeIds)
+                .whereIn("id", chunk)
                 .get()
                 .addOnSuccessListener { snap ->
                     snap.documents.forEach {
@@ -136,15 +138,20 @@ object DataManager {
                             updateProductInCache(context, p)
                         }
                     }
-                    if (++finished == chunks.size) {
+
+                    finished++
+                    android.util.Log.d(TAG, "Chunk tamamlandı: $finished/$totalChunks")
+
+                    if (finished == totalChunks) {
                         saveVersion(context, "productsVersion", serverVer)
                         clearUpdatedProductIds()
                         onDone()
                     }
                 }
                 .addOnFailureListener {
-                    Log.e(TAG, "Product delta failed", it)
-                    if (++finished == chunks.size) onDone()
+                    android.util.Log.e(TAG, "Product delta failed", it)
+                    finished++
+                    if (finished == totalChunks) onDone()
                 }
         }
     }
@@ -172,25 +179,25 @@ object DataManager {
         ids: List<String>,
         onDone: () -> Unit
     ) {
-        val chunks = ids.distinct().chunked(10)
+        val distinctIds = ids.distinct().mapNotNull { it.toIntOrNull() }
+
+        if (distinctIds.isEmpty()) {
+            saveVersion(context, "storesVersion", serverVer)
+            clearUpdatedStoreIds()
+            android.util.Log.d(TAG, "Mağaza güncellemesi yok")
+            onDone()
+            return
+        }
+
+        val chunks = distinctIds.chunked(10)
         var finished = 0
+        val totalChunks = chunks.size
+
+        android.util.Log.d(TAG, "Mağaza senkronizasyonu: ${distinctIds.size} mağaza, $totalChunks chunk")
 
         chunks.forEach { chunk ->
-
-            val safeIds = chunk.mapNotNull { it.toIntOrNull() }
-
-            // 🔴 KRİTİK SATIR
-            if (safeIds.isEmpty()) {
-                if (++finished == chunks.size) {
-                    saveVersion(context, "storesVersion", serverVer)
-                    clearUpdatedStoreIds()
-                    onDone()
-                }
-                return@forEach
-            }
-
             firestore.collection("stores")
-                .whereIn("id", safeIds)
+                .whereIn("id", chunk)
                 .get()
                 .addOnSuccessListener { snap ->
                     snap.documents.forEach {
@@ -198,15 +205,19 @@ object DataManager {
                             updateStoreInCache(context, s)
                         }
                     }
-                    if (++finished == chunks.size) {
+
+                    finished++
+
+                    if (finished == totalChunks) {
                         saveVersion(context, "storesVersion", serverVer)
                         clearUpdatedStoreIds()
                         onDone()
                     }
                 }
                 .addOnFailureListener {
-                    Log.e(TAG, "Store delta failed", it)
-                    if (++finished == chunks.size) onDone()
+                    android.util.Log.e(TAG, "Store delta failed", it)
+                    finished++
+                    if (finished == totalChunks) onDone()
                 }
         }
     }
@@ -358,76 +369,110 @@ object DataManager {
         onSuccess: (ArrayList<Product>) -> Unit,
         onError: (String) -> Unit
     ) {
+        android.util.Log.d(TAG, "📦 fetchProductsSmart çağrıldı")
+
+        // Context'i güvenli tut (Memory Leak önleme)
+        val appContext = context.applicationContext
+
         if (cachedProducts.isNotEmpty()) {
+            android.util.Log.d(TAG, "✅ Cache'den döndürülüyor: ${cachedProducts.size} ürün")
             onSuccess(ArrayList(cachedProducts))
             return
         }
 
+        android.util.Log.d(TAG, "🔄 Cache boş, Firestore'dan çekiliyor...")
+
         firestore.collection("products")
-            .get(Source.CACHE) // Önce cache
+            .get(Source.CACHE)
             .addOnSuccessListener { cached ->
                 if (!cached.isEmpty) {
+                    android.util.Log.d(TAG, "✅ Firestore cache'den yüklendi: ${cached.documents.size} ürün")
                     cachedProducts = ArrayList(cached.toObjects(Product::class.java))
                     onSuccess(ArrayList(cachedProducts))
                 } else {
-                    // Cache boş, server'dan çek
-                    fetchProductsFromServer(context, onSuccess, onError)
+                    android.util.Log.d(TAG, "⚠️ Cache boş, server'dan çekiliyor...")
+                    fetchProductsFromServer(appContext, onSuccess, onError)
                 }
             }
             .addOnFailureListener {
-                fetchProductsFromServer(context, onSuccess, onError)
+                android.util.Log.e(TAG, "❌ Cache okuma hatası: ${it.message}")
+                fetchProductsFromServer(appContext, onSuccess, onError)
             }
     }
+
     private fun fetchProductsFromServer(
         context: Context,
         onSuccess: (ArrayList<Product>) -> Unit,
         onError: (String) -> Unit
     ) {
+        android.util.Log.d(TAG, "🌐 Server'dan çekiliyor...")
+
         firestore.collection("products").get()
             .addOnSuccessListener { docs ->
                 cachedProducts = ArrayList(docs.toObjects(Product::class.java))
                 saveToDisk(context, FILE_PRODUCTS, cachedProducts)
+
+                android.util.Log.d(TAG, "✅ Server'dan yüklendi ve cache'e yazıldı: ${cachedProducts.size} ürün")
                 onSuccess(ArrayList(cachedProducts))
             }
             .addOnFailureListener {
+                android.util.Log.e(TAG, "❌ Server hatası: ${it.localizedMessage}")
                 onError(it.localizedMessage ?: "Ürün alınamadı")
             }
     }
+
     fun fetchStoresSmart(
         context: Context,
         onSuccess: (ArrayList<Store>) -> Unit,
         onError: (String) -> Unit
     ) {
+        android.util.Log.d(TAG, "🏪 fetchStoresSmart çağrıldı")
+
+        val appContext = context.applicationContext
+
         if (cachedStores.isNotEmpty()) {
+            android.util.Log.d(TAG, "✅ Cache'den döndürülüyor: ${cachedStores.size} mağaza")
             onSuccess(ArrayList(cachedStores))
             return
         }
+
+        android.util.Log.d(TAG, "🔄 Cache boş, Firestore'dan çekiliyor...")
+
         firestore.collection("stores")
             .get(Source.CACHE)
             .addOnSuccessListener { cached ->
                 if (!cached.isEmpty) {
+                    android.util.Log.d(TAG, "✅ Firestore cache'den yüklendi: ${cached.documents.size} mağaza")
                     cachedStores = ArrayList(cached.toObjects(Store::class.java))
                     onSuccess(ArrayList(cachedStores))
                 } else {
-                    fetchStoresFromServer(context, onSuccess, onError)
+                    android.util.Log.d(TAG, "⚠️ Cache boş, server'dan çekiliyor...")
+                    fetchStoresFromServer(appContext, onSuccess, onError)
                 }
             }
             .addOnFailureListener {
-                fetchStoresFromServer(context, onSuccess, onError)
+                android.util.Log.e(TAG, "❌ Cache okuma hatası: ${it.message}")
+                fetchStoresFromServer(appContext, onSuccess, onError)
             }
     }
+
     private fun fetchStoresFromServer(
         context: Context,
         onSuccess: (ArrayList<Store>) -> Unit,
         onError: (String) -> Unit
     ) {
+        android.util.Log.d(TAG, "🌐 Server'dan çekiliyor...")
+
         firestore.collection("stores").get()
             .addOnSuccessListener { docs ->
                 cachedStores = ArrayList(docs.toObjects(Store::class.java))
                 saveToDisk(context, FILE_STORES, cachedStores)
+
+                android.util.Log.d(TAG, "✅ Server'dan yüklendi ve cache'e yazıldı: ${cachedStores.size} mağaza")
                 onSuccess(ArrayList(cachedStores))
             }
             .addOnFailureListener {
+                android.util.Log.e(TAG, "❌ Server hatası: ${it.localizedMessage}")
                 onError(it.localizedMessage ?: "Mağaza alınamadı")
             }
     }

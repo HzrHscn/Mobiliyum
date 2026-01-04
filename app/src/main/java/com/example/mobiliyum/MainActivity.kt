@@ -62,21 +62,26 @@ class MainActivity : AppCompatActivity() {
         // 4. GİRİŞ VE VERİ YÜKLEME
         UserManager.checkSession { isLoggedIn ->
             if (isLoggedIn) {
+                android.util.Log.d("MainActivity", "✅ Kullanıcı oturum açık")
+
                 FavoritesManager.loadUserFavorites {
-                    loadFragment(storesFragment)
+                    android.util.Log.d("MainActivity", "✅ Favoriler yüklendi")
+
+                    loadFragment(storesFragment, addToBackStack = false)
                     binding.bottomNavigationView.visibility = View.VISIBLE
                     binding.bottomNavigationView.selectedItemId = R.id.nav_stores
 
-                    // === BİLDİRİM DİNLEYİCİLERİNİ BAŞLAT ===
+                    // ⚠️ KRİTİK: Favoriler yüklendikten SONRA listener'ları başlat
+                    android.util.Log.d("MainActivity", "🔔 Bildirim listener'ları başlatılıyor...")
                     startNotificationListeners()
                 }
 
-                // Bildirimden tıklandıysa
                 if (intent.getStringExtra("open_fragment") == "notifications") {
-                    loadFragment(notificationsFragment)
+                    loadFragment(notificationsFragment, addToBackStack = false)
                 }
             } else {
-                loadFragment(welcomeFragment)
+                android.util.Log.d("MainActivity", "❌ Kullanıcı oturum yok")
+                loadFragment(welcomeFragment, addToBackStack = false)
             }
         }
 
@@ -84,7 +89,23 @@ class MainActivity : AppCompatActivity() {
 
         // Veri Senkronizasyonu ve Reklam
         DataManager.syncDataSmart(this) { success ->
-            if (success && auth.currentUser != null) checkAndShowAd()
+            if (success) {
+                // Reklam config'i yüklendikten SONRA kontrol et
+                if (auth.currentUser != null) {
+                    checkAndShowAd()
+                }
+            }
+        }
+
+        // Offline banner kontrolü
+        NetworkMonitor.addListener { isOnline ->
+            runOnUiThread {
+                if (isOnline) {
+                    binding.tvOfflineBanner?.visibility = View.GONE
+                } else {
+                    binding.tvOfflineBanner?.visibility = View.VISIBLE
+                }
+            }
         }
     }
 
@@ -104,34 +125,72 @@ class MainActivity : AppCompatActivity() {
     // === BİLDİRİM DİNLEYİCİLERİ (OPTİMİZE) ===
 
     private fun startNotificationListeners() {
+        android.util.Log.d("MainActivity", "🚀 startNotificationListeners BAŞLADI")
+
         // Eski listener'ları temizle
         stopAllListeners()
 
+        val uid = auth.currentUser?.uid
+        if (uid == null) {
+            android.util.Log.e("MainActivity", "❌ UID yok, listener başlatılamadı")
+            return
+        }
+
+        android.util.Log.d("MainActivity", "👤 Kullanıcı UID: $uid")
+
         // 1. Fiyat alarmları
+        android.util.Log.d("MainActivity", "💰 Fiyat takibi başlatılıyor...")
         FavoritesManager.startRealTimePriceAlerts(this)
 
-        // 2. Kişisel bildirimler (Manager duyurusu vb.)
+        // 2. Kişisel bildirimler
+        android.util.Log.d("MainActivity", "👤 Kişisel bildirimler dinleniyor...")
         listenForUserNotifications()
 
-        // 3. Genel duyurular (THROTTLED - Son görülen kontrolü ile)
+        // 3. Genel duyurular
+        android.util.Log.d("MainActivity", "📢 Genel duyurular dinleniyor...")
         listenForGlobalAnnouncements()
+
+        android.util.Log.d("MainActivity", "✅ TÜM LISTENER'LAR BAŞLATILDI")
     }
 
     private fun listenForUserNotifications() {
-        val uid = auth.currentUser?.uid ?: return
+        val uid = auth.currentUser?.uid ?: run {
+            android.util.Log.e("MainActivity", "❌ listenForUserNotifications: UID yok!")
+            return
+        }
+
+        android.util.Log.d("MainActivity", "📝 Kullanıcı bildirim listener'ı kuruluyor: $uid")
 
         val listener = db.collection("users").document(uid)
             .collection("notifications")
             .whereEqualTo("isRead", false)
-            .limit(20) // Son 20 okunmamış bildirim
+            .orderBy("date", Query.Direction.DESCENDING)
+            .limit(20)
             .addSnapshotListener { snapshots, e ->
-                if (e != null || snapshots == null) return@addSnapshotListener
+                if (e != null) {
+                    android.util.Log.e("MainActivity", "❌ Snapshot hatası: ${e.message}")
+                    return@addSnapshotListener
+                }
 
-                for (doc in snapshots.documentChanges) {
-                    if (doc.type == DocumentChange.Type.ADDED) {
-                        val item = doc.document.toObject(NotificationItem::class.java)
+                if (snapshots == null) {
+                    android.util.Log.e("MainActivity", "❌ Snapshot null!")
+                    return@addSnapshotListener
+                }
 
-                        // Bildirim gönder (tip'e göre farklı kanal)
+                android.util.Log.d("MainActivity", "📦 Bildirim snapshot alındı - Toplam: ${snapshots.documents.size}, Değişiklik: ${snapshots.documentChanges.size}")
+
+                for (docChange in snapshots.documentChanges) {
+                    android.util.Log.d("MainActivity", "📝 Değişiklik tipi: ${docChange.type}")
+
+                    if (docChange.type == DocumentChange.Type.ADDED) {
+                        val item = docChange.document.toObject(NotificationItem::class.java)
+
+                        android.util.Log.d("MainActivity", "🔔 YENİ BİLDİRİM BULUNDU!")
+                        android.util.Log.d("MainActivity", "  📌 Başlık: ${item.title}")
+                        android.util.Log.d("MainActivity", "  📌 Mesaj: ${item.message}")
+                        android.util.Log.d("MainActivity", "  📌 Tip: ${item.type}")
+
+                        // Bildirimi gönder
                         NotificationHelper.sendNotification(
                             this,
                             item.title,
@@ -144,46 +203,54 @@ class MainActivity : AppCompatActivity() {
             }
 
         activeListeners.add(listener)
+        android.util.Log.d("MainActivity", "✅ Kullanıcı bildirim listener'ı eklendi - Aktif listener sayısı: ${activeListeners.size}")
     }
 
+
     private fun listenForGlobalAnnouncements() {
-        val prefs = getSharedPreferences("AppPrefs", Context.MODE_PRIVATE)
-        val lastCheckedTimestamp = prefs.getLong("last_announcement_check", 0)
+        android.util.Log.d("MainActivity", "📢 Genel duyuru listener'ı kuruluyor...")
 
         val listener = db.collection("announcements")
             .whereEqualTo("type", "general")
             .orderBy("date", Query.Direction.DESCENDING)
-            .limit(5) // Son 5 duyuru
+            .limit(5)
             .addSnapshotListener { snapshots, e ->
-                if (e != null || snapshots == null || snapshots.isEmpty) return@addSnapshotListener
-
-                for (change in snapshots.documentChanges) {
-                    if (change.type == DocumentChange.Type.ADDED) {
-                        val doc = change.document
-                        val timestamp = doc.getDate("date")?.time ?: 0L
-
-                        // Sadece son kontrolden sonraki duyuruları bildir
-                        if (timestamp > lastCheckedTimestamp) {
-                            val title = doc.getString("title") ?: "Duyuru"
-                            val message = doc.getString("message") ?: ""
-
-                            NotificationHelper.sendNotification(
-                                this,
-                                title,
-                                message,
-                                "general"
-                            )
-                        }
-                    }
+                if (e != null) {
+                    android.util.Log.e("MainActivity", "❌ Duyuru hatası: ${e.message}")
+                    return@addSnapshotListener
                 }
 
-                // Son kontrol zamanını güncelle
-                prefs.edit()
-                    .putLong("last_announcement_check", System.currentTimeMillis())
-                    .apply()
+                if (snapshots == null || snapshots.isEmpty) {
+                    android.util.Log.d("MainActivity", "📭 Duyuru yok")
+                    return@addSnapshotListener
+                }
+
+                android.util.Log.d("MainActivity", "📦 Duyuru snapshot - Toplam: ${snapshots.documents.size}, Değişiklik: ${snapshots.documentChanges.size}")
+
+                for (docChange in snapshots.documentChanges) {
+                    android.util.Log.d("MainActivity", "📝 Değişiklik tipi: ${docChange.type}")
+
+                    if (docChange.type == DocumentChange.Type.ADDED) {
+                        val doc = docChange.document
+                        val title = doc.getString("title") ?: "Duyuru"
+                        val message = doc.getString("message") ?: ""
+
+                        android.util.Log.d("MainActivity", "📢 YENİ DUYURU BULUNDU!")
+                        android.util.Log.d("MainActivity", "  📌 Başlık: $title")
+                        android.util.Log.d("MainActivity", "  📌 Mesaj: $message")
+
+                        NotificationHelper.sendNotification(
+                            this,
+                            title,
+                            message,
+                            "general"
+                        )
+                    }
+                }
             }
 
         activeListeners.add(listener)
+        android.util.Log.d("MainActivity", "✅ Duyuru listener'ı eklendi - Aktif listener sayısı: ${activeListeners.size}")
     }
 
     private fun stopAllListeners() {
@@ -196,19 +263,33 @@ class MainActivity : AppCompatActivity() {
         val adConfig = DataManager.currentAdConfig
         val now = System.currentTimeMillis()
 
-        if (adConfig != null && adConfig.isActive && adConfig.imageUrl.isNotEmpty()) {
-            if (now < adConfig.endDate) {
-                // Son gösterim zamanını kontrol et (günde 1 kez göster)
-                val prefs = getSharedPreferences("AppPrefs", Context.MODE_PRIVATE)
-                val lastShown = prefs.getLong("last_ad_shown", 0)
-                val oneDayMs = 24 * 60 * 60 * 1000L
-
-                if (now - lastShown > oneDayMs) {
-                    showAdDialog(adConfig)
-                    prefs.edit().putLong("last_ad_shown", now).apply()
-                }
-            }
+        // Reklam var mı ve aktif mi?
+        if (adConfig == null || !adConfig.isActive || adConfig.imageUrl.isEmpty()) {
+            android.util.Log.d("AdSystem", "Reklam yok veya aktif değil")
+            return
         }
+
+        // Süre dolmuş mu?
+        if (now >= adConfig.endDate) {
+            android.util.Log.d("AdSystem", "Reklam süresi dolmuş")
+            return
+        }
+
+        // HER AÇILIŞTA GÖSTER (Session başına 1 kez)
+        val prefs = getSharedPreferences("AppPrefs", Context.MODE_PRIVATE)
+        val lastShownSession = prefs.getLong("last_ad_shown_session", 0)
+
+        // 10 saniye içinde tekrar gösterme (hızlı açıp kapama durumu)
+        if (now - lastShownSession < 10000) {
+            android.util.Log.d("AdSystem", "Reklam 10 saniye içinde zaten gösterildi")
+            return
+        }
+
+        android.util.Log.d("AdSystem", "Reklam gösteriliyor")
+        showAdDialog(adConfig)
+
+        // Bu session için kaydet
+        prefs.edit().putLong("last_ad_shown_session", now).apply()
     }
 
     private fun showAdDialog(adConfig: AdConfig) {
@@ -298,21 +379,40 @@ class MainActivity : AppCompatActivity() {
     }*/
 
     fun loadFragment(fragment: Fragment, addToBackStack: Boolean = true) {
+        android.util.Log.d("MainActivity", "Fragment yükleniyor: ${fragment.javaClass.simpleName}")
+
         val tx = supportFragmentManager.beginTransaction()
             .setCustomAnimations(android.R.anim.fade_in, android.R.anim.fade_out)
             .replace(R.id.fragmentContainer, fragment)
 
-        if (addToBackStack) tx.addToBackStack(null)
+        if (addToBackStack) {
+            tx.addToBackStack(null)
+        }
+
         tx.commit()
     }
 
     private fun setupNavigation() {
         binding.bottomNavigationView.setOnItemSelectedListener { item ->
+            android.util.Log.d("MainActivity", "Nav item seçildi: ${item.itemId}")
+
             when (item.itemId) {
-                R.id.nav_stores -> { loadFragment(storesFragment); false } //false yaptım sil
-                R.id.nav_products -> { loadFragment(productsFragment); false } //false yaptım sil
-                R.id.nav_cart -> { loadFragment(cartFragment); false } //false yaptım sil
-                R.id.nav_profile -> { loadFragment(accountFragment); false } //false yaptım sil
+                R.id.nav_stores -> {
+                    loadFragment(storesFragment, addToBackStack = false)
+                    true // ✅ true dönmeli ki seçim güncellensin
+                }
+                R.id.nav_products -> {
+                    loadFragment(productsFragment, addToBackStack = false)
+                    true
+                }
+                R.id.nav_cart -> {
+                    loadFragment(cartFragment, addToBackStack = false)
+                    true
+                }
+                R.id.nav_profile -> {
+                    loadFragment(accountFragment, addToBackStack = false)
+                    true
+                }
                 else -> false
             }
         }
@@ -320,9 +420,14 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        /*if (UserManager.isLoggedIn()) { tek yerden çalışsın sil
-            FavoritesManager.startRealTimePriceAlerts(this)
-        }*/
+        android.util.Log.d("MainActivity", "onResume çağrıldı")
+
+        if (UserManager.isLoggedIn()) {
+            android.util.Log.d("MainActivity", "Kullanıcı giriş yapmış, listener'lar başlatılıyor")
+            startNotificationListeners()
+        } else {
+            android.util.Log.d("MainActivity", "Kullanıcı giriş yapmamış")
+        }
     }
 
     override fun onPause() {
@@ -372,6 +477,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     fun switchToTab(tabId: Int) {
+        android.util.Log.d("MainActivity", "switchToTab çağrıldı: $tabId")
+
+        // Programatik olarak seçim yaparken listener tetiklenir
         binding.bottomNavigationView.selectedItemId = tabId
     }
 }

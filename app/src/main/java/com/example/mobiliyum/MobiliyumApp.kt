@@ -21,5 +21,23 @@ class MobiliyumApp : Application() {
             .build()
 
         FirebaseFirestore.getInstance().firestoreSettings = settings
+
+        // ⚠️ KRİTİK: Bildirim kanallarını BURADA oluştur
+        android.util.Log.d("MobiliyumApp", "🔔 Bildirim kanalları oluşturuluyor...")
+        NotificationHelper.createNotificationChannels(this)
+
+        NetworkMonitor.initialize(this)
+
+        NetworkMonitor.addListener { isOnline ->
+            if (isOnline) {
+                Log.d("App", "✅ İnternet geri geldi, senkronizasyon başlatılıyor...")
+                // Otomatik senkronizasyon
+                DataManager.syncDataSmart(this, onComplete = {
+                    Log.d("App", "✅ Senkronizasyon tamamlandı")
+                })
+            } else {
+                Log.d("App", "⚠️ Offline moda geçildi")
+            }
+        }
     }
 }

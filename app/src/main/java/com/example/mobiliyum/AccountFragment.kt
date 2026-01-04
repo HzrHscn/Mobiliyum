@@ -46,20 +46,47 @@ class AccountFragment : Fragment() {
         binding.btnLogin.setOnClickListener {
             val email = binding.etLoginEmail.text.toString().trim()
             val pass = binding.etLoginPassword.text.toString().trim()
-            if (email.isEmpty() || pass.isEmpty()) return@setOnClickListener
+
+            if (email.isEmpty() || pass.isEmpty()) {
+                Toast.makeText(context, "Lütfen tüm alanları doldurun.", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+
+            // Loading göster
+            binding.btnLogin.isEnabled = false
+            binding.btnLogin.text = "Giriş yapılıyor..."
 
             UserManager.login(email, pass,
                 onSuccess = {
                     FavoritesManager.loadUserFavorites {
                         Toast.makeText(context, "Giriş Başarılı!", Toast.LENGTH_SHORT).show()
                         (activity as? MainActivity)?.showBottomNav()
+
+                        // StoresFragment'a git (HomeFragment değil)
                         parentFragmentManager.beginTransaction()
-                            .replace(R.id.fragmentContainer, HomeFragment())
+                            .replace(R.id.fragmentContainer, StoresFragment())
                             .commit()
+
+                        // Bottom navigation'ı da güncelle
+                        (activity as? MainActivity)?.binding?.bottomNavigationView?.selectedItemId = R.id.nav_stores
                     }
                 },
                 onFailure = { errorMessage ->
-                    Toast.makeText(context, "Hata: $errorMessage", Toast.LENGTH_LONG).show()
+                    binding.btnLogin.isEnabled = true
+                    binding.btnLogin.text = "Giriş Yap"
+
+                    // Daha anlaşılır hata mesajları
+                    val message = when {
+                        errorMessage.contains("email", ignoreCase = true) ->
+                            "Email doğrulanmamış! Lütfen gelen kutunuzu kontrol edin."
+                        errorMessage.contains("password", ignoreCase = true) ->
+                            "Hatalı şifre."
+                        errorMessage.contains("user", ignoreCase = true) ->
+                            "Bu email ile kayıtlı kullanıcı bulunamadı."
+                        else -> "Hata: $errorMessage"
+                    }
+
+                    Toast.makeText(context, message, Toast.LENGTH_LONG).show()
                 }
             )
         }

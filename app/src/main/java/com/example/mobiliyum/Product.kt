@@ -30,4 +30,18 @@ data class Product(
     // YENİ: Ürün Aktif mi?
     val isActive: Boolean = true
 
-) : Parcelable
+) : Parcelable {
+
+    // ⚠️ KRİTİK: quantity değişkenken equals ve hashCode doğru çalışmalı
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is Product) return false
+
+        // ID ile karşılaştır (quantity değişse de aynı ürün)
+        return id == other.id
+    }
+
+    override fun hashCode(): Int {
+        return id.hashCode()
+    }
+}

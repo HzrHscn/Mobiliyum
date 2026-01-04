@@ -62,7 +62,7 @@ class CartFragment : Fragment() {
         binding.rvCartItems.adapter = cartAdapter
     }
 
-    private fun loadCart() {
+    /**private fun loadCart() {
         val items = CartManager.getCartItems()
         val isCartEmpty = items.isEmpty()
 
@@ -80,6 +80,34 @@ class CartFragment : Fragment() {
             // SORUN ÇÖZÜMÜ: Listeyi her seferinde YENİ bir liste olarak gönderiyoruz.
             // map { it.copy() } -> Deep copy yaparak referansın tamamen değişmesini sağlıyoruz.
             cartAdapter?.submitList(ArrayList(items))
+
+            updateTotal()
+        }
+
+        (activity as? MainActivity)?.updateCartBadge()
+    }*/
+
+    private fun loadCart() {
+        val items = CartManager.getCartItems()
+        val isCartEmpty = items.isEmpty()
+
+        binding.layoutEmptyCart.isVisible = isCartEmpty
+        binding.layoutCartContent.isVisible = !isCartEmpty
+        binding.footerLayout.isVisible = !isCartEmpty
+        binding.btnClearCart.isVisible = !isCartEmpty
+
+        if (isCartEmpty) {
+            binding.rvSuggestions.isVisible = true
+            loadSuggestions()
+        } else {
+            binding.rvSuggestions.isVisible = false
+
+            // ✅ ÇÖZÜM: Her seferinde YENİ bir liste referansı oluştur
+            // ArrayList constructor'ı kullanarak tamamen yeni bir nesne
+            cartAdapter?.submitList(ArrayList(items)) {
+                // Scroll pozisyonunu koru (opsiyonel)
+                binding.rvCartItems.scrollToPosition(0)
+            }
 
             updateTotal()
         }

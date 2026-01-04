@@ -46,6 +46,10 @@ class StoresFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
+        if (!NetworkMonitor.isOnline()) {
+            Toast.makeText(context, "Çevrimdışı mod - Eski veriler gösteriliyor", Toast.LENGTH_SHORT).show()
+        }
+
         binding.rvStores.layoutManager = LinearLayoutManager(context)
         binding.rvStores.setHasFixedSize(true)
 

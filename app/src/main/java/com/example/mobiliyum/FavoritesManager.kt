@@ -62,65 +62,84 @@ object FavoritesManager {
 
     fun loadUserFavorites(onComplete: () -> Unit) {
         val uid = auth.currentUser?.uid ?: run {
+            android.util.Log.e("FavoritesManager", "❌ UID yok, giriş yapılmamış!")
             onComplete()
             return
         }
+
+        android.util.Log.d("FavoritesManager", "📂 loadUserFavorites başladı - UID: $uid")
 
         // Cache geçerliyse Firebase'e gitme
         if (isCacheValid() && localFavorites.isNotEmpty()) {
+            android.util.Log.d("FavoritesManager", "✅ Cache geçerli, Firebase'e gidilmedi")
             onComplete()
             return
         }
 
+        android.util.Log.d("FavoritesManager", "🔄 Firebase'den favoriler yükleniyor...")
+
         // BATCH READ: Tek sorguda hem favoriler hem mağaza takipleri
-        val batch = db.batch()
         var completedTasks = 0
         val totalTasks = 2
 
-        // 1. Favorileri cache'den çek (offline persistence)
+        // 1. Favorileri yükle
         db.collection("users").document(uid).collection("favorites")
-            .get(Source.CACHE) // Önce cache'e bak
-            .addOnSuccessListener { cachedDocs ->
-                if (cachedDocs.isEmpty) {
-                    // Cache boşsa server'dan çek
-                    fetchFavoritesFromServer(uid) {
-                        completedTasks++
-                        if (completedTasks == totalTasks) onComplete()
+            .get()
+            .addOnSuccessListener { docs ->
+                android.util.Log.d("FavoritesManager", "📦 Favori dökümanları alındı: ${docs.size()} adet")
+
+                localFavorites.clear()
+                priceCache.clear()
+
+                for (doc in docs) {
+                    val pid = doc.getString("productId")?.toIntOrNull()
+                    val lastPrice = doc.getDouble("lastNotifiedPrice")
+
+                    if (pid != null) {
+                        localFavorites.add(pid)
+                        if (lastPrice != null) {
+                            priceCache[pid.toString()] = lastPrice
+                        }
+                        android.util.Log.d("FavoritesManager", "  ➕ Favori eklendi: Ürün #$pid")
                     }
-                } else {
-                    processFavorites(cachedDocs.documents)
-                    completedTasks++
-                    if (completedTasks == totalTasks) onComplete()
                 }
+
+                saveToLocalCache()
+                android.util.Log.d("FavoritesManager", "✅ Favoriler yüklendi: ${localFavorites.size} ürün")
+
+                completedTasks++
+                if (completedTasks == totalTasks) onComplete()
             }
-            .addOnFailureListener {
-                // Cache hatası varsa server'dan çek
-                fetchFavoritesFromServer(uid) {
-                    completedTasks++
-                    if (completedTasks == totalTasks) onComplete()
-                }
+            .addOnFailureListener { e ->
+                android.util.Log.e("FavoritesManager", "❌ Favori yükleme hatası: ${e.message}")
+                completedTasks++
+                if (completedTasks == totalTasks) onComplete()
             }
 
         // 2. Mağaza takiplerini yükle
         db.collection("users").document(uid).collection("followed_stores")
-            .get(Source.CACHE)
-            .addOnSuccessListener { cachedStores ->
-                if (cachedStores.isEmpty) {
-                    fetchFollowedStoresFromServer(uid) {
-                        completedTasks++
-                        if (completedTasks == totalTasks) onComplete()
+            .get()
+            .addOnSuccessListener { docs ->
+                android.util.Log.d("FavoritesManager", "📦 Takip edilen mağazalar alındı: ${docs.size()} adet")
+
+                followedStoreIds.clear()
+                for (doc in docs) {
+                    doc.getLong("storeId")?.toInt()?.let {
+                        followedStoreIds.add(it)
+                        android.util.Log.d("FavoritesManager", "  ➕ Mağaza takip ediliyor: #$it")
                     }
-                } else {
-                    processFollowedStores(cachedStores.documents)
-                    completedTasks++
-                    if (completedTasks == totalTasks) onComplete()
                 }
+
+                saveToLocalCache()
+                android.util.Log.d("FavoritesManager", "✅ Mağaza takipleri yüklendi: ${followedStoreIds.size} mağaza")
+
+                completedTasks++
+                if (completedTasks == totalTasks) onComplete()
             }
-            .addOnFailureListener {
-                fetchFollowedStoresFromServer(uid) {
-                    completedTasks++
-                    if (completedTasks == totalTasks) onComplete()
-                }
+            .addOnFailureListener { e ->
+                android.util.Log.e("FavoritesManager", "❌ Mağaza takip yükleme hatası: ${e.message}")
+                completedTasks++
+                if (completedTasks == totalTasks) onComplete()
             }
     }
 
@@ -173,30 +192,67 @@ object FavoritesManager {
     // === FİYAT TAKİBİ (OPTİMİZE - EN ÖNEMLİ KISIM) ===
 
     fun startRealTimePriceAlerts(context: Context) {
-        val uid = auth.currentUser?.uid ?: return
+        val uid = auth.currentUser?.uid ?: run {
+            android.util.Log.e("FavoritesManager", "UID yok!")
+            return
+        }
 
-        // Eski listener'ları temizle (MEMORY LEAK ÖNLENİYOR)
+        // Eski listener'ları temizle
         stopAllListeners()
 
-        if (localFavorites.isEmpty()) return
-
-        // TOPLU SORGULAMA: Tek listener ile tüm favorileri dinle
-        // ❌ YANLIŞ: Her ürün için ayrı listener (100 ürün = 100 read/sn)
-        // ✅ DOĞRU: whereIn ile toplu dinleme (100 ürün = 1 read başlangıç + değişiklik olanlar)
+        if (localFavorites.isEmpty()) {
+            android.util.Log.d("FavoritesManager", "Favori yok, fiyat takibi başlatılmadı")
+            return
+        }
 
         val favoriteIdsList = localFavorites.toList()
 
-        // Firestore whereIn limiti 10, bu yüzden chunk'lara böl
+        android.util.Log.d("FavoritesManager", "🔔 Fiyat takibi başlatılıyor: ${favoriteIdsList.size} ürün")
+
+        // İlk açılışta mevcut fiyatları cache'e al (bildirim gönderme)
+        var isInitialLoad = priceCache.isEmpty()
+
         favoriteIdsList.chunked(10).forEach { chunk ->
             val listener = db.collection("products")
                 .whereIn("id", chunk)
                 .addSnapshotListener { snapshots, error ->
-                    if (error != null || snapshots == null) return@addSnapshotListener
+                    if (error != null) {
+                        android.util.Log.e("FavoritesManager", "❌ Snapshot hatası: ${error.message}")
+                        return@addSnapshotListener
+                    }
 
-                    // Sadece değişen dökümanları kontrol et
+                    if (snapshots == null) {
+                        android.util.Log.e("FavoritesManager", "❌ Snapshot null!")
+                        return@addSnapshotListener
+                    }
+
+                    android.util.Log.d("FavoritesManager", "📦 Snapshot alındı: ${snapshots.documents.size} ürün, ${snapshots.documentChanges.size} değişiklik")
+
+                    // İLK YÜKLEME: Sadece cache'e kaydet
+                    if (isInitialLoad) {
+                        android.util.Log.d("FavoritesManager", "⏳ İlk yükleme - sadece cache'e kaydediliyor")
+                        for (doc in snapshots.documents) {
+                            val productId = doc.getLong("id")?.toString() ?: continue
+                            val currentPriceStr = doc.getString("price") ?: continue
+                            val currentPrice = PriceUtils.parsePrice(currentPriceStr)
+
+                            priceCache[productId] = currentPrice
+                            android.util.Log.d("FavoritesManager", "  💾 Cache: Ürün #$productId = $currentPrice")
+                        }
+                        isInitialLoad = false
+                        return@addSnapshotListener
+                    }
+
+                    // SONRAKI GÜNCELLEMELER: Sadece değişenleri kontrol et
                     for (docChange in snapshots.documentChanges) {
-                        if (docChange.type == com.google.firebase.firestore.DocumentChange.Type.MODIFIED) {
+                        val changeType = docChange.type
+                        android.util.Log.d("FavoritesManager", "📝 Değişiklik tipi: $changeType")
+
+                        if (changeType == com.google.firebase.firestore.DocumentChange.Type.MODIFIED) {
                             val doc = docChange.document
+                            val productId = doc.getLong("id")?.toString() ?: continue
+
+                            android.util.Log.d("FavoritesManager", "🔄 Ürün #$productId değişti, kontrol ediliyor...")
                             checkPriceChange(context, uid, doc)
                         }
                     }
@@ -204,57 +260,90 @@ object FavoritesManager {
 
             activeListeners.add(listener)
         }
+
+        android.util.Log.d("FavoritesManager", "✅ Listener'lar eklendi: ${activeListeners.size} adet")
     }
 
+    // checkPriceChange metodunu da düzelt:
     private fun checkPriceChange(
         context: Context,
         uid: String,
         doc: com.google.firebase.firestore.DocumentSnapshot
     ) {
-        val productId = doc.getLong("id")?.toString() ?: return
-        val currentPriceStr = doc.getString("price") ?: return
+        val productId = doc.getLong("id")?.toString() ?: run {
+            android.util.Log.e("FavoritesManager", "❌ Ürün ID yok!")
+            return
+        }
+
+        val productName = doc.getString("name") ?: "Ürün"
+        val currentPriceStr = doc.getString("price") ?: run {
+            android.util.Log.e("FavoritesManager", "❌ Fiyat string yok!")
+            return
+        }
+
         val currentPrice = PriceUtils.parsePrice(currentPriceStr)
 
-        // Cache'deki son fiyatı kontrol et (Firestore read yok!)
-        val lastKnownPrice = priceCache[productId] ?: currentPrice
+        android.util.Log.d("FavoritesManager", "💰 Ürün #$productId ($productName): Güncel fiyat = $currentPrice")
 
-        // Fiyat düşmediyse işlem yapma
-        if (currentPrice >= lastKnownPrice) {
+        // Cache'deki son fiyatı kontrol et
+        val lastKnownPrice = priceCache[productId]
+
+        if (lastKnownPrice == null) {
+            android.util.Log.d("FavoritesManager", "  ℹ️ İlk fiyat kaydı: $currentPrice")
             priceCache[productId] = currentPrice
             return
         }
+
+        android.util.Log.d("FavoritesManager", "  📊 Son bilinen fiyat: $lastKnownPrice → Yeni fiyat: $currentPrice")
+
+        // Fiyat düşmediyse işlem yapma
+        if (currentPrice >= lastKnownPrice) {
+            android.util.Log.d("FavoritesManager", "  ⬆️ Fiyat düşmedi (eşit veya arttı)")
+            priceCache[productId] = currentPrice
+            return
+        }
+
+        // FIYAT DÜŞTÜ!
+        val priceDropPercent = ((lastKnownPrice - currentPrice) / lastKnownPrice * 100).toInt()
+        android.util.Log.d("FavoritesManager", "  🎉 FİYAT DÜŞTÜ! %$priceDropPercent indirim!")
 
         // THROTTLING: Son 5 dakikada bildirim atıldıysa tekrar atma
         val now = System.currentTimeMillis()
         val lastNotifTime = lastNotificationTime[productId] ?: 0
 
         if (now - lastNotifTime < NOTIFICATION_COOLDOWN_MS) {
-            // Fiyatı cache'e kaydet ama bildirim atma
+            android.util.Log.d("FavoritesManager", "  ⏸️ Throttling: Son bildirimden ${(now - lastNotifTime) / 1000}s geçti")
             priceCache[productId] = currentPrice
             return
         }
 
-        // === BİLDİRİM GÖNDER ===
-        val productName = doc.getString("name") ?: "Ürün"
-        val priceDropPercent = ((lastKnownPrice - currentPrice) / lastKnownPrice * 100).toInt()
+        // BİLDİRİM GÖNDER
+        android.util.Log.d("FavoritesManager", "  🔔 BİLDİRİM GÖNDERİLİYOR!")
 
         NotificationHelper.sendNotification(
             context,
             "💰 %$priceDropPercent İndirim!",
-            "$productName fiyatı düştü! ${PriceUtils.formatPriceStyled(currentPrice)}"
+            "$productName fiyatı düştü! ${PriceUtils.formatPriceStyled(currentPrice)}",
+            "price_alert",
+            productId
         )
-
-        // Bildirim kaydını Firestore'a kaydet (ASYNC - UI bloklama yok)
-        savePriceAlertNotification(uid, productId, productName, lastKnownPrice, currentPrice)
 
         // Cache güncelle
         priceCache[productId] = currentPrice
         lastNotificationTime[productId] = now
 
-        // Firebase'deki lastNotifiedPrice'ı güncelle (BATCH ile optimize edilebilir)
+        // Firebase'deki lastNotifiedPrice'ı güncelle
+        savePriceAlertNotification(uid, productId, productName, lastKnownPrice, currentPrice)
+
         db.collection("users").document(uid)
             .collection("favorites").document(productId)
             .update("lastNotifiedPrice", currentPrice)
+            .addOnSuccessListener {
+                android.util.Log.d("FavoritesManager", "  ✅ Firebase güncellendi")
+            }
+            .addOnFailureListener {
+                android.util.Log.e("FavoritesManager", "  ❌ Firebase güncelleme hatası: ${it.message}")
+            }
     }
 
     private fun savePriceAlertNotification(
