@@ -13,12 +13,12 @@ import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
+import com.example.mobiliyum.Store
 import com.example.mobiliyum.databinding.FragmentStoreDetailBinding
 import com.example.mobiliyum.databinding.ItemCategoryGroupBinding
 import com.google.firebase.firestore.FirebaseFirestore
 
 class StoreDetailFragment : Fragment() {
-
     private var _binding: FragmentStoreDetailBinding? = null
     private val binding get() = _binding!!
     private lateinit var categoryAdapter: CategoryAdapter

@@ -64,6 +64,9 @@ class MainActivity : AppCompatActivity() {
             if (isLoggedIn) {
                 android.util.Log.d("MainActivity", "✅ Kullanıcı oturum açık")
 
+                // İlk açılış kontrolü
+                initializeNotificationTracking()
+
                 FavoritesManager.loadUserFavorites {
                     android.util.Log.d("MainActivity", "✅ Favoriler yüklendi")
 
@@ -71,7 +74,7 @@ class MainActivity : AppCompatActivity() {
                     binding.bottomNavigationView.visibility = View.VISIBLE
                     binding.bottomNavigationView.selectedItemId = R.id.nav_stores
 
-                    // ⚠️ KRİTİK: Favoriler yüklendikten SONRA listener'ları başlat
+                    // Listener'ları başlat
                     android.util.Log.d("MainActivity", "🔔 Bildirim listener'ları başlatılıyor...")
                     startNotificationListeners()
                 }
@@ -122,6 +125,21 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun initializeNotificationTracking() {
+        val prefs = getSharedPreferences("NotificationPrefs", Context.MODE_PRIVATE)
+
+        // Eğer hiç ayarlanmamışsa (ilk açılış)
+        if (!prefs.contains("last_seen_user_notification")) {
+            // Şu anki zamanı kaydet (geçmiş bildirimleri gösterme)
+            val now = System.currentTimeMillis()
+            prefs.edit()
+                .putLong("last_seen_user_notification", now)
+                .putLong("last_seen_announcement", now)
+                .apply()
+            android.util.Log.d("MainActivity", "🆕 İlk açılış - Bildirim takibi başlatıldı")
+        }
+    }
+
     // === BİLDİRİM DİNLEYİCİLERİ (OPTİMİZE) ===
 
     private fun startNotificationListeners() {
@@ -161,11 +179,17 @@ class MainActivity : AppCompatActivity() {
 
         android.util.Log.d("MainActivity", "📝 Kullanıcı bildirim listener'ı kuruluyor: $uid")
 
+        // SharedPreferences'tan son görülen bildirim zamanını al
+        val prefs = getSharedPreferences("NotificationPrefs", Context.MODE_PRIVATE)
+        val lastSeenTimestamp = prefs.getLong("last_seen_user_notification", 0L)
+
+        android.util.Log.d("MainActivity", "📅 Son görülen bildirim: ${java.text.SimpleDateFormat("dd.MM.yyyy HH:mm", java.util.Locale.getDefault()).format(java.util.Date(lastSeenTimestamp))}")
+
         val listener = db.collection("users").document(uid)
             .collection("notifications")
             .whereEqualTo("isRead", false)
             .orderBy("date", Query.Direction.DESCENDING)
-            .limit(20)
+            .limit(10)
             .addSnapshotListener { snapshots, e ->
                 if (e != null) {
                     android.util.Log.e("MainActivity", "❌ Snapshot hatası: ${e.message}")
@@ -179,41 +203,66 @@ class MainActivity : AppCompatActivity() {
 
                 android.util.Log.d("MainActivity", "📦 Bildirim snapshot alındı - Toplam: ${snapshots.documents.size}, Değişiklik: ${snapshots.documentChanges.size}")
 
-                for (docChange in snapshots.documentChanges) {
-                    android.util.Log.d("MainActivity", "📝 Değişiklik tipi: ${docChange.type}")
+                var newNotificationCount = 0
+                val currentTime = System.currentTimeMillis()
 
+                for (docChange in snapshots.documentChanges) {
+                    // Sadece YENİ eklenen bildirimleri kontrol et
                     if (docChange.type == DocumentChange.Type.ADDED) {
                         val item = docChange.document.toObject(NotificationItem::class.java)
+                        val notifTimestamp = item.date.time
 
-                        android.util.Log.d("MainActivity", "🔔 YENİ BİLDİRİM BULUNDU!")
-                        android.util.Log.d("MainActivity", "  📌 Başlık: ${item.title}")
-                        android.util.Log.d("MainActivity", "  📌 Mesaj: ${item.message}")
-                        android.util.Log.d("MainActivity", "  📌 Tip: ${item.type}")
+                        // ⚠️ KRİTİK: Sadece son görülenden SONRA oluşan bildirimleri göster
+                        if (notifTimestamp > lastSeenTimestamp) {
+                            android.util.Log.d("MainActivity", "🔔 YENİ BİLDİRİM!")
+                            android.util.Log.d("MainActivity", "  📌 Başlık: ${item.title}")
+                            android.util.Log.d("MainActivity", "  📌 Zaman: ${java.text.SimpleDateFormat("dd.MM HH:mm", java.util.Locale.getDefault()).format(item.date)}")
 
-                        // Bildirimi gönder
-                        NotificationHelper.sendNotification(
-                            this,
-                            item.title,
-                            item.message,
-                            item.type,
-                            item.relatedId
-                        )
+                            // Bildirimi gönder
+                            NotificationHelper.sendNotification(
+                                this,
+                                item.title,
+                                item.message,
+                                item.type,
+                                item.relatedId
+                            )
+
+                            newNotificationCount++
+                        } else {
+                            android.util.Log.d("MainActivity", "⏭️ ESKİ BİLDİRİM ATLANDI: ${item.title}")
+                        }
                     }
+                }
+
+                android.util.Log.d("MainActivity", "✅ Gösterilen yeni bildirim: $newNotificationCount")
+
+                // Son görülme zamanını GÜNCELLE (şu anki zaman)
+                if (newNotificationCount > 0) {
+                    prefs.edit()
+                        .putLong("last_seen_user_notification", currentTime)
+                        .apply()
+                    android.util.Log.d("MainActivity", "💾 Son görülme zamanı güncellendi")
                 }
             }
 
         activeListeners.add(listener)
-        android.util.Log.d("MainActivity", "✅ Kullanıcı bildirim listener'ı eklendi - Aktif listener sayısı: ${activeListeners.size}")
+        android.util.Log.d("MainActivity", "✅ Kullanıcı bildirim listener'ı eklendi")
     }
 
 
     private fun listenForGlobalAnnouncements() {
         android.util.Log.d("MainActivity", "📢 Genel duyuru listener'ı kuruluyor...")
 
+        // SharedPreferences'tan son görülen duyuru zamanını al
+        val prefs = getSharedPreferences("NotificationPrefs", Context.MODE_PRIVATE)
+        val lastSeenTimestamp = prefs.getLong("last_seen_announcement", 0L)
+
+        android.util.Log.d("MainActivity", "📅 Son görülen duyuru: ${java.text.SimpleDateFormat("dd.MM.yyyy HH:mm", java.util.Locale.getDefault()).format(java.util.Date(lastSeenTimestamp))}")
+
         val listener = db.collection("announcements")
             .whereEqualTo("type", "general")
             .orderBy("date", Query.Direction.DESCENDING)
-            .limit(5)
+            .limit(5) // Son 5 duyuruyu dinle
             .addSnapshotListener { snapshots, e ->
                 if (e != null) {
                     android.util.Log.e("MainActivity", "❌ Duyuru hatası: ${e.message}")
@@ -227,30 +276,51 @@ class MainActivity : AppCompatActivity() {
 
                 android.util.Log.d("MainActivity", "📦 Duyuru snapshot - Toplam: ${snapshots.documents.size}, Değişiklik: ${snapshots.documentChanges.size}")
 
-                for (docChange in snapshots.documentChanges) {
-                    android.util.Log.d("MainActivity", "📝 Değişiklik tipi: ${docChange.type}")
+                var newAnnouncementCount = 0
+                val currentTime = System.currentTimeMillis()
 
+                for (docChange in snapshots.documentChanges) {
+                    // Sadece YENİ eklenen duyuruları kontrol et
                     if (docChange.type == DocumentChange.Type.ADDED) {
                         val doc = docChange.document
-                        val title = doc.getString("title") ?: "Duyuru"
-                        val message = doc.getString("message") ?: ""
+                        val announcementDate = doc.getDate("date")
+                        val announcementTimestamp = announcementDate?.time ?: 0L
 
-                        android.util.Log.d("MainActivity", "📢 YENİ DUYURU BULUNDU!")
-                        android.util.Log.d("MainActivity", "  📌 Başlık: $title")
-                        android.util.Log.d("MainActivity", "  📌 Mesaj: $message")
+                        // ⚠️ KRİTİK: Sadece son görülenden SONRA oluşan duyuruları göster
+                        if (announcementTimestamp > lastSeenTimestamp) {
+                            val title = doc.getString("title") ?: "Duyuru"
+                            val message = doc.getString("message") ?: ""
 
-                        NotificationHelper.sendNotification(
-                            this,
-                            title,
-                            message,
-                            "general"
-                        )
+                            android.util.Log.d("MainActivity", "📢 YENİ DUYURU!")
+                            android.util.Log.d("MainActivity", "  📌 Başlık: $title")
+
+                            NotificationHelper.sendNotification(
+                                this,
+                                title,
+                                message,
+                                "general"
+                            )
+
+                            newAnnouncementCount++
+                        } else {
+                            android.util.Log.d("MainActivity", "⏭️ ESKİ DUYURU ATLANDI")
+                        }
                     }
+                }
+
+                android.util.Log.d("MainActivity", "✅ Gösterilen yeni duyuru: $newAnnouncementCount")
+
+                // Son görülme zamanını GÜNCELLE
+                if (newAnnouncementCount > 0) {
+                    prefs.edit()
+                        .putLong("last_seen_announcement", currentTime)
+                        .apply()
+                    android.util.Log.d("MainActivity", "💾 Son görülme zamanı güncellendi")
                 }
             }
 
         activeListeners.add(listener)
-        android.util.Log.d("MainActivity", "✅ Duyuru listener'ı eklendi - Aktif listener sayısı: ${activeListeners.size}")
+        android.util.Log.d("MainActivity", "✅ Duyuru listener'ı eklendi")
     }
 
     private fun stopAllListeners() {
@@ -346,19 +416,27 @@ class MainActivity : AppCompatActivity() {
             btnGo.setOnClickListener {
                 dialog.dismiss()
                 val targetIdInt = adConfig.targetStoreId.toIntOrNull() ?: 0
+
+                // Önbellekteki mağazayı bulmayı dene
                 val store = DataManager.cachedStores.find { it.id == targetIdInt }
+
+                // Her durumda StoreDetailFragment'ı oluştur ve ID'yi gönder
+                val fragment = StoreDetailFragment()
+                val bundle = Bundle()
+
+                // Mağaza ID'sini her zaman bundle'a ekle
+                bundle.putInt("id", targetIdInt)
+
+                // Eğer mağaza önbellekte varsa, diğer bilgileri de ekle
                 if (store != null) {
-                    val fragment = StoreDetailFragment()
-                    val bundle = Bundle()
-                    bundle.putInt("id", store.id)
                     bundle.putString("name", store.name)
                     bundle.putString("image", store.imageUrl)
                     bundle.putString("location", store.location)
-                    fragment.arguments = bundle
-                    loadFragment(fragment)
-                } else {
-                    switchToTab(R.id.nav_stores)
                 }
+                // `store` null olsa bile fragment, ID'yi kullanarak kendi verisini çekebilir.
+
+                fragment.arguments = bundle
+                loadFragment(fragment)
             }
         } else {
             btnGo.visibility = View.GONE

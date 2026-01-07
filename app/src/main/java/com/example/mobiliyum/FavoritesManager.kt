@@ -192,76 +192,72 @@ object FavoritesManager {
     // === FİYAT TAKİBİ (OPTİMİZE - EN ÖNEMLİ KISIM) ===
 
     fun startRealTimePriceAlerts(context: Context) {
+        // 1. Güvenlik ve Ön Kontroller
         val uid = auth.currentUser?.uid ?: run {
-            android.util.Log.e("FavoritesManager", "UID yok!")
+            android.util.Log.e("FavoritesManager", "❌ UID bulunamadı, takip başlatılmadı.")
             return
         }
 
-        // Eski listener'ları temizle
+        // Mevcut dinleyicileri temizle (Memory leak önleme)
         stopAllListeners()
 
         if (localFavorites.isEmpty()) {
-            android.util.Log.d("FavoritesManager", "Favori yok, fiyat takibi başlatılmadı")
+            android.util.Log.d("FavoritesManager", "📭 Favori listesi boş.")
             return
         }
 
         val favoriteIdsList = localFavorites.toList()
+        android.util.Log.d("FavoritesManager", "🔔 Fiyat takibi başlatılıyor: Toplam ${favoriteIdsList.size} ürün")
 
-        android.util.Log.d("FavoritesManager", "🔔 Fiyat takibi başlatılıyor: ${favoriteIdsList.size} ürün")
-
-        // İlk açılışta mevcut fiyatları cache'e al (bildirim gönderme)
-        var isInitialLoad = priceCache.isEmpty()
-
+        // 2. Chunking (Parçalama) İşlemi
+        // Firestore 'whereIn' sorgusu en fazla 10 eleman kabul eder.
+        // Listeyi 10'arlı gruplara bölerek her grup için ayrı listener oluşturuyoruz.
         favoriteIdsList.chunked(10).forEach { chunk ->
+
+            // ⚠️ KRİTİK: Bu değişken döngü içinde olmalı.
+            // Böylece her 10'lu grubun "ilk yüklenme" durumu birbirinden bağımsız yönetilir.
+            var isChunkInitialLoad = true
+
             val listener = db.collection("products")
                 .whereIn("id", chunk)
                 .addSnapshotListener { snapshots, error ->
-                    if (error != null) {
-                        android.util.Log.e("FavoritesManager", "❌ Snapshot hatası: ${error.message}")
+                    if (error != null || snapshots == null) {
+                        android.util.Log.e("FavoritesManager", "❌ Veri dinleme hatası: ${error?.message}")
                         return@addSnapshotListener
                     }
 
-                    if (snapshots == null) {
-                        android.util.Log.e("FavoritesManager", "❌ Snapshot null!")
-                        return@addSnapshotListener
-                    }
-
-                    android.util.Log.d("FavoritesManager", "📦 Snapshot alındı: ${snapshots.documents.size} ürün, ${snapshots.documentChanges.size} değişiklik")
-
-                    // İLK YÜKLEME: Sadece cache'e kaydet
-                    if (isInitialLoad) {
-                        android.util.Log.d("FavoritesManager", "⏳ İlk yükleme - sadece cache'e kaydediliyor")
+                    // 3. İlk Yükleme (Cache Oluşturma)
+                    // Uygulama açıldığında veya favoriler yenilendiğinde bildirim atmaması için.
+                    if (isChunkInitialLoad) {
                         for (doc in snapshots.documents) {
                             val productId = doc.getLong("id")?.toString() ?: continue
                             val currentPriceStr = doc.getString("price") ?: continue
-                            val currentPrice = PriceUtils.parsePrice(currentPriceStr)
 
-                            priceCache[productId] = currentPrice
-                            android.util.Log.d("FavoritesManager", "  💾 Cache: Ürün #$productId = $currentPrice")
+                            // Cache'e sessizce kaydet
+                            priceCache[productId] = PriceUtils.parsePrice(currentPriceStr)
                         }
-                        isInitialLoad = false
+                        isChunkInitialLoad = false // Bu grup için ilk yükleme bitti
                         return@addSnapshotListener
                     }
 
-                    // SONRAKI GÜNCELLEMELER: Sadece değişenleri kontrol et
-                    for (docChange in snapshots.documentChanges) {
-                        val changeType = docChange.type
-                        android.util.Log.d("FavoritesManager", "📝 Değişiklik tipi: $changeType")
-
-                        if (changeType == com.google.firebase.firestore.DocumentChange.Type.MODIFIED) {
-                            val doc = docChange.document
+                    // 4. Değişiklik Yakalama (Gerçek Zamanlı Takip)
+                    for (change in snapshots.documentChanges) {
+                        // Sadece 'MODIFIED' (Güncellenen) verileri kontrol et
+                        if (change.type == com.google.firebase.firestore.DocumentChange.Type.MODIFIED) {
+                            val doc = change.document
                             val productId = doc.getLong("id")?.toString() ?: continue
 
-                            android.util.Log.d("FavoritesManager", "🔄 Ürün #$productId değişti, kontrol ediliyor...")
+                            android.util.Log.d("FavoritesManager", "🔄 Değişiklik algılandı: Ürün #$productId")
+
+                            // Fiyat değişim kontrol fonksiyonunu tetikle
                             checkPriceChange(context, uid, doc)
                         }
                     }
                 }
 
+            // Listener'ı aktif listeye ekle (daha sonra durdurabilmek için)
             activeListeners.add(listener)
         }
-
-        android.util.Log.d("FavoritesManager", "✅ Listener'lar eklendi: ${activeListeners.size} adet")
     }
 
     // checkPriceChange metodunu da düzelt:
@@ -299,31 +295,41 @@ object FavoritesManager {
         // Fiyat düşmediyse işlem yapma
         if (currentPrice >= lastKnownPrice) {
             android.util.Log.d("FavoritesManager", "  ⬆️ Fiyat düşmedi (eşit veya arttı)")
+            // Cache'i GÜNCELLE (yeni fiyat daha yüksek olsa bile)
             priceCache[productId] = currentPrice
             return
         }
 
-        // FIYAT DÜŞTÜ!
+        // ✅ FİYAT DÜŞTÜ!
+        val priceDropAmount = lastKnownPrice - currentPrice
         val priceDropPercent = ((lastKnownPrice - currentPrice) / lastKnownPrice * 100).toInt()
-        android.util.Log.d("FavoritesManager", "  🎉 FİYAT DÜŞTÜ! %$priceDropPercent indirim!")
 
-        // THROTTLING: Son 5 dakikada bildirim atıldıysa tekrar atma
+        android.util.Log.d("FavoritesManager", "  🎉 FİYAT DÜŞTÜ! ${priceDropAmount.toInt()} TL indirim (%$priceDropPercent)")
+
+        // ⚠️ THROTTLING: Son 5 dakikada bildirim atıldıysa tekrar atma
         val now = System.currentTimeMillis()
         val lastNotifTime = lastNotificationTime[productId] ?: 0
 
         if (now - lastNotifTime < NOTIFICATION_COOLDOWN_MS) {
-            android.util.Log.d("FavoritesManager", "  ⏸️ Throttling: Son bildirimden ${(now - lastNotifTime) / 1000}s geçti")
+            val remainingSeconds = (NOTIFICATION_COOLDOWN_MS - (now - lastNotifTime)) / 1000
+            android.util.Log.d("FavoritesManager", "  ⏸️ Throttling: $remainingSeconds saniye daha bekle")
+
+            // ✅ ÖNEMLI: Cache'i güncelle (yoksa bir sonraki kontrol aynı bildirimi tekrar gönderir)
             priceCache[productId] = currentPrice
             return
         }
 
-        // BİLDİRİM GÖNDER
+        // ✅ BİLDİRİM GÖNDER (TL CİNSİNDEN)
         android.util.Log.d("FavoritesManager", "  🔔 BİLDİRİM GÖNDERİLİYOR!")
+
+        val formattedOldPrice = PriceUtils.formatPriceStyled(lastKnownPrice)
+        val formattedNewPrice = PriceUtils.formatPriceStyled(currentPrice)
+        val formattedDrop = PriceUtils.formatPriceStyled(priceDropAmount)
 
         NotificationHelper.sendNotification(
             context,
-            "💰 %$priceDropPercent İndirim!",
-            "$productName fiyatı düştü! ${PriceUtils.formatPriceStyled(currentPrice)}",
+            "💰 ${priceDropAmount.toInt()} TL İndirim!",
+            "$productName\n$formattedOldPrice → $formattedNewPrice\n(${formattedDrop} düştü)",
             "price_alert",
             productId
         )
@@ -353,14 +359,18 @@ object FavoritesManager {
         oldPrice: Double,
         newPrice: Double
     ) {
-        // BATCH kullanarak birden fazla bildirimi tek seferde yaz
         val notifRef = db.collection("users").document(uid)
             .collection("notifications").document()
 
+        val priceDropAmount = oldPrice - newPrice
+        val formattedOldPrice = PriceUtils.formatPriceStyled(oldPrice)
+        val formattedNewPrice = PriceUtils.formatPriceStyled(newPrice)
+        val formattedDrop = PriceUtils.formatPriceStyled(priceDropAmount)
+
         val item = NotificationItem(
             id = notifRef.id,
-            title = "🔥 Fiyat Düştü!",
-            message = "$productName: ${PriceUtils.formatPriceStyled(oldPrice)} → ${PriceUtils.formatPriceStyled(newPrice)}",
+            title = "🔥 ${priceDropAmount.toInt()} TL İndirim!",
+            message = "$productName\n$formattedOldPrice → $formattedNewPrice\n${formattedDrop} düştü!",
             date = Date(),
             type = "price_alert",
             relatedId = productId,
@@ -368,9 +378,11 @@ object FavoritesManager {
         )
 
         notifRef.set(item)
+            .addOnSuccessListener {
+                android.util.Log.d("FavoritesManager", "📝 Bildirim Firestore'a kaydedildi")
+            }
             .addOnFailureListener {
-                // Hata logla ama UI'ı bloklamasın
-                android.util.Log.e("FavoritesManager", "Notification save failed: ${it.message}")
+                android.util.Log.e("FavoritesManager", "❌ Notification save failed: ${it.message}")
             }
     }
 

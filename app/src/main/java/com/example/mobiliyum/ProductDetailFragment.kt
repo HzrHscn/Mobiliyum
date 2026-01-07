@@ -66,7 +66,11 @@ class ProductDetailFragment : Fragment() {
 
         //incrementClickCount() çalışıyordu ancak aşağıdaki gibi değiştirdim sil
 
-        savedInstanceState ?: incrementClickCount()
+        //savedInstanceState ?: incrementClickCount()
+
+        if (savedInstanceState == null) {
+            incrementClickCount()
+        }
 
         binding.rvReviews.layoutManager = LinearLayoutManager(context)
         reviewAdapter = ReviewAdapter()

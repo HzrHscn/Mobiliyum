@@ -108,25 +108,30 @@ object EditorManager {
             .addOnSuccessListener { documents ->
                 if (documents.isEmpty) return@addOnSuccessListener
 
-                val batch = db.batch()
-                for (doc in documents) {
-                    val userId = doc.id
-                    val notifRef = db.collection("users").document(userId)
-                        .collection("notifications").document()
+                // ⚠️ 500'den fazla takipçi varsa batch'lere böl
+                val followerIds = documents.map { it.id }
 
-                    val item = NotificationItem(
-                        id = notifRef.id,
-                        title = "📢 Mağaza Duyurusu",
-                        message = title,
-                        date = Date(),
-                        type = "store_update",
-                        relatedId = storeId.toString(),
-                        senderName = "Mağaza",
-                        isRead = false
-                    )
-                    batch.set(notifRef, item)
+                followerIds.chunked(500).forEach { chunk ->
+                    val batch = db.batch()
+
+                    for (userId in chunk) {
+                        val notifRef = db.collection("users").document(userId)
+                            .collection("notifications").document()
+
+                        val item = NotificationItem(
+                            id = notifRef.id,
+                            title = "📢 Mağaza Duyurusu",
+                            message = title,
+                            date = Date(),
+                            type = "store_update",
+                            relatedId = storeId.toString(),
+                            senderName = "Mağaza",
+                            isRead = false
+                        )
+                        batch.set(notifRef, item)
+                    }
+                    batch.commit()
                 }
-                batch.commit()
             }
     }
 }

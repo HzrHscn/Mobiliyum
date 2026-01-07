@@ -53,10 +53,16 @@ class ProductsFragment : Fragment() {
         }
 
         binding.swipeRefreshLayout.setOnRefreshListener {
-            val prefs = requireContext().getSharedPreferences("AppPrefs", android.content.Context.MODE_PRIVATE)
-            prefs.edit().remove("productsVersion").apply()
-            fetchProducts()
-            binding.swipeRefreshLayout.isRefreshing = false
+//            val prefs = requireContext().getSharedPreferences("AppPrefs", android.content.Context.MODE_PRIVATE)
+//            prefs.edit().remove("productsVersion").apply()
+//            fetchProducts()
+//            binding.swipeRefreshLayout.isRefreshing = false
+            DataManager.syncDataSmart(requireContext()) { success ->
+                binding.swipeRefreshLayout.isRefreshing = false
+                if (success) {
+                    fetchProducts()
+                }
+            }
         }
 
         setupRecyclerView()

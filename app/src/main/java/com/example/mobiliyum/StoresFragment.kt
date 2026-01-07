@@ -137,12 +137,20 @@ class StoresFragment : Fragment() {
 
     @RequiresApi(Build.VERSION_CODES.O)
     private fun fetchStoresFromFirestore() {
+        // Önce DataManager cache'inden al
+        if (DataManager.cachedStores.isNotEmpty()) {
+            allStores.clear()
+            allStores.addAll(DataManager.cachedStores.filter { it.isActive })
+            applyFilterAndSort("")
+            return
+        }
+
+        // Cache boşsa Firestore'dan çek
         db.collection("stores").get()
             .addOnSuccessListener { documents ->
                 allStores.clear()
                 for (document in documents) {
                     val store = document.toObject(Store::class.java)
-                    // Sadece aktif mağazalar (eğer modelinde isActive varsa burayı aç)
                     if (store.isActive) {
                         allStores.add(store)
                     }
@@ -207,7 +215,31 @@ class StoresFragment : Fragment() {
         storeAdapter.submitList(finalResult)
     }
 
+//    private fun recordClick(store: Store) {
+//        val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+//        db.collection("stores").document(store.id.toString()).update(
+//            mapOf(
+//                "clickCount" to FieldValue.increment(1),
+//                "clickHistory.$today" to FieldValue.increment(1)
+//            )
+//        )
+//    }
+
+    private val lastClickTimes = HashMap<Int, Long>()
+
     private fun recordClick(store: Store) {
+        val now = System.currentTimeMillis()
+        val lastClick = lastClickTimes[store.id] ?: 0L
+
+        // 1 dakika içinde aynı mağazaya tıklama sayılmasın
+        if (now - lastClick < 60000) {
+            android.util.Log.d("StoresFragment", "⏭️ Click throttled: ${store.name}")
+            openStoreDetail(store)
+            return
+        }
+
+        lastClickTimes[store.id] = now
+
         val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
         db.collection("stores").document(store.id.toString()).update(
             mapOf(
@@ -215,6 +247,8 @@ class StoresFragment : Fragment() {
                 "clickHistory.$today" to FieldValue.increment(1)
             )
         )
+
+        openStoreDetail(store)
     }
 
     private fun openStoreDetail(store: Store) {
