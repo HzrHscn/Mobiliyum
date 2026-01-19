@@ -13,6 +13,7 @@ import android.widget.Button
 import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.TextView
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.fragment.app.Fragment
 import com.bumptech.glide.Glide
@@ -417,23 +418,34 @@ class MainActivity : AppCompatActivity() {
                 dialog.dismiss()
                 val targetIdInt = adConfig.targetStoreId.toIntOrNull() ?: 0
 
-                // Önbellekteki mağazayı bulmayı dene
+                if (targetIdInt == 0) {
+                    android.util.Log.e("MainActivity", "❌ Geçersiz mağaza ID")
+                    Toast.makeText(this, "Geçersiz mağaza", Toast.LENGTH_SHORT).show()
+                    return@setOnClickListener
+                }
+
+                android.util.Log.d("MainActivity", "🏪 Mağazaya yönlendiriliyor: ID=$targetIdInt")
+
+                // Önbellekteki mağazayı bul
                 val store = DataManager.cachedStores.find { it.id == targetIdInt }
 
-                // Her durumda StoreDetailFragment'ı oluştur ve ID'yi gönder
+                // StoreDetailFragment oluştur
                 val fragment = StoreDetailFragment()
                 val bundle = Bundle()
 
-                // Mağaza ID'sini her zaman bundle'a ekle
+                // ID her zaman gönder
                 bundle.putInt("id", targetIdInt)
 
-                // Eğer mağaza önbellekte varsa, diğer bilgileri de ekle
+                // Eğer cache'de varsa diğer bilgileri de gönder
                 if (store != null) {
+                    android.util.Log.d("MainActivity", "✅ Mağaza cache'de bulundu: ${store.name}")
                     bundle.putString("name", store.name)
                     bundle.putString("image", store.imageUrl)
                     bundle.putString("location", store.location)
+                } else {
+                    android.util.Log.d("MainActivity", "⚠️ Mağaza cache'de yok, fragment Firestore'dan çekecek")
+                    // Fragment kendi verisini çekecek (loadStoreFromFirestore)
                 }
-                // `store` null olsa bile fragment, ID'yi kullanarak kendi verisini çekebilir.
 
                 fragment.arguments = bundle
                 loadFragment(fragment)

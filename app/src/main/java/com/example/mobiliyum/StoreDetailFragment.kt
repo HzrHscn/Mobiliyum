@@ -54,15 +54,27 @@ class StoreDetailFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        binding.tvDetailName.text = storeName
-        binding.tvDetailLocation.text = storeLocation
-
-        if (!storeImage.isNullOrEmpty()) {
-            Glide.with(this)
-                .load(storeImage)
-                .into(binding.imgDetailLogo)
+        // ✅ ÖNCE: ID var mı kontrol et
+        if (storeId == 0) {
+            android.util.Log.e("StoreDetail", "❌ Store ID yok!")
+            Toast.makeText(context, "Mağaza bilgisi bulunamadı", Toast.LENGTH_SHORT).show()
+            parentFragmentManager.popBackStack()
+            return
         }
 
+        android.util.Log.d("StoreDetail", "📂 Mağaza yükleniyor: ID=$storeId")
+
+        // ✅ EĞER bilgiler bundle'dan geldiyse direkt göster
+        if (!storeName.isNullOrEmpty() && !storeImage.isNullOrEmpty() && !storeLocation.isNullOrEmpty()) {
+            android.util.Log.d("StoreDetail", "✅ Bundle'dan bilgiler var, gösteriliyor")
+            displayStoreInfo(storeName!!, storeImage!!, storeLocation!!)
+        } else {
+            // ✅ Bundle'da bilgi yoksa Firestore'dan çek
+            android.util.Log.d("StoreDetail", "🔄 Bundle'da bilgi yok, Firestore'dan çekiliyor...")
+            loadStoreFromFirestore()
+        }
+
+        // Layoutları hazırla
         binding.rvProducts.layoutManager = LinearLayoutManager(context)
         binding.rvUserChoice.layoutManager = GridLayoutManager(context, 2)
         binding.rvStoreChoice.layoutManager = GridLayoutManager(context, 2)
@@ -73,11 +85,11 @@ class StoreDetailFragment : Fragment() {
 
         setupFollowButton()
 
-        if (storeId != 0) {
-            loadStoreProductsFromCache()
-            fetchLatestAnnouncement()
-        }
+        // Ürünleri ve duyuruları yükle
+        loadStoreProductsFromCache()
+        fetchLatestAnnouncement()
 
+        // Duyuru tıklama
         binding.cardStoreAnnouncement.setOnClickListener {
             if (currentAnnouncement != null) {
                 AlertDialog.Builder(context)
@@ -88,17 +100,84 @@ class StoreDetailFragment : Fragment() {
             }
         }
 
+        // Tüm duyurular
         binding.btnSeeAllAnnouncements.setOnClickListener {
             val fragment = StoreAnnouncementsFragment()
             val bundle = Bundle()
             bundle.putString("storeId", storeId.toString())
-            bundle.putString("storeName", storeName)
+            bundle.putString("storeName", storeName ?: "Mağaza")
             fragment.arguments = bundle
             parentFragmentManager.beginTransaction()
                 .replace(R.id.fragmentContainer, fragment)
                 .addToBackStack(null)
                 .commit()
         }
+    }
+
+    private fun loadStoreFromFirestore() {
+        android.util.Log.d("StoreDetail", "🌐 Firestore'dan çekiliyor: stores/$storeId")
+
+        // Loading göster
+        binding.progressBar?.visibility = View.VISIBLE
+
+        db.collection("stores").document(storeId.toString()).get()
+            .addOnSuccessListener { document ->
+                binding.progressBar?.visibility = View.GONE
+
+                if (document.exists()) {
+                    val store = document.toObject(Store::class.java)
+
+                    if (store != null) {
+                        android.util.Log.d("StoreDetail", "✅ Mağaza bulundu: ${store.name}")
+
+                        // Değişkenleri güncelle
+                        storeName = store.name
+                        storeImage = store.imageUrl
+                        storeLocation = store.location
+
+                        // UI'da göster
+                        displayStoreInfo(store.name, store.imageUrl, store.location)
+                    } else {
+                        android.util.Log.e("StoreDetail", "❌ Store objesi null!")
+                        showError("Mağaza bilgisi okunamadı")
+                    }
+                } else {
+                    android.util.Log.e("StoreDetail", "❌ Döküman bulunamadı: stores/$storeId")
+                    showError("Mağaza bulunamadı")
+                }
+            }
+            .addOnFailureListener { e ->
+                binding.progressBar?.visibility = View.GONE
+                android.util.Log.e("StoreDetail", "❌ Firestore hatası: ${e.message}")
+                showError("Bağlantı hatası: ${e.message}")
+            }
+    }
+
+    private fun displayStoreInfo(name: String, imageUrl: String, location: String) {
+        android.util.Log.d("StoreDetail", "🎨 UI güncelleniyor:")
+        android.util.Log.d("StoreDetail", "  📝 İsim: $name")
+        android.util.Log.d("StoreDetail", "  📍 Konum: $location")
+        android.util.Log.d("StoreDetail", "  🖼️ Resim: $imageUrl")
+
+        binding.tvDetailName.text = name
+        binding.tvDetailLocation.text = location
+
+        if (imageUrl.isNotEmpty()) {
+            Glide.with(this)
+                .load(imageUrl)
+                .placeholder(android.R.drawable.ic_menu_gallery)
+                .error(android.R.drawable.stat_notify_error)
+                .into(binding.imgDetailLogo)
+        } else {
+            android.util.Log.w("StoreDetail", "⚠️ Mağaza resmi yok")
+            binding.imgDetailLogo.setImageResource(android.R.drawable.ic_menu_gallery)
+        }
+    }
+
+    private fun showError(message: String) {
+        Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+        // Opsiyonel: Geri dön
+        // parentFragmentManager.popBackStack()
     }
 
     private fun loadStoreProductsFromCache() {

@@ -19,6 +19,13 @@
             android:orientation="vertical"
             android:padding="5dp">
 
+            <ProgressBar
+                android:id="@+id/progressBar"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:visibility="gone" />
+
             <ImageView
                 android:id="@+id/imgDetailLogo"
                 android:layout_width="80dp"
