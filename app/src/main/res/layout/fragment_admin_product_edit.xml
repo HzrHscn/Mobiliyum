@@ -17,7 +17,7 @@
             android:text="Ürün Ekle/Düzenle"
             android:textSize="24sp"
             android:textStyle="bold"
-            android:layout_marginBottom="24dp"/>
+            android:layout_marginBottom="3dp"/>
 
         <EditText
             android:id="@+id/etProductName"
@@ -31,28 +31,28 @@
             android:layout_height="wrap_content"
             android:hint="Fiyat (Örn: 12.500 TL)"
             android:inputType="text"
-            android:layout_marginTop="12dp"/>
+            android:layout_marginTop="3dp"/>
 
         <EditText
             android:id="@+id/etProductCategory"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:hint="Kategori (Yatak Odası, Köşe Takımı vb.)"
-            android:layout_marginTop="12dp"/>
+            android:layout_marginTop="3dp"/>
 
         <EditText
             android:id="@+id/etProductImage"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:hint="Resim URL"
-            android:layout_marginTop="12dp"/>
+            android:layout_marginTop="3dp"/>
 
         <EditText
             android:id="@+id/etProductUrl"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:hint="Ürün URL"
-            android:layout_marginTop="12dp"/>
+            android:layout_marginTop="3dp"/>
 
         <EditText
             android:id="@+id/etProductDesc"
@@ -61,7 +61,7 @@
             android:hint="Ürün Açıklaması"
             android:minLines="3"
             android:gravity="top"
-            android:layout_marginTop="12dp"/>
+            android:layout_marginTop="3dp"/>
 
         <com.google.android.material.switchmaterial.SwitchMaterial
             android:id="@+id/switchProductActive"
@@ -69,20 +69,42 @@
             android:layout_height="wrap_content"
             android:text="Ürün Aktif (Satışta)"
             android:checked="true"
-            android:layout_marginTop="16dp"/>
+            android:layout_marginTop="3dp"/>
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Bağlı Olduğu Mağaza:"
             android:textStyle="bold"
-            android:layout_marginTop="16dp"/>
+            android:layout_marginTop="3dp"/>
+
+        <com.google.android.material.switchmaterial.SwitchMaterial
+            android:id="@+id/switchHasAR"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="AR Desteği Var"
+            android:layout_marginTop="3dp"/>
+
+        <EditText
+            android:id="@+id/etArModelPath"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="AR Model Path (örn: models/chair.glb)"
+            android:layout_marginTop="3dp"/>
+
+        <EditText
+            android:id="@+id/etArScale"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="AR Ölçek (örn: 0.5)"
+            android:inputType="numberDecimal"
+            android:layout_marginTop="3dp"/>
 
         <Spinner
             android:id="@+id/spinnerStores"
             android:layout_width="match_parent"
             android:layout_height="50dp"
-            android:layout_marginTop="8dp"/>
+            android:layout_marginTop="3dp"/>
 
         <Button
             android:id="@+id/btnSaveProduct"
@@ -90,7 +112,7 @@
             android:layout_height="60dp"
             android:text="Kaydet"
             android:backgroundTint="#673AB7"
-            android:layout_marginTop="24dp"/>
+            android:layout_marginTop="3dp"/>
 
         <Button
             android:id="@+id/btnDeleteProduct"
@@ -98,7 +120,7 @@
             android:layout_height="60dp"
             android:text="Ürünü Sil"
             android:backgroundTint="#D32F2F"
-            android:layout_marginTop="12dp"
+            android:layout_marginTop="3dp"
             android:visibility="gone"/>
 
     </LinearLayout>

@@ -50,9 +50,19 @@ class AdminProductEditFragment : Fragment() {
             binding.etProductUrl.setText(currentProduct!!.productUrl)
             binding.etProductDesc.setText(currentProduct!!.description)
             binding.switchProductActive.isChecked = currentProduct!!.isActive
+            binding.switchHasAR.isChecked = currentProduct?.hasArModel ?: false
+            binding.etArModelPath.setText(currentProduct?.arModelUrl ?: "")
+            binding.etArScale.setText(
+                currentProduct?.modelScale?.toString() ?: "1.0"
+            )
         } else {
             binding.tvTitle.text = "Yeni Ürün Ekle"
             binding.switchProductActive.isChecked = true
+        }
+
+        binding.switchHasAR.setOnCheckedChangeListener { _, isChecked ->
+            binding.etArModelPath.isEnabled = isChecked
+            binding.etArScale.isEnabled = isChecked
         }
 
         binding.btnSaveProduct.setOnClickListener { saveProduct() }
@@ -89,6 +99,9 @@ class AdminProductEditFragment : Fragment() {
         val productUrl = binding.etProductUrl.text.toString().trim()
         val description = binding.etProductDesc.text.toString().trim()
         val isActive = binding.switchProductActive.isChecked
+        val hasAR = binding.switchHasAR.isChecked
+        val arModelPath = binding.etArModelPath.text.toString().trim()
+        val arScale = binding.etArScale.text.toString().toFloatOrNull() ?: 1.0f
 
         if (name.isEmpty() || price.isEmpty()) {
             Toast.makeText(context, "Zorunlu alanları doldurun.", Toast.LENGTH_SHORT).show()
@@ -114,6 +127,12 @@ class AdminProductEditFragment : Fragment() {
             description = description,
             storeId = selectedStore.id,
             isActive = isActive,
+
+            // 🔥 AR
+            hasArModel = hasAR,
+            arModelUrl = arModelPath,
+            modelScale = arScale,
+
             lastUpdated = System.currentTimeMillis(),
             rating = (currentProduct?.rating ?: 0f),
             reviewCount = (currentProduct?.reviewCount ?: 0),

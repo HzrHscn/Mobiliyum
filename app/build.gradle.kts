@@ -1,6 +1,7 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.kotlin.compose)
 
     id("com.google.gms.google-services")
 
@@ -39,6 +40,10 @@ android {
     }
     buildFeatures {
         viewBinding = true
+        compose = true
+    }
+    composeOptions {
+        kotlinCompilerExtensionVersion = "1.5.15"
     }
 }
 
@@ -68,4 +73,23 @@ dependencies {
     implementation("com.google.code.gson:gson:2.10.1")
 // Glide (Resim yüklemek için, reklamda lazım olacak)
     implementation("com.github.bumptech.glide:glide:4.16.0")
+
+    // SceneView CORE (ZORUNLU)
+    implementation("io.github.sceneview:sceneview:2.3.3")
+
+    // SceneView AR (ZORUNLU)
+    implementation("io.github.sceneview:arsceneview:2.3.3")
+
+    // ARCore
+    implementation("com.google.ar:core:1.41.0")
+
+    // Compose core
+    implementation("androidx.activity:activity-compose:1.9.0")
+    implementation("androidx.compose.ui:ui:1.6.3")
+    implementation("androidx.compose.material:material:1.6.3")
+    implementation("androidx.compose.ui:ui-tooling-preview:1.6.3")
+
+    debugImplementation("androidx.compose.ui:ui-tooling:1.6.3")
+
+    implementation(platform("org.jetbrains.kotlin:kotlin-bom:2.2.21"))
 }

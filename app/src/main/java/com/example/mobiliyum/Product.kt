@@ -27,6 +27,10 @@ data class Product(
     // YENİ: Son Güncelleme Zamanı (Unix Timestamp)
     val lastUpdated: Long = 0,
 
+    val arModelUrl: String = "",
+    val hasArModel: Boolean = false,
+    val modelScale: Float = 1.0f,
+
     // YENİ: Ürün Aktif mi?
     val isActive: Boolean = true
 

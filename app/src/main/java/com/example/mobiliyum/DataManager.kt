@@ -366,39 +366,40 @@ object DataManager {
 
     fun fetchProductsSmart(
         context: Context,
+        forceRefresh: Boolean = false,
         onSuccess: (ArrayList<Product>) -> Unit,
         onError: (String) -> Unit
     ) {
-        android.util.Log.d(TAG, "📦 fetchProductsSmart çağrıldı")
-
-        // Context'i güvenli tut (Memory Leak önleme)
         val appContext = context.applicationContext
 
-        if (cachedProducts.isNotEmpty()) {
-            android.util.Log.d(TAG, "✅ Cache'den döndürülüyor: ${cachedProducts.size} ürün")
+        if (!forceRefresh && cachedProducts.isNotEmpty()) {
             onSuccess(ArrayList(cachedProducts))
             return
         }
 
-        android.util.Log.d(TAG, "🔄 Cache boş, Firestore'dan çekiliyor...")
-
         firestore.collection("products")
-            .get(Source.CACHE)
-            .addOnSuccessListener { cached ->
-                if (!cached.isEmpty) {
-                    android.util.Log.d(TAG, "✅ Firestore cache'den yüklendi: ${cached.documents.size} ürün")
-                    cachedProducts = ArrayList(cached.toObjects(Product::class.java))
-                    onSuccess(ArrayList(cachedProducts))
-                } else {
-                    android.util.Log.d(TAG, "⚠️ Cache boş, server'dan çekiliyor...")
-                    fetchProductsFromServer(appContext, onSuccess, onError)
+            .get(Source.SERVER)
+            .addOnSuccessListener { docs ->
+                val safeList = ArrayList<Product>()
+
+                docs.documents.forEach { doc ->
+                    val p = doc.toObject(Product::class.java)
+                    if (p != null) {
+                        safeList.add(p)
+                    } else {
+                        Log.e("DATA", "Mapping fail: ${doc.id}")
+                    }
                 }
+
+                cachedProducts = safeList
+                saveToDisk(appContext, FILE_PRODUCTS, cachedProducts)
+                onSuccess(ArrayList(cachedProducts))
             }
             .addOnFailureListener {
-                android.util.Log.e(TAG, "❌ Cache okuma hatası: ${it.message}")
-                fetchProductsFromServer(appContext, onSuccess, onError)
+                onError(it.localizedMessage ?: "Ürün alınamadı")
             }
     }
+
 
     private fun fetchProductsFromServer(
         context: Context,

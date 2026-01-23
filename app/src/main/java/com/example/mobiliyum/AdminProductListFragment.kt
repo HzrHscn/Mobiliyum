@@ -131,9 +131,9 @@ class AdminProductListFragment : Fragment() {
     }
 
     private fun loadProducts() {
-        // HATA GİDERİLDİ: DataManager metoduna parametreler doğru geçiriliyor
         DataManager.fetchProductsSmart(
             requireContext(),
+            forceRefresh = true, // 🔥 admin her zaman güncel görmeli
             onSuccess = { products ->
                 allProducts = ArrayList(products)
                 adapter.updateList(allProducts)

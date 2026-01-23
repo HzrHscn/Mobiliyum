@@ -3,12 +3,14 @@ package com.example.mobiliyum
 import android.app.AlertDialog
 import android.app.Dialog
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.content.res.ColorStateList
 import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
 import android.text.InputFilter
 import android.text.InputType
+import android.util.Log
 import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
@@ -23,6 +25,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
 import com.example.mobiliyum.databinding.FragmentProductDetailBinding
 import com.example.mobiliyum.databinding.ItemReviewBinding
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.textfield.TextInputEditText
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
@@ -150,6 +153,8 @@ class ProductDetailFragment : Fragment() {
             setupReviews()
             binding.btnHideReviews.visibility = View.GONE
         }
+
+        setupArButton()
     }
 
     private fun updateUI(product: Product) {
@@ -393,6 +398,85 @@ class ProductDetailFragment : Fragment() {
         }
         binding.imgCategoryIcon.setImageResource(iconRes)
         binding.imgCategoryIcon.imageTintList = null // TINT SIFIRLAMA (ÖNEMLİ)
+    }
+
+    private fun setupArButton() {
+        val product = currentProduct ?: return
+
+        // AR modeli var mı kontrol et
+        if (product.hasArModel && product.arModelUrl.isNotEmpty()) {
+            Log.d("ProductDetail", "✅ AR modeli var: ${product.arModelUrl}")
+
+            binding.btnViewInAr.visibility = View.VISIBLE
+
+            // ARCore kurulu mu?
+            if (ArHelper.isArCoreInstalled(requireContext())) {
+                binding.btnViewInAr.text = "📱 Evinizde Görün (AR)"
+                binding.btnViewInAr.setOnClickListener {
+                    openArView()
+                }
+            } else {
+                binding.btnViewInAr.text = "📥 ARCore Gerekli"
+                binding.btnViewInAr.setOnClickListener {
+                    showArCoreRequiredDialog()
+                }
+            }
+        } else {
+            Log.d("ProductDetail", "❌ AR modeli yok")
+            binding.btnViewInAr.visibility = View.GONE
+        }
+    }
+
+    // ⚠️ YENİ METOD
+    private fun openArView() {
+        val product = currentProduct ?: return
+
+        // Kamera izni kontrolü
+        if (!ArHelper.hasCameraPermission(requireContext())) {
+            requestPermissions(
+                arrayOf(android.Manifest.permission.CAMERA),
+                100
+            )
+            return
+        }
+
+        // ArActivity'yi başlat
+        val intent = Intent(requireContext(), ArActivity::class.java)
+        intent.putExtra("product_id", product.id)
+        intent.putExtra("product_name", product.name)
+        intent.putExtra("model_path", product.arModelUrl)
+        intent.putExtra("model_scale", product.modelScale)
+
+        startActivity(intent)
+    }
+
+    // ⚠️ YENİ METOD
+    private fun showArCoreRequiredDialog() {
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle("ARCore Gerekli")
+            .setMessage("AR özelliğini kullanmak için Google ARCore uygulamasını yüklemelisiniz.")
+            .setPositiveButton("Yükle") { _, _ ->
+                // Play Store'a yönlendir
+                val intent = Intent(Intent.ACTION_VIEW)
+                intent.data = Uri.parse("market://details?id=com.google.ar.core")
+                startActivity(intent)
+            }
+            .setNegativeButton("İptal", null)
+            .show()
+    }
+
+    // ⚠️ YENİ: İzin sonucu
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+
+        if (requestCode == 100 && grantResults.isNotEmpty() &&
+            grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+            openArView()
+        }
     }
 
     override fun onDestroyView() { super.onDestroyView(); _binding = null }

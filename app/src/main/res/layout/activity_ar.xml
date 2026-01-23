@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent" />
+<!--<?xml version="1.0" encoding="utf-8"?>-->
+<!--<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"-->
+<!--    xmlns:app="http://schemas.android.com/apk/res-auto"-->
+<!--    android:layout_width="match_parent"-->
+<!--    android:layout_height="match_parent"-->
+<!--    android:background="#000000">-->
+
+<!--    &lt;!&ndash; AR Görünümü &ndash;&gt;-->
+<!--    <io.github.sceneview.ar.ArSceneView-->
+<!--        android:id="@+id/arSceneView"-->
+<!--        android:layout_width="match_parent"-->
+<!--        android:layout_height="match_parent" />-->
+
+<!--    &lt;!&ndash; Üst Panel (Bilgilendirme) &ndash;&gt;-->
+<!--    <LinearLayout-->
+<!--        android:id="@+id/topPanel"-->
+<!--        android:layout_width="match_parent"-->
+<!--        android:layout_height="wrap_content"-->
+<!--        android:background="#CC000000"-->
+<!--        android:orientation="vertical"-->
+<!--        android:padding="16dp">-->
+
+<!--        <TextView-->
+<!--            android:id="@+id/tvInstructions"-->
+<!--            android:layout_width="match_parent"-->
+<!--            android:layout_height="wrap_content"-->
+<!--            android:text="Kamerayı zemine çevirin..."-->
+<!--            android:textColor="#FFFFFF"-->
+<!--            android:textSize="16sp"-->
+<!--            android:gravity="center"-->
+<!--            android:paddingBottom="8dp" />-->
+
+<!--        <TextView-->
+<!--            android:id="@+id/tvProductName"-->
+<!--            android:layout_width="match_parent"-->
+<!--            android:layout_height="wrap_content"-->
+<!--            android:text="Ürün Adı"-->
+<!--            android:textColor="#FFFFFF"-->
+<!--            android:textSize="14sp"-->
+<!--            android:gravity="center"-->
+<!--            android:textStyle="bold" />-->
+<!--    </LinearLayout>-->
+
+<!--    &lt;!&ndash; Kapat Butonu &ndash;&gt;-->
+<!--    <ImageButton-->
+<!--        android:id="@+id/btnClose"-->
+<!--        android:layout_width="48dp"-->
+<!--        android:layout_height="48dp"-->
+<!--        android:layout_gravity="top|end"-->
+<!--        android:layout_margin="16dp"-->
+<!--        android:src="@android:drawable/ic_menu_close_clear_cancel"-->
+<!--        android:background="?attr/selectableItemBackgroundBorderless"-->
+<!--        app:tint="#FFFFFF" />-->
+
+<!--    &lt;!&ndash; Alt Panel (Butonlar) &ndash;&gt;-->
+<!--    <LinearLayout-->
+<!--        android:id="@+id/bottomPanel"-->
+<!--        android:layout_width="match_parent"-->
+<!--        android:layout_height="wrap_content"-->
+<!--        android:layout_gravity="bottom"-->
+<!--        android:background="#CC000000"-->
+<!--        android:orientation="vertical"-->
+<!--        android:padding="16dp">-->
+
+<!--        <com.google.android.material.button.MaterialButton-->
+<!--            android:id="@+id/btnPlaceObject"-->
+<!--            android:layout_width="match_parent"-->
+<!--            android:layout_height="wrap_content"-->
+<!--            android:text="📍 Yerleştir"-->
+<!--            android:textSize="18sp"-->
+<!--            android:enabled="false"-->
+<!--            style="@style/Widget.Material3.Button.TonalButton" />-->
+
+<!--        <com.google.android.material.button.MaterialButton-->
+<!--            android:id="@+id/btnResetPosition"-->
+<!--            android:layout_width="match_parent"-->
+<!--            android:layout_height="wrap_content"-->
+<!--            android:text="🔄 Sıfırla"-->
+<!--            android:layout_marginTop="8dp"-->
+<!--            android:visibility="gone"-->
+<!--            style="@style/Widget.Material3.Button.OutlinedButton" />-->
+
+<!--        <TextView-->
+<!--            android:id="@+id/tvHint"-->
+<!--            android:layout_width="match_parent"-->
+<!--            android:layout_height="wrap_content"-->
+<!--            android:text="💡 İpucu: Parmağınızla objeyi hareket ettirebilirsiniz"-->
+<!--            android:textColor="#CCCCCC"-->
+<!--            android:textSize="12sp"-->
+<!--            android:gravity="center"-->
+<!--            android:layout_marginTop="8dp" />-->
+<!--    </LinearLayout>-->
+
+<!--    &lt;!&ndash; Loading &ndash;&gt;-->
+<!--    <ProgressBar-->
+<!--        android:id="@+id/progressBar"-->
+<!--        android:layout_width="wrap_content"-->
+<!--        android:layout_height="wrap_content"-->
+<!--        android:layout_gravity="center"-->
+<!--        android:visibility="visible" />-->
+
+<!--</FrameLayout>-->

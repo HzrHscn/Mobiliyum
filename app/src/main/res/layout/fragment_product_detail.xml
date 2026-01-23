@@ -69,6 +69,16 @@
                                 android:textColor="#616161"
                                 android:textSize="11sp"
                                 android:textStyle="bold" />
+
+                            <com.google.android.material.button.MaterialButton
+                                android:id="@+id/btnViewInAr"
+                                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                                android:layout_width="146dp"
+                                android:layout_height="wrap_content"
+                                android:layout_margin="16dp"
+                                android:text="📱 Evinizde Görün (AR)"
+                                android:visibility="visible"
+                                app:icon="@android:drawable/ic_menu_camera" />
                         </LinearLayout>
 
                         <View
