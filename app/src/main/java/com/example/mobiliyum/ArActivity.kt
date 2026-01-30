@@ -343,7 +343,7 @@ fun ARScreen(
             Button(
                 onClick = {
                     isLocked = !isLocked
-
+                    modelNode?.isPositionEditable = !isLocked
                     // ✅ Model hareket kontrolü
                     modelNode?.let { node ->
                         node.isEditable = !isLocked
@@ -357,7 +357,7 @@ fun ARScreen(
                     }
                 },
                 modifier = Modifier
-                    .align(Alignment.BottomStart)
+                    .align(Alignment.TopCenter)
                     .padding(start = 16.dp, bottom = 200.dp),
                 colors = ButtonDefaults.buttonColors(
                     backgroundColor = if (isLocked) Color(0xFFD32F2F) else Color(0xFF4CAF50)
@@ -441,12 +441,12 @@ fun ARScreen(
                 // Hızlı döndürme - Modern Grid
                 Column(
                     modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
                     // Üst sıra: -90°, -45°
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(2.dp)
                     ) {
                         Button(
                             onClick = {
@@ -481,13 +481,7 @@ fun ARScreen(
                                 fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
                             )
                         }
-                    }
 
-                    // Alt sıra: +45°, +90°
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
                         Button(
                             onClick = {
                                 rotationY = (rotationY + 45f) % 360f
