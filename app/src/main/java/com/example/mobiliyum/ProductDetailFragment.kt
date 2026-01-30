@@ -117,26 +117,52 @@ class ProductDetailFragment : Fragment() {
         }
 
         binding.btnGoToStore.setOnClickListener {
-            // Mağazaya gitmek için cache'den mağazayı bul (Query atma)
-            val storeId = currentProduct!!.storeId
-            val store = DataManager.cachedStores?.find { it.id == storeId }
+            try {
+                // Mağazaya gitmek için cache'den mağazayı bul (Query atma)
+                val storeId = currentProduct!!.storeId
 
-            if (store != null) {
-                val fragment = StoreDetailFragment()
-                val bundle = Bundle()
-                // Tek tek gönderiyoruz (StoreDetailFragment yapısına uygun)
-                bundle.putInt("id", store.id)
-                bundle.putString("name", store.name)
-                bundle.putString("image", store.imageUrl)
-                bundle.putString("location", store.location)
-                fragment.arguments = bundle
+                android.util.Log.d("ProductDetail", "🏪 Mağazaya git tıklandı - Store ID: $storeId")
 
-                parentFragmentManager.beginTransaction()
-                    .replace(R.id.fragmentContainer, fragment)
-                    .addToBackStack(null)
-                    .commit()
-            } else {
-                Toast.makeText(context, "Mağaza bilgisi bulunamadı", Toast.LENGTH_SHORT).show()
+                if (storeId <= 0) {
+                    Toast.makeText(context, "Geçersiz mağaza bilgisi", Toast.LENGTH_SHORT).show()
+                    return@setOnClickListener
+                }
+
+                val store = DataManager.cachedStores?.find { it.id == storeId }
+
+                if (store != null) {
+                    android.util.Log.d("ProductDetail", "✅ Mağaza bulundu: ${store.name}")
+
+                    val fragment = StoreDetailFragment()
+                    val bundle = Bundle()
+                    // Tek tek gönderiyoruz (StoreDetailFragment yapısına uygun)
+                    bundle.putInt("id", store.id)
+                    bundle.putString("name", store.name)
+                    bundle.putString("image", store.imageUrl)
+                    bundle.putString("location", store.location)
+                    fragment.arguments = bundle
+
+                    parentFragmentManager.beginTransaction()
+                        .replace(R.id.fragmentContainer, fragment)
+                        .addToBackStack(null)
+                        .commit()
+                } else {
+                    android.util.Log.e("ProductDetail", "❌ Mağaza cache'de bulunamadı, ID ile yönlendiriliyor")
+
+                    // Cache'de yoksa sadece ID ile gönder, fragment kendi çeksin
+                    val fragment = StoreDetailFragment()
+                    val bundle = Bundle()
+                    bundle.putInt("id", storeId)
+                    fragment.arguments = bundle
+
+                    parentFragmentManager.beginTransaction()
+                        .replace(R.id.fragmentContainer, fragment)
+                        .addToBackStack(null)
+                        .commit()
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("ProductDetail", "❌ Mağazaya git hatası", e)
+                Toast.makeText(context, "Bir hata oluştu: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
             }
         }
 
@@ -169,6 +195,7 @@ class ProductDetailFragment : Fragment() {
         binding.tvRatingCount.text = "(${product.reviewCount} Değerlendirme)"
 
         setupReviews()
+        setupArButton() // ✅ AR butonu her güncelleme sonrası kontrol edilsin
     }
 
     private fun refreshProductData() {
@@ -403,6 +430,8 @@ class ProductDetailFragment : Fragment() {
     private fun setupArButton() {
         val product = currentProduct ?: return
 
+        Log.d("ProductDetail", "🔍 AR Kontrolü - hasArModel: ${product.hasArModel}, arModelUrl: '${product.arModelUrl}'")
+
         // AR modeli var mı kontrol et
         if (product.hasArModel && product.arModelUrl.isNotEmpty()) {
             Log.d("ProductDetail", "✅ AR modeli var: ${product.arModelUrl}")
@@ -416,13 +445,13 @@ class ProductDetailFragment : Fragment() {
                     openArView()
                 }
             } else {
-                binding.btnViewInAr.text = "📥 ARCore Gerekli"
+                binding.btnViewInAr.text = "🔥 ARCore Gerekli"
                 binding.btnViewInAr.setOnClickListener {
                     showArCoreRequiredDialog()
                 }
             }
         } else {
-            Log.d("ProductDetail", "❌ AR modeli yok")
+            Log.d("ProductDetail", "❌ AR modeli yok - hasArModel: ${product.hasArModel}, arModelUrl isEmpty: ${product.arModelUrl.isEmpty()}")
             binding.btnViewInAr.visibility = View.GONE
         }
     }

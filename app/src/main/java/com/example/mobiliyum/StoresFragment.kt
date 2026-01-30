@@ -13,7 +13,6 @@ import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.example.mobiliyum.databinding.FragmentStoresBinding
 import com.google.firebase.firestore.FieldValue
-import com.google.firebase.firestore.FirebaseFirestore
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -21,12 +20,13 @@ import java.util.Locale
 class StoresFragment : Fragment() {
 
     private var _binding: FragmentStoresBinding? = null
+    // Bu satırın hata vermemesi için artık kontrolleri aşağıda yapıyoruz
     private val binding get() = _binding!!
 
     private lateinit var storeAdapter: StoreAdapter
     private var allStores = ArrayList<Store>()
-    //private val db by lazy { FirebaseFirestore.getInstance() }
     private val db by lazy { DataManager.getDb() }
+
     // Adminin belirlediği özel sıralama listesi (Store ID'leri)
     private var customSortOrder = ArrayList<Long>()
 
@@ -54,10 +54,9 @@ class StoresFragment : Fragment() {
         binding.rvStores.setHasFixedSize(true)
 
         storeAdapter = StoreAdapter { selectedStore ->
-            /*recordClick(selectedStore) aşağıdaki ile değiştirildi sil
-            openStoreDetail(selectedStore)*/
-            savedInstanceState ?: recordClick(selectedStore)
-            openStoreDetail(selectedStore)
+            // DÜZELTME: Hem burada hem recordClick içinde openStoreDetail çağırıyordun.
+            // Sadece recordClick çağırmak yeterli, o zaten sonunda detayı açıyor.
+            recordClick(selectedStore)
         }
         binding.rvStores.adapter = storeAdapter
 
@@ -65,7 +64,10 @@ class StoresFragment : Fragment() {
 
         // Önce admin sıralamasını çek, sonra mağazaları yükle
         fetchCustomSortOrder {
-            fetchStoresFromFirestore()
+            // Eğer ekran kapandıysa işlemi durdur
+            if (_binding != null) {
+                fetchStoresFromFirestore()
+            }
         }
     }
 
@@ -80,7 +82,7 @@ class StoresFragment : Fragment() {
         })
 
         // Chip Seçimleri
-        binding.chipGroupEtap.setOnCheckedChangeListener { group, checkedId ->
+        binding.chipGroupEtap.setOnCheckedChangeListener { _, checkedId ->
             currentFilter = when (checkedId) {
                 R.id.chipPopular -> FilterType.POPULAR
                 R.id.chipEtapA -> FilterType.ETAP_A
@@ -89,14 +91,12 @@ class StoresFragment : Fragment() {
             }
 
             // Popüler seçiliyse sıralama butonunu gizle (Admin yönetiyor)
-            // Diğerlerinde göster
             if (currentFilter == FilterType.POPULAR) {
                 binding.btnSortStores.visibility = View.GONE
                 binding.btnSortStores.isEnabled = false
             } else {
                 binding.btnSortStores.visibility = View.VISIBLE
                 binding.btnSortStores.isEnabled = true
-                // Etaplara geçince varsayılan yürüyüş sırasını ayarla
                 currentSort = SortType.WALKING_ORDER
             }
 
@@ -109,6 +109,8 @@ class StoresFragment : Fragment() {
     private fun fetchCustomSortOrder(onComplete: () -> Unit) {
         db.collection("app_settings").document("store_sorting").get()
             .addOnSuccessListener { doc ->
+                if (_binding == null) return@addOnSuccessListener // GÜVENLİK KONTROLÜ
+
                 val ids = doc.get("sortedIds") as? List<Long>
                 if (ids != null) {
                     customSortOrder.clear()
@@ -116,10 +118,14 @@ class StoresFragment : Fragment() {
                 }
                 onComplete()
             }
-            .addOnFailureListener { onComplete() }
+            .addOnFailureListener {
+                if (_binding != null) onComplete() // Hata olsa bile devam et (ama ekran açıksa)
+            }
     }
 
     private fun showSortDialog() {
+        if (_binding == null) return // GÜVENLİK KONTROLÜ
+
         val options = arrayOf("Gezinti Sırası (Giriş -> Üst Kat)", "Alfabetik (A-Z)", "Popülerlik (Tık)")
         AlertDialog.Builder(context)
             .setTitle("Sıralama")
@@ -137,6 +143,9 @@ class StoresFragment : Fragment() {
 
     @RequiresApi(Build.VERSION_CODES.O)
     private fun fetchStoresFromFirestore() {
+        // GÜVENLİK KONTROLÜ: Fragment ölmüşse işlem yapma
+        if (_binding == null) return
+
         // Önce DataManager cache'inden al
         if (DataManager.cachedStores.isNotEmpty()) {
             allStores.clear()
@@ -148,6 +157,9 @@ class StoresFragment : Fragment() {
         // Cache boşsa Firestore'dan çek
         db.collection("stores").get()
             .addOnSuccessListener { documents ->
+                // KRİTİK NOKTA: Burası asenkron. Cevap gelene kadar ekran kapanmış olabilir.
+                if (_binding == null) return@addOnSuccessListener
+
                 allStores.clear()
                 for (document in documents) {
                     val store = document.toObject(Store::class.java)
@@ -160,11 +172,12 @@ class StoresFragment : Fragment() {
     }
 
     private fun applyFilterAndSort(query: String) {
+        // EN ÖNEMLİ KONTROL: View yoksa UI güncellemeye çalışma!
+        if (_binding == null) return
+
         val searchLower = query.lowercase(Locale.getDefault())
 
         // 1. ADIM: ARAMA FİLTRESİ
-        // Sequence kullanarak büyük listelerde performansı artırıyoruz
-        // Eğer query boşsa tüm listeyi, doluysa filtrelenmiş halini alıyoruz
         val filteredList = if (query.isEmpty()) {
             allStores
         } else {
@@ -179,23 +192,17 @@ class StoresFragment : Fragment() {
             // --- POPÜLER (ADMİN VİTRİNİ) ---
             binding.tvSortInfo.text = "Sıralama: Mobiliyum Vitrini"
 
-            // Sadece customSortOrder listesinde olanları al
-            // Sıralama performansını artırmak için ID'leri ve sıralarını bir Map'e alabiliriz
-            // ama mağaza sayısı az olduğu için sortedBy yeterli ve temizdir.
             filteredList
                 .filter { customSortOrder.contains(it.id.toLong()) }
                 .sortedBy { customSortOrder.indexOf(it.id.toLong()) }
         } else {
             // --- ETAPLAR VE DİĞER SIRALAMALAR ---
-
-            // A. Etap Filtreleme
             val etapFiltered = when (currentFilter) {
                 FilterType.ETAP_A -> filteredList.filter { it.etap.equals("A", ignoreCase = true) }
                 FilterType.ETAP_B -> filteredList.filter { it.etap.equals("B", ignoreCase = true) }
-                else -> filteredList // TÜMÜ seçiliyse filtreleme yapma
+                else -> filteredList
             }
 
-            // B. Sıralama Yöntemi
             when (currentSort) {
                 SortType.WALKING_ORDER -> {
                     binding.tvSortInfo.text = "Sıralama: Kat Sırası"
@@ -211,19 +218,9 @@ class StoresFragment : Fragment() {
                 }
             }
         }
-        // ListAdapter List<T> kabul eder, ArrayList zorunlu değildir.
+
         storeAdapter.submitList(finalResult)
     }
-
-//    private fun recordClick(store: Store) {
-//        val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
-//        db.collection("stores").document(store.id.toString()).update(
-//            mapOf(
-//                "clickCount" to FieldValue.increment(1),
-//                "clickHistory.$today" to FieldValue.increment(1)
-//            )
-//        )
-//    }
 
     private val lastClickTimes = HashMap<Int, Long>()
 
@@ -231,7 +228,7 @@ class StoresFragment : Fragment() {
         val now = System.currentTimeMillis()
         val lastClick = lastClickTimes[store.id] ?: 0L
 
-        // 1 dakika içinde aynı mağazaya tıklama sayılmasın
+        // 1 dakika içinde aynı mağazaya tıklama sayılmasın (Throttle)
         if (now - lastClick < 60000) {
             android.util.Log.d("StoresFragment", "⏭️ Click throttled: ${store.name}")
             openStoreDetail(store)
@@ -252,6 +249,9 @@ class StoresFragment : Fragment() {
     }
 
     private fun openStoreDetail(store: Store) {
+        // Güvenlik kontrolü
+        if (_binding == null) return
+
         val detailFragment = StoreDetailFragment()
         val bundle = Bundle()
         bundle.putInt("id", store.id)

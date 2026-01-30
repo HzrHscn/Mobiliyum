@@ -103,10 +103,13 @@ class CartFragment : Fragment() {
             binding.rvSuggestions.isVisible = false
 
             // ✅ ÇÖZÜM: Her seferinde YENİ bir liste referansı oluştur
-            // ArrayList constructor'ı kullanarak tamamen yeni bir nesne
-            cartAdapter?.submitList(ArrayList(items)) {
-                // Scroll pozisyonunu koru (opsiyonel)
-                binding.rvCartItems.scrollToPosition(0)
+            // Deep copy ile tamamen yeni nesneler oluştur
+            val freshList = items.map { it.copy() }
+            cartAdapter?.submitList(freshList) {
+                // List adapter güncellemesi tamamlandıktan sonra
+                binding.rvCartItems.post {
+                    cartAdapter?.notifyDataSetChanged() // Force refresh
+                }
             }
 
             updateTotal()

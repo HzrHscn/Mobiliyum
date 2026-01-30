@@ -62,30 +62,41 @@ class MainActivity : AppCompatActivity() {
 
         // 4. GİRİŞ VE VERİ YÜKLEME
         UserManager.checkSession { isLoggedIn ->
-            if (isLoggedIn) {
-                android.util.Log.d("MainActivity", "✅ Kullanıcı oturum açık")
+            runOnUiThread {
+                try {
+                    if (isLoggedIn) {
+                        android.util.Log.d("MainActivity", "✅ Kullanıcı oturum açık")
 
-                // İlk açılış kontrolü
-                initializeNotificationTracking()
+                        // İlk açılış kontrolü
+                        initializeNotificationTracking()
 
-                FavoritesManager.loadUserFavorites {
-                    android.util.Log.d("MainActivity", "✅ Favoriler yüklendi")
+                        FavoritesManager.loadUserFavorites {
+                            runOnUiThread {
+                                android.util.Log.d("MainActivity", "✅ Favoriler yüklendi")
 
-                    loadFragment(storesFragment, addToBackStack = false)
-                    binding.bottomNavigationView.visibility = View.VISIBLE
-                    binding.bottomNavigationView.selectedItemId = R.id.nav_stores
+                                loadFragment(storesFragment, addToBackStack = false)
+                                binding.bottomNavigationView.visibility = View.VISIBLE
+                                binding.bottomNavigationView.selectedItemId = R.id.nav_stores
 
-                    // Listener'ları başlat
-                    android.util.Log.d("MainActivity", "🔔 Bildirim listener'ları başlatılıyor...")
-                    startNotificationListeners()
+                                // Listener'ları başlat
+                                android.util.Log.d("MainActivity", "🔔 Bildirim listener'ları başlatılıyor...")
+                                startNotificationListeners()
+                            }
+                        }
+
+                        if (intent.getStringExtra("open_fragment") == "notifications") {
+                            loadFragment(notificationsFragment, addToBackStack = false)
+                        }
+                    } else {
+                        android.util.Log.d("MainActivity", "❌ Kullanıcı oturum yok")
+                        loadFragment(welcomeFragment, addToBackStack = false)
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.e("MainActivity", "❌ Giriş hatası: ${e.message}", e)
+                    e.printStackTrace()
+                    // Hata durumunda welcome'a yönlendir
+                    loadFragment(welcomeFragment, addToBackStack = false)
                 }
-
-                if (intent.getStringExtra("open_fragment") == "notifications") {
-                    loadFragment(notificationsFragment, addToBackStack = false)
-                }
-            } else {
-                android.util.Log.d("MainActivity", "❌ Kullanıcı oturum yok")
-                loadFragment(welcomeFragment, addToBackStack = false)
             }
         }
 
