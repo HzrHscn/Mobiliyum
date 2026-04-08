@@ -30,6 +30,7 @@ import com.google.android.material.textfield.TextInputEditText
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import java.util.Date
+import com.google.android.material.tabs.TabLayoutMediator
 
 class ProductDetailFragment : Fragment() {
 
@@ -82,7 +83,7 @@ class ProductDetailFragment : Fragment() {
         // UI Doldur
         updateUI(currentProduct!!)
 
-        binding.imgProductDetail.setOnClickListener { showZoomImageDialog(currentProduct!!.imageUrl) }
+        //binding.imgProductDetail.setOnClickListener { showZoomImageDialog(currentProduct!!.imageUrl) } artık iptal resim farklı seçiyoruz
 
         // SWIPE REFRESH: Sadece bu ürünü yenile (1 Read)
         binding.swipeRefreshProduct.setOnRefreshListener {
@@ -186,7 +187,22 @@ class ProductDetailFragment : Fragment() {
     private fun updateUI(product: Product) {
         binding.tvProductName.text = product.name
         binding.tvProductPrice.text = PriceUtils.formatPriceStyled(product.price)
-        Glide.with(this).load(product.imageUrl).into(binding.imgProductDetail)
+        //Glide.with(this).load(product.imageUrl).into(binding.imgProductDetail) bu iptal resim aşağıdaki fonksiyona döndürdüm
+        // --- YENİ EKLENEN KAYDIRMALI RESİM KODU BAŞLANGICI ---
+        // Geçmiş ürünlerin imageUrls listesi boş olabilir (eski veriler),
+        // Boşsa çökmemesi için eski imageUrl değerini tek elemanlı liste yapıyoruz.
+        val images = if (!product.imageUrls.isNullOrEmpty()) product.imageUrls else listOf(product.imageUrl)
+
+        val imageAdapter = ProductImageAdapter(images) { clickedUrl ->
+            showZoomImageDialog(clickedUrl) // Tıklanınca yine zoom açılacak
+        }
+        binding.viewPagerImages.adapter = imageAdapter
+
+        // Noktalar ile Kaydırıcıyı birbirine bağlıyoruz
+        TabLayoutMediator(binding.tabLayoutDots, binding.viewPagerImages) { tab, position ->
+            // Sekme textine gerek yok, sadece noktacık istiyoruz
+        }.attach()
+        // --- YENİ EKLENEN KAYDIRMALI RESİM KODU BİTİŞİ ---
         setupCategoryIcon(product.category)
         setupDescription(product.description)
 

@@ -19,7 +19,7 @@ data class Product(
     val productUrl: String = "",
     // YENİ EKLENEN ALAN:
     val description: String = "",
-
+    val imageUrls: List<String> = emptyList(), // YENİ: Çoklu resimler için liste
     val priceHistory: HashMap<String, Double> = hashMapOf(),
 
     var quantity: Int = 1,
