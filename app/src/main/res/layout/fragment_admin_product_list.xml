@@ -13,24 +13,41 @@
         app:queryHint="Ürün ara..."
         app:layout_constraintTop_toTopOf="parent"/>
 
-    <com.google.android.material.button.MaterialButton
-        android:id="@+id/btnUploadCsv"
-        android:layout_width="wrap_content"
+    <LinearLayout
+        android:id="@+id/layoutButtons"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="CSV ile Toplu Ekle"
-        android:backgroundTint="#4CAF50"
-        app:icon="@android:drawable/ic_menu_upload"
-        android:layout_marginTop="8dp"
-        android:layout_marginEnd="8dp"
+        android:orientation="horizontal"
         app:layout_constraintTop_toBottomOf="@id/searchViewAdminProduct"
-        app:layout_constraintEnd_toEndOf="parent"/>
+        android:layout_margin="8dp">
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnRefreshDb"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="wrap_content"
+            android:text="Güncelle"
+            android:backgroundTint="#2196F3"
+            app:icon="@android:drawable/ic_popup_sync"
+            android:layout_marginEnd="4dp"/>
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnUploadCsv"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="wrap_content"
+            android:text="CSV Ekle"
+            android:backgroundTint="#4CAF50"
+            app:icon="@android:drawable/ic_menu_upload"
+            android:layout_marginStart="4dp"/>
+    </LinearLayout>
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/rvAdminProductList"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_marginTop="8dp"
-        app:layout_constraintTop_toBottomOf="@id/btnUploadCsv"
+        app:layout_constraintTop_toBottomOf="@id/layoutButtons"
         app:layout_constraintBottom_toBottomOf="parent"/>
 
     <com.google.android.material.floatingactionbutton.FloatingActionButton

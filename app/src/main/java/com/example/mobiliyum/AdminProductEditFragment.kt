@@ -46,7 +46,13 @@ class AdminProductEditFragment : Fragment() {
             binding.etProductName.setText(currentProduct!!.name)
             binding.etProductPrice.setText(currentProduct!!.price)
             binding.etProductCategory.setText(currentProduct!!.category)
-            binding.etProductImage.setText(currentProduct!!.imageUrl)
+            // YENİ: Çoklu resimleri birleştirip yazdırıyoruz
+            val imagesText = if (!currentProduct!!.imageUrls.isNullOrEmpty()) {
+                currentProduct!!.imageUrls.joinToString(", ")
+            } else {
+                currentProduct!!.imageUrl // Eskiden kalma tek resim varsa onu koy
+            }
+            binding.etProductImages.setText(imagesText)
             binding.etProductUrl.setText(currentProduct!!.productUrl)
             binding.etProductDesc.setText(currentProduct!!.description)
             binding.switchProductActive.isChecked = currentProduct!!.isActive
@@ -95,7 +101,10 @@ class AdminProductEditFragment : Fragment() {
         val name = binding.etProductName.text.toString().trim()
         val price = binding.etProductPrice.text.toString().trim()
         val category = binding.etProductCategory.text.toString().trim()
-        val imageUrl = binding.etProductImage.text.toString().trim()
+        // YENİ: Resimleri virgüllerden ayırıp bir liste yapıyoruz
+        val imagesRawText = binding.etProductImages.text.toString().trim()
+        val urlsList = imagesRawText.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+        val coverImage = if (urlsList.isNotEmpty()) urlsList[0] else "" // İlk resim kapak fotoğrafı olsun
         val productUrl = binding.etProductUrl.text.toString().trim()
         val description = binding.etProductDesc.text.toString().trim()
         val isActive = binding.switchProductActive.isChecked
@@ -122,7 +131,9 @@ class AdminProductEditFragment : Fragment() {
             name = name,
             price = price,
             category = category,
-            imageUrl = imageUrl,
+            // YENİ EKLENEN RESİM ALANLARI
+            imageUrl = coverImage,
+            imageUrls = urlsList,
             productUrl = productUrl,
             description = description,
             storeId = selectedStore.id,

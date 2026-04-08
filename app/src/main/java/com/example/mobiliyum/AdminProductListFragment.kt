@@ -54,7 +54,14 @@ class AdminProductListFragment : Fragment() {
         }
         binding.rvAdminProductList.adapter = adapter
 
-        loadProducts()
+        // İLK AÇILIŞ: Sadece Cache'den yükle (Usage = 0)
+        loadProducts(forceRefresh = false)
+
+        // GÜNCELLE BUTONU: Veritabanından taze verileri çek
+        binding.btnRefreshDb.setOnClickListener {
+            Toast.makeText(context, "Veritabanından ürünler çekiliyor...", Toast.LENGTH_SHORT).show()
+            loadProducts(forceRefresh = true)
+        }
 
         binding.fabAddProduct.setOnClickListener {
             parentFragmentManager.beginTransaction().replace(R.id.fragmentContainer, AdminProductEditFragment()).addToBackStack(null).commit()
@@ -123,20 +130,27 @@ class AdminProductListFragment : Fragment() {
             if (count > 0) {
                 batch.commit().addOnSuccessListener {
                     Toast.makeText(context, "$count ürün yüklendi!", Toast.LENGTH_LONG).show()
-                    loadProducts()
+                    loadProducts(forceRefresh = true)
                     DataManager.triggerServerVersionUpdate() // Versiyonu güncelle
                 }
             } else { Toast.makeText(context, "Ürün bulunamadı.", Toast.LENGTH_SHORT).show() }
         } catch (e: Exception) { Toast.makeText(context, "Hata: ${e.localizedMessage}", Toast.LENGTH_SHORT).show() }
     }
 
-    private fun loadProducts() {
+    private fun loadProducts(forceRefresh: Boolean) {
         DataManager.fetchProductsSmart(
             requireContext(),
-            forceRefresh = true, // 🔥 admin her zaman güncel görmeli
+            forceRefresh = forceRefresh,
             onSuccess = { products ->
                 allProducts = ArrayList(products)
                 adapter.updateList(allProducts)
+
+                // Kullanıcıya bilgi verelim
+                if (products.isEmpty() && !forceRefresh) {
+                    Toast.makeText(context, "Önbellekte ürün yok. Lütfen 'Güncelle' butonuna basın.", Toast.LENGTH_LONG).show()
+                } else if (forceRefresh) {
+                    Toast.makeText(context, "Tüm ürünler güncellendi!", Toast.LENGTH_SHORT).show()
+                }
             },
             onError = { Toast.makeText(context, "Hata: $it", Toast.LENGTH_SHORT).show() }
         )

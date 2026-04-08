@@ -41,10 +41,10 @@
             android:layout_marginTop="3dp"/>
 
         <EditText
-            android:id="@+id/etProductImage"
+            android:id="@+id/etProductImages"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="Resim URL"
+            android:hint="Resim URL'leri (Birden fazlaysa aralarına virgül koyun)"
             android:layout_marginTop="3dp"/>
 
         <EditText
