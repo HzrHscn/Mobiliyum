@@ -21,7 +21,7 @@
         android:id="@+id/tvTitle"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Mobiliyum'a Hoşgeldiniz"
+        android:text="MobilyAR'a Hoşgeldiniz"
         android:textColor="#333333"
         android:textSize="24sp"
         android:textStyle="bold"

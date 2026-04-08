@@ -190,7 +190,7 @@ class StoresFragment : Fragment() {
         // 2. ADIM: KATEGORİ/ETAP FİLTRESİ VE SIRALAMA
         val finalResult: List<Store> = if (currentFilter == FilterType.POPULAR) {
             // --- POPÜLER (ADMİN VİTRİNİ) ---
-            binding.tvSortInfo.text = "Sıralama: Mobiliyum Vitrini"
+            binding.tvSortInfo.text = "Sıralama: MobilyAR Vitrini"
 
             filteredList
                 .filter { customSortOrder.contains(it.id.toLong()) }

@@ -23,7 +23,7 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Mobiliyum Giriş"
+                android:text="mobilyAR Giriş"
                 android:textSize="28sp"
                 android:textStyle="bold"
                 android:textColor="#FF6F00"

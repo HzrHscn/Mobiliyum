@@ -18,7 +18,7 @@ object NotificationHelper {
     private const val CHANNEL_PRICE = "price_alerts"
     private const val CHANNEL_STORE = "store_updates"
     private const val CHANNEL_GENERAL = "general_notifications"
-    private const val GROUP_ID = "mobiliyum_group"
+    private const val GROUP_ID = "mobilyAR_group"
 
     private val notificationId = AtomicInteger(0)
 
@@ -29,7 +29,7 @@ object NotificationHelper {
             val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
             // Grup Oluştur
-            val group = NotificationChannelGroup(GROUP_ID, "Mobiliyum Bildirimleri")
+            val group = NotificationChannelGroup(GROUP_ID, "MobilyAR Bildirimleri")
             manager.createNotificationChannelGroup(group)
 
             // 1. Fiyat Bildirimleri
@@ -121,7 +121,7 @@ object NotificationHelper {
 
             if (permission != PackageManager.PERMISSION_GRANTED) {
                 android.util.Log.e("NotificationHelper", "❌ BİLDİRİM İZNİ YOK!")
-                android.util.Log.e("NotificationHelper", "   Ayarlar → Uygulamalar → Mobiliyum → Bildirimler")
+                android.util.Log.e("NotificationHelper", "   Ayarlar → Uygulamalar → MobilyAR → Bildirimler")
                 return
             } else {
                 android.util.Log.d("NotificationHelper", "✅ Bildirim izni VAR")

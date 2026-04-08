@@ -11,7 +11,7 @@ class MobiliyumApp : Application() {
     override fun onCreate() {
         super.onCreate()
 
-        Log.e("APP_TEST", "MobiliyumApp ÇALIŞTI")
+        Log.e("APP_TEST", "MobilyAR ÇALIŞTI")
 
         FirebaseApp.initializeApp(this)
 
@@ -23,7 +23,7 @@ class MobiliyumApp : Application() {
         FirebaseFirestore.getInstance().firestoreSettings = settings
 
         // ⚠️ KRİTİK: Bildirim kanallarını BURADA oluştur
-        android.util.Log.d("MobiliyumApp", "🔔 Bildirim kanalları oluşturuluyor...")
+        android.util.Log.d("MobilyAR", "🔔 Bildirim kanalları oluşturuluyor...")
         NotificationHelper.createNotificationChannels(this)
 
         NetworkMonitor.initialize(this)
