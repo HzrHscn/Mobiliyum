@@ -31,6 +31,13 @@ import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import java.util.Date
 import com.google.android.material.tabs.TabLayoutMediator
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.File
+import java.io.FileOutputStream
+import java.net.URL
 
 class ProductDetailFragment : Fragment() {
 
@@ -443,31 +450,35 @@ class ProductDetailFragment : Fragment() {
         binding.imgCategoryIcon.imageTintList = null // TINT SIFIRLAMA (ÖNEMLİ)
     }
 
+    // ⚠️ YENİ: Modeli silme butonu için UI kontrolü (setupArButton içine eklenebilir)
     private fun setupArButton() {
         val product = currentProduct ?: return
+        // Ürün ID'sini dosya adı yapıyoruz (Unique olması için)
+        val fileName = "model_${product.id}.glb"
+        val localFile = File(requireContext().filesDir, fileName)
 
-        Log.d("ProductDetail", "🔍 AR Kontrolü - hasArModel: ${product.hasArModel}, arModelUrl: '${product.arModelUrl}'")
-
-        // AR modeli var mı kontrol et
         if (product.hasArModel && product.arModelUrl.isNotEmpty()) {
-            Log.d("ProductDetail", "✅ AR modeli var: ${product.arModelUrl}")
-
             binding.btnViewInAr.visibility = View.VISIBLE
 
-            // ARCore kurulu mu?
-            if (ArHelper.isArCoreInstalled(requireContext())) {
-                binding.btnViewInAr.text = "📱 Evinizde Görün (AR)"
-                binding.btnViewInAr.setOnClickListener {
-                    openArView()
-                }
+            // Model varsa silme butonunu göster
+            if (localFile.exists()) {
+                binding.btnDeleteArModel.visibility = View.VISIBLE
+                binding.btnViewInAr.text = "📱 Hazır (AR)"
             } else {
-                binding.btnViewInAr.text = "🔥 ARCore Gerekli"
-                binding.btnViewInAr.setOnClickListener {
-                    showArCoreRequiredDialog()
+                binding.btnDeleteArModel.visibility = View.GONE
+                binding.btnViewInAr.text = "📱 İndir ve Gör (AR)"
+            }
+
+            binding.btnDeleteArModel.setOnClickListener {
+                if (localFile.exists()) {
+                    localFile.delete()
+                    Toast.makeText(context, "Model telefondan silindi.", Toast.LENGTH_SHORT).show()
+                    setupArButton() // UI'yı tazele
                 }
             }
+
+            binding.btnViewInAr.setOnClickListener { openArView() }
         } else {
-            Log.d("ProductDetail", "❌ AR modeli yok - hasArModel: ${product.hasArModel}, arModelUrl isEmpty: ${product.arModelUrl.isEmpty()}")
             binding.btnViewInAr.visibility = View.GONE
         }
     }
@@ -475,21 +486,95 @@ class ProductDetailFragment : Fragment() {
     // ⚠️ YENİ METOD
     private fun openArView() {
         val product = currentProduct ?: return
+        val fileName = "model_${product.id}.glb"
+        // Persistent storage için filesDir kullanıyoruz
+        val localFile = File(requireContext().filesDir, fileName)
 
-        // Kamera izni kontrolü
-        if (!ArHelper.hasCameraPermission(requireContext())) {
-            requestPermissions(
-                arrayOf(android.Manifest.permission.CAMERA),
-                100
-            )
-            return
+        if (localFile.exists()) {
+            launchArActivity(product, localFile.absolutePath)
+        } else {
+            downloadAndLaunchArModel(product.arModelUrl, localFile, product)
+        }
+    }
+
+    // ⚠️ YENİ METOD: Arka planda indirme işlemini yapar
+    private fun downloadAndLaunchArModel(url: String, localFile: File, product: Product) {
+        val progressDialog = AlertDialog.Builder(requireContext())
+            .setTitle("Model İndiriliyor")
+            .setMessage("Hazırlanıyor...")
+            .setCancelable(false)
+            .create()
+
+        val progressBar = ProgressBar(context, null, android.R.attr.progressBarStyleHorizontal).apply {
+            isIndeterminate = false
+            max = 100
+            setPadding(50, 20, 50, 20)
         }
 
-        // ArActivity'yi başlat
+        val tvProgress = TextView(context).apply {
+            text = "0 MB / 0 MB"
+            gravity = Gravity.CENTER
+            setPadding(0, 0, 0, 20)
+        }
+
+        val layout = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            addView(progressBar)
+            addView(tvProgress)
+        }
+        progressDialog.setView(layout)
+        progressDialog.show()
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                val connection = URL(url).openConnection()
+                connection.connect()
+                val fileLength = connection.contentLength
+                val input = connection.getInputStream()
+                val output = FileOutputStream(localFile)
+
+                val data = ByteArray(4096)
+                var total: Long = 0
+                var count: Int
+                while (input.read(data).also { count = it } != -1) {
+                    total += count
+                    if (fileLength > 0) {
+                        val progress = (total * 100 / fileLength).toInt()
+                        val totalMb = String.format("%.2f", fileLength.toDouble() / (1024 * 1024))
+                        val currentMb = String.format("%.2f", total.toDouble() / (1024 * 1024))
+
+                        withContext(Dispatchers.Main) {
+                            progressBar.progress = progress
+                            tvProgress.text = "$currentMb MB / $totalMb MB (%$progress)"
+                        }
+                    }
+                    output.write(data, 0, count)
+                }
+                output.close()
+                input.close()
+
+                withContext(Dispatchers.Main) {
+                    progressDialog.dismiss()
+                    setupArButton() // Butonu "Hazır" yap
+                    launchArActivity(product, localFile.absolutePath)
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    progressDialog.dismiss()
+                    if (localFile.exists()) localFile.delete()
+                    Toast.makeText(context, "Hata: İndirme başarısız!", Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+    }
+
+    // ⚠️ YENİ METOD: AR Ekranına (ArActivity) yönlendirmeyi yapar
+    private fun launchArActivity(product: Product, localModelPath: String) {
         val intent = Intent(requireContext(), ArActivity::class.java)
         intent.putExtra("product_id", product.id)
         intent.putExtra("product_name", product.name)
-        intent.putExtra("model_path", product.arModelUrl)
+        // DİKKAT: Artık web linki (URL) değil, telefonun içindeki (localModelPath) dosya yolunu gönderiyoruz!
+        intent.putExtra("model_path", localModelPath)
         intent.putExtra("model_scale", product.modelScale)
 
         startActivity(intent)

@@ -35,6 +35,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import java.io.File
 
 class ArActivity : ComponentActivity() {
 
@@ -125,39 +126,49 @@ fun ARScreen(
         if (anchorPlaced) return
 
         try {
-            // Anchor oluştur - ORTADA
+            // 1. Zemin üzerine Anchor (çapa) oluştur
             val anchor = plane.createAnchorOrNull(plane.centerPose) ?: return
-
             val newAnchorNode = AnchorNode(engine, anchor)
 
-            // Model oluştur
+            // 2. Dosyayı kontrol et
+            val modelFile = File(modelPath) // modelPath, Fragment'tan gelen absolutePath'dir.
+            if (!modelFile.exists()) {
+                Log.e("ARScreen", "❌ Dosya bulunamadı: $modelPath")
+                showNotification("Hata: Model dosyası telefonda yok!")
+                return
+            }
+
+            Log.d("ARScreen", "📂 Dosya yükleniyor: ${modelFile.absolutePath} (${modelFile.length()} bytes)")
+
+            // 3. MODELİ YÜKLE (Hatanın Çözümü Burası)
+            // FileInputStream yerine doğrudan 'File' nesnesini gönderiyoruz.
+            // İkinci parametre olan "model.glb" stringini siliyoruz çünkü o parametre bir lambda bekliyor.
+            val modelInstance = modelLoader.createModelInstance(modelFile)
+                ?: throw Exception("Model oluşturulamadı, dosya yapısı bozuk olabilir.")
+
             val model = ModelNode(
-                modelInstance = modelLoader.createModelInstance(modelPath),
+                modelInstance = modelInstance,
                 scaleToUnits = initialScale
             ).apply {
-                // Işıklandırma aktif
                 isShadowCaster = true
                 isShadowReceiver = true
-
-                // ✅ Pivot noktasını merkeze al
                 centerOrigin(Position(0f, 0f, 0f))
             }
 
+            // 4. Sahneye ekle
             newAnchorNode.addChildNode(model)
             nodes += newAnchorNode
-
             modelNode = model
             anchorNode = newAnchorNode
             anchorPlaced = true
 
-            // İlk pozisyonu kaydet
-            initialPosition = model.worldPosition
-            initialRotation = 0f
-
             showNotification("✅ Model yerleştirildi")
-            Log.d("ARScreen", "✅ Model yerleştirildi - Scale: $initialScale")
+            Log.d("ARScreen", "🚀 Model başarıyla sahneye eklendi.")
+
         } catch (e: Exception) {
-            Log.e("ARScreen", "❌ Hata: ${e.message}", e)
+            Log.e("ARScreen", "❌ YERLEŞTİRME HATASI: ${e.message}")
+            e.printStackTrace()
+            showNotification("Hata: 3D model dosyası açılamadı!")
         }
     }
 
